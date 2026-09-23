@@ -10,13 +10,13 @@ import '../../../../core/theme/app_colors.dart';
 ///
 /// Pass a list of these through [WebAuthHeader.navItems] when a page needs its
 /// own section links (the public landing page, for example). Leaving
-/// [WebAuthHeader.navItems] null keeps the default About / Support / Contact
-/// set, so the sign-in and registration screens are unaffected.
+/// [WebAuthHeader.navItems] null keeps the default Support / Contact set, so
+/// the sign-in and registration screens are unaffected.
 class WebAuthNavItem {
   final String label;
   final VoidCallback? onTap;
 
-  /// Draws the gold underline permanently — used for the section the visitor
+  /// Draws the gold pill + dot permanently — used for the section the visitor
   /// is currently reading.
   final bool isActive;
 
@@ -29,9 +29,13 @@ class WebAuthNavItem {
 
 /// Premium, modern header for unauthenticated web screens.
 ///
-/// Clean white surface with subtle shadow, animated entrance, hover
+/// Clean light surface with a gold accent hairline, animated entrance, hover
 /// interactions, and no secured / shield badges. One component serves every
 /// public screen — sign in, registration and the landing page.
+///
+/// Pages that supply their own [navItems] (the landing page) additionally get
+/// the slim utility ribbon above the brand row; auth screens keep the plain
+/// bar so they stay focused on the form.
 class WebAuthHeader extends StatefulWidget {
   final bool showRegisterAction;
 
@@ -44,13 +48,17 @@ class WebAuthHeader extends StatefulWidget {
   /// Text of the outlined sign-in button.
   final String signInLabel;
 
-  /// Section links. Null keeps the default About / Support / Contact links.
+  /// Section links. Null keeps the default Support / Contact links.
   final List<WebAuthNavItem>? navItems;
 
   /// Below 860px a menu button replaces the links; the page renders its own
   /// panel beneath the header when the callback fires.
   final VoidCallback? onCompactMenuTap;
   final bool compactMenuOpen;
+
+  /// Tapping the brand lockup. The landing page uses it to glide back to the
+  /// top of the page; null keeps the lockup inert.
+  final VoidCallback? onBrandTap;
 
   const WebAuthHeader({
     super.key,
@@ -61,6 +69,7 @@ class WebAuthHeader extends StatefulWidget {
     this.navItems,
     this.onCompactMenuTap,
     this.compactMenuOpen = false,
+    this.onBrandTap,
   });
 
   @override
@@ -99,8 +108,11 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
     final isMedium = width >= 640 && width < 860;
     final items = widget.navItems;
 
+    // Pages that bring their own section links get the marketing chrome.
+    final landing = items != null;
+
     // Narrow layouts swap the section links for a menu button.
-    final menuButton = items != null && widget.onCompactMenuTap != null
+    final menuButton = landing && widget.onCompactMenuTap != null
         ? _CompactMenuButton(
             open: widget.compactMenuOpen,
             onTap: widget.onCompactMenuTap!,
@@ -111,99 +123,142 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
       opacity: _fade,
       child: SlideTransition(
         position: _slide,
-        child: Container(
-          height: 68,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            border: const Border(
-              bottom: BorderSide(color: Color(0xFFE9E9EE), width: 1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AppColors.deepNavy.withValues(alpha: 0.04),
-                blurRadius: 16,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1160),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: isCompact ? 16 : 24),
-                child: Row(
-                  children: [
-                    _BrandLockup(isCompact: isCompact),
-                    const Spacer(),
-                    if (!isCompact && !isMedium) ...[
-                      if (items != null)
-                        for (final item in items) ...[
-                          _NavLink(
-                            label: item.label,
-                            active: item.isActive,
-                            onTap: item.onTap ?? () {},
-                          ),
-                          const SizedBox(width: 4),
-                        ]
-                      else ...[
-                        // Ang "About" (placeholder na nagpapakita ng
-                        // "— coming soon") ay inalis — inutos ng user na WALANG
-                        // "Coming Soon" sa public na web pages.
-                        _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
-                        const SizedBox(width: 4),
-                        _NavLink(label: 'Contact', onTap: () => _showContactSheet(context)),
-                      ],
-                      const SizedBox(width: 16),
-                      if (widget.showSignInAction) ...[
-                        _CtaButton(
-                          showRegister: false,
-                          label: widget.signInLabel,
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                      if (widget.showRegisterAction)
-                        _CtaButton(
-                          showRegister: true,
-                          label: widget.registerLabel,
-                        ),
-                    ] else if (isMedium) ...[
-                      if (items == null) ...[
-                        _NavLink(label: 'Support', onTap: () => _showSupportSheet(context)),
-                        const SizedBox(width: 12),
-                      ],
-                      if (widget.showSignInAction) ...[
-                        _CtaButton(
-                          showRegister: false,
-                          label: widget.signInLabel,
-                          compact: true,
-                        ),
-                        const SizedBox(width: 8),
-                      ],
-                      if (widget.showRegisterAction)
-                        _CtaButton(
-                          showRegister: true,
-                          label: widget.registerLabel,
-                          compact: true,
-                        ),
-                      if (menuButton != null) ...[
-                        const SizedBox(width: 8),
-                        menuButton,
-                      ],
-                    ] else if (menuButton != null) ...[
-                      // compact, page-managed links: the menu carries the CTAs,
-                      // so the bar itself only needs the button.
-                      menuButton,
-                    ] else ...[
-                      // compact: only CTA
-                      if (widget.showRegisterAction)
-                        _CompactCta(label: widget.registerLabel),
-                    ],
-                  ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (landing)
+              _HeaderRibbon(onContact: () => _showContactSheet(context)),
+            Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Colors.white, Color(0xFFFBFCFE)],
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.deepNavy.withValues(alpha: 0.055),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    height: 68,
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 1160),
+                        child: Padding(
+                          padding:
+                              EdgeInsets.symmetric(horizontal: isCompact ? 16 : 24),
+                          child: Row(
+                            children: [
+                              _BrandLockup(
+                                isCompact: isCompact,
+                                onTap: widget.onBrandTap,
+                              ),
+                              const Spacer(),
+                              if (!isCompact && !isMedium) ...[
+                                if (items != null)
+                                  for (final item in items) ...[
+                                    _NavLink(
+                                      label: item.label,
+                                      active: item.isActive,
+                                      onTap: item.onTap ?? () {},
+                                    ),
+                                    const SizedBox(width: 4),
+                                  ]
+                                else ...[
+                                  // Ang "About" (placeholder na nagpapakita ng
+                                  // "— coming soon") ay inalis — inutos ng user
+                                  // na WALANG "Coming Soon" sa public na web
+                                  // pages.
+                                  _NavLink(
+                                      label: 'Support',
+                                      onTap: () => _showSupportSheet(context)),
+                                  const SizedBox(width: 4),
+                                  _NavLink(
+                                      label: 'Contact',
+                                      onTap: () => _showContactSheet(context)),
+                                ],
+                                const SizedBox(width: 16),
+                                if (widget.showSignInAction) ...[
+                                  _CtaButton(
+                                    showRegister: false,
+                                    label: widget.signInLabel,
+                                  ),
+                                  const SizedBox(width: 10),
+                                ],
+                                if (widget.showRegisterAction)
+                                  _CtaButton(
+                                    showRegister: true,
+                                    label: widget.registerLabel,
+                                    rich: landing,
+                                  ),
+                              ] else if (isMedium) ...[
+                                if (items == null) ...[
+                                  _NavLink(
+                                      label: 'Support',
+                                      onTap: () => _showSupportSheet(context)),
+                                  const SizedBox(width: 12),
+                                ],
+                                if (widget.showSignInAction) ...[
+                                  _CtaButton(
+                                    showRegister: false,
+                                    label: widget.signInLabel,
+                                    compact: true,
+                                  ),
+                                  const SizedBox(width: 8),
+                                ],
+                                if (widget.showRegisterAction)
+                                  _CtaButton(
+                                    showRegister: true,
+                                    label: widget.registerLabel,
+                                    compact: true,
+                                    rich: landing,
+                                  ),
+                                if (menuButton != null) ...[
+                                  const SizedBox(width: 8),
+                                  menuButton,
+                                ],
+                              ] else if (menuButton != null) ...[
+                                // compact, page-managed links: the menu carries
+                                // the CTAs, so the bar only needs the button.
+                                menuButton,
+                              ] else ...[
+                                // compact: only CTA
+                                if (widget.showRegisterAction)
+                                  _CompactCta(label: widget.registerLabel),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  // Definition line + centered gold accent — replaces the old
+                  // flat grey border.
+                  Container(height: 1, color: const Color(0xFFEDEFF4)),
+                  Container(
+                    height: 2,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          AppColors.gold.withValues(alpha: 0.55),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
@@ -278,6 +333,150 @@ class _WebAuthHeaderState extends State<WebAuthHeader>
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Utility ribbon (landing only)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Slim navy strip above the brand row.
+///
+/// Marketing chrome: it states the regulated-lending trust line and gives the
+/// public site a one-tap route to the support/contact sheet. Auth screens skip
+/// it entirely, so they keep a single focused bar.
+class _HeaderRibbon extends StatelessWidget {
+  final VoidCallback onContact;
+
+  const _HeaderRibbon({required this.onContact});
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final compact = width < 720;
+    final showPhone = width >= 1024;
+
+    return Container(
+      width: double.infinity,
+      height: 34,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF08111C), Color(0xFF14304F), Color(0xFF08111C)],
+        ),
+      ),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1160),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: compact ? 16 : 24),
+            child: Row(
+              children: [
+                const Icon(
+                  Icons.verified_rounded,
+                  size: 13,
+                  color: AppColors.goldLight,
+                ),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    compact
+                        ? 'Trusted since 1966 · SEC-registered'
+                        : 'SEC-registered lending corporation',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      color: Color(0xFFD7DEE8),
+                    ),
+                  ),
+                ),
+                if (!compact) ...[
+                  const SizedBox(width: 14),
+                  Text(
+                    'Trusted since 1966',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.5,
+                      color: Colors.white.withValues(alpha: 0.52),
+                    ),
+                  ),
+                  const Spacer(),
+                  _RibbonAction(
+                    icon: Icons.mail_outline_rounded,
+                    label: 'support@jireta.com',
+                    onTap: onContact,
+                  ),
+                  if (showPhone) ...[
+                    const SizedBox(width: 16),
+                    _RibbonAction(
+                      icon: Icons.phone_outlined,
+                      label: '(02) 8XXX-XXXX',
+                      onTap: onContact,
+                    ),
+                  ],
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RibbonAction extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _RibbonAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  State<_RibbonAction> createState() => _RibbonActionState();
+}
+
+class _RibbonActionState extends State<_RibbonAction> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 160),
+          opacity: _hovered ? 1 : 0.8,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(widget.icon, size: 12.5, color: AppColors.goldLight),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
+                  color: Color(0xFFD7DEE8),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _ContactRow extends StatelessWidget {
   final IconData icon;
   final String text;
@@ -298,64 +497,134 @@ class _ContactRow extends StatelessWidget {
   }
 }
 
-class _BrandLockup extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────────────────────
+// Brand lockup
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _BrandLockup extends StatefulWidget {
   final bool isCompact;
-  const _BrandLockup({required this.isCompact});
+  final VoidCallback? onTap;
+
+  const _BrandLockup({required this.isCompact, this.onTap});
+
+  @override
+  State<_BrandLockup> createState() => _BrandLockupState();
+}
+
+class _BrandLockupState extends State<_BrandLockup> {
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Logo with soft shadow — premium
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            border: Border.all(color: AppColors.gold.withValues(alpha: 0.95), width: 1.6),
-            boxShadow: [
-              BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3)),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Image.asset(
-            AssetConstants.logoJpg,
-            fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => const Icon(Icons.account_balance_rounded, color: AppColors.deepNavy, size: 18),
-          ),
-        ),
-        const SizedBox(width: 11),
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final onTap = widget.onTap;
+
+    return MouseRegion(
+      cursor:
+          onTap != null ? SystemMouseCursors.click : SystemMouseCursors.basic,
+      onEnter: onTap == null ? null : (_) => setState(() => _hovered = true),
+      onExit: onTap == null ? null : (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'JIRETA',
-              style: TextStyle(
-                fontFamily: 'PlayfairDisplay',
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-                color: AppColors.deepNavy,
-                letterSpacing: 2.4,
-                height: 1,
+            // Gold gradient ring with the logo inside — premium brand mark.
+            AnimatedScale(
+              scale: _hovered ? 1.05 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: Container(
+                width: 40,
+                height: 40,
+                padding: const EdgeInsets.all(1.7),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.goldLight,
+                      AppColors.gold,
+                      AppColors.goldDark,
+                    ],
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.deepNavy
+                          .withValues(alpha: _hovered ? 0.16 : 0.08),
+                      blurRadius: _hovered ? 14 : 10,
+                      offset: const Offset(0, 3),
+                    ),
+                    BoxShadow(
+                      color: AppColors.gold
+                          .withValues(alpha: _hovered ? 0.32 : 0.14),
+                      blurRadius: 12,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Container(
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Image.asset(
+                    AssetConstants.logoJpg,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(
+                      Icons.account_balance_rounded,
+                      color: AppColors.deepNavy,
+                      size: 17,
+                    ),
+                  ),
+                ),
               ),
             ),
-            const SizedBox(height: 3),
-            // Ang gintong "——" na linya sa unahan ng subtitle ay inalis
-            // (inutos ng user) — ang teksto na lang ang natitira sa ilalim
-            // ng "JIRETA".
-            Text(
-              isCompact ? 'LOANS & CREDIT · 1966' : 'LOANS & CREDIT CORP · 1966',
-              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: AppColors.textSecondary, letterSpacing: 1.35),
+            const SizedBox(width: 11),
+            Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'JIRETA',
+                  style: TextStyle(
+                    fontFamily: 'PlayfairDisplay',
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy,
+                    letterSpacing: 2.4,
+                    height: 1,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                // Ang gintong "——" na linya sa unahan ng subtitle ay inalis
+                // (inutos ng user) — ang teksto na lang ang natitira sa ilalim
+                // ng "JIRETA".
+                Text(
+                  widget.isCompact
+                      ? 'LOANS & CREDIT · 1966'
+                      : 'LOANS & CREDIT CORP · 1966',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                    letterSpacing: 1.35,
+                  ),
+                ),
+              ],
             ),
           ],
         ),
-      ],
+      ),
     );
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Navigation link
+// ─────────────────────────────────────────────────────────────────────────────
 
 class _NavLink extends StatefulWidget {
   final String label;
@@ -372,9 +641,12 @@ class _NavLink extends StatefulWidget {
 
 class _NavLinkState extends State<_NavLink> {
   bool _hovered = false;
+
   @override
   Widget build(BuildContext context) {
-    final highlighted = _hovered || widget.active;
+    final active = widget.active;
+    final highlighted = _hovered || active;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
@@ -382,31 +654,53 @@ class _NavLinkState extends State<_NavLink> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
           decoration: BoxDecoration(
-            color: _hovered ? AppColors.deepNavy.withValues(alpha: 0.06) : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            color: active
+                ? AppColors.gold.withValues(alpha: 0.12)
+                : (_hovered
+                    ? AppColors.deepNavy.withValues(alpha: 0.055)
+                    : Colors.transparent),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(
+              color: active
+                  ? AppColors.gold.withValues(alpha: 0.55)
+                  : Colors.transparent,
+            ),
           ),
-          child: Column(
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Gold status dot — grows in on hover / while the section is
+              // active, replacing the old static underline.
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                width: highlighted ? 6 : 0,
+                height: 6,
+                margin: EdgeInsets.only(right: highlighted ? 7 : 0),
+                decoration: BoxDecoration(
+                  color: AppColors.gold,
+                  shape: BoxShape.circle,
+                  boxShadow: highlighted
+                      ? [
+                          BoxShadow(
+                            color: AppColors.gold.withValues(alpha: 0.5),
+                            blurRadius: 6,
+                          ),
+                        ]
+                      : null,
+                ),
+              ),
               Text(
                 widget.label,
                 style: TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: highlighted
-                      ? AppColors.deepNavy
-                      : AppColors.textSecondary,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w600,
+                  color:
+                      highlighted ? AppColors.deepNavy : AppColors.textSecondary,
                 ),
-              ),
-              const SizedBox(height: 2),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                height: 2,
-                width: highlighted ? 16 : 0,
-                decoration: BoxDecoration(color: AppColors.gold, borderRadius: BorderRadius.circular(1)),
               ),
             ],
           ),
@@ -416,14 +710,23 @@ class _NavLinkState extends State<_NavLink> {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CTAs
+// ─────────────────────────────────────────────────────────────────────────────
+
 class _CtaButton extends StatefulWidget {
   final bool showRegister;
   final bool compact;
   final String? label;
+
+  /// Landing chrome: adds the arrow that slides on hover to the filled CTA.
+  final bool rich;
+
   const _CtaButton({
     required this.showRegister,
     this.compact = false,
     this.label,
+    this.rich = false,
   });
   @override
   State<_CtaButton> createState() => _CtaButtonState();
@@ -431,42 +734,94 @@ class _CtaButton extends StatefulWidget {
 
 class _CtaButtonState extends State<_CtaButton> {
   bool _hovered = false;
+
   @override
   Widget build(BuildContext context) {
     if (!widget.showRegister) {
       return MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
         child: AnimatedScale(
           scale: _hovered ? 1.02 : 1.0,
           duration: const Duration(milliseconds: 140),
-          child: OutlinedButton(
-            onPressed: () => context.go(RouteConstants.webLogin),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.deepNavy,
-              side: const BorderSide(color: AppColors.deepNavy, width: 1.4),
-              padding: EdgeInsets.symmetric(horizontal: widget.compact ? 14 : 18, vertical: 10),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            decoration: BoxDecoration(
+              color: _hovered
+                  ? AppColors.deepNavy.withValues(alpha: 0.05)
+                  : Colors.transparent,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _hovered
+                    ? AppColors.gold
+                    : AppColors.deepNavy.withValues(alpha: 0.4),
+                width: 1.4,
+              ),
             ),
-            child: Text(widget.label ?? 'Sign in', style: TextStyle(fontSize: widget.compact ? 12.5 : 13, fontWeight: FontWeight.w700)),
+            child: OutlinedButton(
+              onPressed: () => context.go(RouteConstants.webLogin),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.deepNavy,
+                side: BorderSide.none,
+                padding: EdgeInsets.symmetric(
+                  horizontal: widget.compact ? 14 : 18,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+              ),
+              child: Text(
+                widget.label ?? 'Sign in',
+                style: TextStyle(
+                  fontSize: widget.compact ? 12.5 : 13,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ),
         ),
       );
     }
+
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
       onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
       child: AnimatedScale(
         scale: _hovered ? 1.02 : 1.0,
         duration: const Duration(milliseconds: 140),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 160),
           decoration: BoxDecoration(
-            color: AppColors.deepNavy,
+            // Navy gradient fill + gold glow on hover.
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF17304E), AppColors.deepNavy],
+            ),
             borderRadius: BorderRadius.circular(10),
             boxShadow: _hovered
-                ? [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.20), blurRadius: 14, offset: const Offset(0, 6))]
-                : [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.10), blurRadius: 8, offset: const Offset(0, 3))],
+                ? [
+                    BoxShadow(
+                      color: AppColors.gold.withValues(alpha: 0.32),
+                      blurRadius: 18,
+                      offset: const Offset(0, 6),
+                    ),
+                    BoxShadow(
+                      color: AppColors.deepNavy.withValues(alpha: 0.18),
+                      blurRadius: 12,
+                      offset: const Offset(0, 5),
+                    ),
+                  ]
+                : [
+                    BoxShadow(
+                      color: AppColors.deepNavy.withValues(alpha: 0.12),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
           ),
           child: ElevatedButton(
             onPressed: () => context.go(RouteConstants.webRegister),
@@ -475,10 +830,36 @@ class _CtaButtonState extends State<_CtaButton> {
               foregroundColor: Colors.white,
               shadowColor: Colors.transparent,
               elevation: 0,
-              padding: EdgeInsets.symmetric(horizontal: widget.compact ? 16 : 20, vertical: 11),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              padding: EdgeInsets.symmetric(
+                horizontal: widget.compact ? 16 : 20,
+                vertical: 11,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: Text(widget.label ?? 'Sign up', style: TextStyle(fontSize: widget.compact ? 12.5 : 13, fontWeight: FontWeight.w700, letterSpacing: 0.1)),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.label ?? 'Sign up',
+                  style: TextStyle(
+                    fontSize: widget.compact ? 12.5 : 13,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.1,
+                  ),
+                ),
+                if (widget.rich) ...[
+                  const SizedBox(width: 6),
+                  AnimatedSlide(
+                    offset: _hovered ? const Offset(0.2, 0) : Offset.zero,
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOutCubic,
+                    child: const Icon(Icons.arrow_forward_rounded, size: 15),
+                  ),
+                ],
+              ],
+            ),
           ),
         ),
       ),
@@ -494,33 +875,62 @@ class _CompactCta extends StatefulWidget {
 }
 
 /// Menu button shown below the tablet breakpoint when the page supplies its
-/// own section links.
-class _CompactMenuButton extends StatelessWidget {
+/// own section links. The icon rotates between the hamburger and the close
+/// cross instead of swapping instantly.
+class _CompactMenuButton extends StatefulWidget {
   final bool open;
   final VoidCallback onTap;
 
   const _CompactMenuButton({required this.open, required this.onTap});
 
   @override
+  State<_CompactMenuButton> createState() => _CompactMenuButtonState();
+}
+
+class _CompactMenuButtonState extends State<_CompactMenuButton> {
+  bool _hovered = false;
+
+  @override
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: open ? 'Close menu' : 'Open menu',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: open ? AppColors.deepNavy.withValues(alpha: 0.06) : Colors.white,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE9E9EE)),
-          ),
-          child: Icon(
-            open ? Icons.close_rounded : Icons.menu_rounded,
-            size: 20,
-            color: AppColors.deepNavy,
+      label: widget.open ? 'Close menu' : 'Open menu',
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: widget.open || _hovered
+                  ? AppColors.deepNavy.withValues(alpha: 0.06)
+                  : Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: _hovered
+                    ? AppColors.gold.withValues(alpha: 0.6)
+                    : const Color(0xFFE9E9EE),
+              ),
+            ),
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                transitionBuilder: (child, animation) => RotationTransition(
+                  turns: Tween<double>(begin: 0.72, end: 1).animate(animation),
+                  child: FadeTransition(opacity: animation, child: child),
+                ),
+                child: Icon(
+                  widget.open ? Icons.close_rounded : Icons.menu_rounded,
+                  key: ValueKey<bool>(widget.open),
+                  size: 20,
+                  color: AppColors.deepNavy,
+                ),
+              ),
+            ),
           ),
         ),
       ),

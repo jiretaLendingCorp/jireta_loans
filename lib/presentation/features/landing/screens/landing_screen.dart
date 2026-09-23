@@ -215,6 +215,9 @@ class _LandingScreenState extends State<LandingScreen> {
           ],
           showSignInAction: true,
           registerLabel: 'Get Started',
+          // Tapping the brand glides back to the top of the page, like the
+          // "Home" link does.
+          onBrandTap: () => _selectSection(0),
           onCompactMenuTap: () => setState(() => _menuOpen = !_menuOpen),
           compactMenuOpen: _menuOpen,
         ),

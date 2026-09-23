@@ -36,13 +36,10 @@ class LandingMobileMenu extends StatelessWidget {
         LandingBreakpoints.gutter(width),
         4,
         LandingBreakpoints.gutter(width),
-        20,
+        0,
       ),
       decoration: BoxDecoration(
         color: Colors.white,
-        border: const Border(
-          bottom: BorderSide(color: Color(0xFFE9E9EE)),
-        ),
         boxShadow: [
           BoxShadow(
             color: AppColors.deepNavy.withValues(alpha: 0.08),
@@ -68,6 +65,21 @@ class LandingMobileMenu extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           LandingGhostButton(label: 'Sign In', onTap: onSignIn),
+          const SizedBox(height: 18),
+          // Same gold hairline the header bar closes with, so the panel reads
+          // as one piece of chrome with it.
+          Container(
+            height: 2,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.transparent,
+                  AppColors.gold.withValues(alpha: 0.55),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
