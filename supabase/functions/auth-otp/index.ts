@@ -11,7 +11,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
-import { getAdminClient } from '../_shared/db.ts';
+import { getAdminClient, getAnonClient } from '../_shared/db.ts';
 import { validatePhone, sanitizeString } from '../_shared/validators.ts';
 import { sendSms } from '../_shared/sms.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
@@ -459,10 +459,32 @@ async function handleVerifyOtp(req: Request) {
   const phoneE164 = toE164(phone);
   const tempEmail = `${phone}@jireta.temp`;
 
+  // ── Mga email na susubukang credential ────────────────────────────────────
+  // Panimula: ang synthetic credential ng account na `${phone}@jireta.temp`.
+  // Sa fallback sa ibaba, IDINADAGDAG ang TOTOONG email ng auth user —
+  // kailangan iyon kapag (a) binago ang numero kaya lumang
+  // `${oldPhone}@jireta.temp` pa ang nasa credential, o (b) NAKA-DISABLE ang
+  // Phone provider ng project ("Phone logins are disabled") — doon ang email
+  // lang ang tanging paraan ng pagpasok, kaya hindi puwedeng laging
+  // `${phone}@jireta.temp` lang ang sinusubukan.
+  const credentialEmails = new Set<string>();
+  if (tempEmail) credentialEmails.add(tempEmail);
+
+  // ── HIWALAY na client para sa sign-in ────────────────────────────────────
+  // Ang `db` ay SERVICE-ROLE client. Kapag dito nag-`signInWithPassword`, itinatabi
+  // ng supabase-js ang session ng user SA client na iyon (`_getAccessToken()` →
+  // session token), kaya ang LAHAT ng kasunod na `.from()` / `.rpc()` ay
+  // tumatakbo na bilang `authenticated` — kasama ang
+  // `rpc('claim_active_session')`, na service-role-LANG ang grant:
+  // "permission denied for function claim_active_session" (42501) → degraded
+  // → hindi kailanman na-a-claim ang session sa OTP login.
+  const signInClient = getAnonClient();
+
   const trySignIn = async (password: string) => {
     const attempts = [
-      () => db.auth.signInWithPassword({ phone: phoneE164, password }),
-      () => db.auth.signInWithPassword({ email: tempEmail, password }),
+      () => signInClient.auth.signInWithPassword({ phone: phoneE164, password }),
+      ...[...credentialEmails].map((email) => () =>
+        signInClient.auth.signInWithPassword({ email, password })),
     ];
     for (const attempt of attempts) {
       const { data, error } = await attempt().catch((e) => {
@@ -478,6 +500,9 @@ async function handleVerifyOtp(req: Request) {
   };
 
   let session = null;
+  // Naka-set kapag ang OTP-verified na numero ay gamit na ng IBANG GoTrue
+  // login (auth.users.phone) — hindi ito masosolusyunan ng retry sa ibaba.
+  let phoneCredentialConflict = false;
   for (const password of [OTP_PASSWORD(phone), DEFAULT_PASSWORD]) {
     session = await trySignIn(password);
     if (session) break;
@@ -494,6 +519,23 @@ async function handleVerifyOtp(req: Request) {
     //    credential ay hindi na basta ipinapantay sa `tempEmail` — ang totoong
     //    (verified) email ang itinatago kapag mayroon na (tingnan sa ibaba).
     if (adminUserId) {
+      // Ang TOTOONG credential email ng auth user (mula sa GoTrue) — idagdag
+      // bago ang retry. Kung ang `${phone}@jireta.temp` ay hindi umubra
+      // (lumang numero pa ang nasa credential, o may ibang auth user na
+      // humahawak sa temp email), dito pa rin makakapasok ang account.
+      try {
+        const { data: authUserInfo } = await db.auth.admin.getUserById(adminUserId);
+        const actualEmail = String(
+          (authUserInfo as { user?: { email?: string } })?.user?.email ?? '',
+        ).trim();
+        if (actualEmail) credentialEmails.add(actualEmail);
+      } catch (e) {
+        console.error(
+          '[auth-verify-otp] getUserById para sa credential email:',
+          (e as Error)?.message ?? e,
+        );
+      }
+
       // HUWAG ibalik sa `tempEmail` ang account na may TOTOONG email. Ang
       // verified email ay ipinapantay na sa GoTrue ng
       // `auth-email-verify?fn=confirm` (at ng users-manage PATCH) — kapag
@@ -519,6 +561,7 @@ async function handleVerifyOtp(req: Request) {
           '[auth-verify-otp] identity sync failed — password reset lang ang itutuloy',
           { userId: adminUserId, duplicate: identity.duplicate, msg: identity.error },
         );
+        phoneCredentialConflict = identity.phoneDuplicate === true;
         if (!hasRealEmail) {
           // Luma at ligtas na garantiya pa rin ito: kapag WALANG totoong email
           // na dapat protektahan, siguradong may email credential ang account
@@ -580,6 +623,15 @@ async function handleVerifyOtp(req: Request) {
   }
 
   if (!session) {
+    // Ang numero ay nakatali sa IBANG GoTrue login: hindi ito mabubuksan kahit
+    // wasto pa ang OTP — mas malinaw ito kaysa sa generic na server error.
+    if (phoneCredentialConflict) {
+      return errorResponse(
+        'This phone number is already linked to another login. Please contact the head manager.',
+        409,
+        'PHONE_CONFLICT',
+      );
+    }
     return errorResponse('Unable to sign in. Please try again.', 500, 'SERVER_ERROR');
   }
 

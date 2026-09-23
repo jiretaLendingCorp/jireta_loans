@@ -470,7 +470,6 @@ class _EmpAccountUpgradeDetailsScreenState
     'valid_id': 'assets/icons/id_card.png',
     'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
-    'birth_certificate': 'assets/icons/birth certificate.jpg',
     'face_recognition': 'assets/icons/FACE RECOGNITION.jpg',
   };
 
@@ -479,7 +478,6 @@ class _EmpAccountUpgradeDetailsScreenState
       case 'valid_id': return 'Valid Government ID';
       case 'selfie': return 'Selfie with ID';
       case 'mayors_permit': return "Mayor's Permit";
-      case 'birth_certificate': return 'Birth Certificate';
       case 'lender_signature': return 'Lender Signature';
       default: return docType.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : w).join(' ');
     }

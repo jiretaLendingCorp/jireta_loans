@@ -30,7 +30,6 @@ const List<AccountUpgradeChecklistItem> kAccountUpgradeDocs = [
   AccountUpgradeChecklistItem(type: 'valid_id', required: true),
   AccountUpgradeChecklistItem(type: 'selfie', required: false),
   AccountUpgradeChecklistItem(type: 'mayors_permit', required: true),
-  AccountUpgradeChecklistItem(type: 'birth_certificate', required: false),
   AccountUpgradeChecklistItem(type: 'lender_signature', required: false),
   AccountUpgradeChecklistItem(type: 'face_recognition', required: true),
 ];

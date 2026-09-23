@@ -65,10 +65,15 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _sessionExpiredSub = SessionEvents.onSessionExpired.listen((reason) async {
       await _onSessionExpired(reason);
     });
-    // Session heartbeat: while authenticated, ping the server every minute
-    // so this device's active_sessions row stays "recently seen" (it keeps
-    // blocking other logins — first-login-wins) and a revoked session is
-    // detected even while the app is idle.
+    // Session heartbeat: habang authenticated, nagpi-ping ito kada minuto para
+    // manatiling "recently seen" ang active_sessions row ng device na ito
+    // (first-login-wins) at madaling makita ang revoked session.
+    //
+    // HINDI ito tumatakbo habang IDLE (tingnan ang [_heartbeat]) — kung hindi,
+    // ang nakalimutang bukas na app/tab ay patuloy na nagre-refresh ng row
+    // magpakailanman: "This account is already signed in on another device"
+    // kahit walang tao na gumagamit, at hindi na makakalogin ang may-ari ng
+    // account kahit sa ibang device.
     _heartbeatTimer = Timer.periodic(const Duration(seconds: 60), (_) {
       unawaited(_heartbeat());
     });
@@ -98,6 +103,20 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// transient — hindi ginagalaw ang session.
   Future<void> _heartbeat() async {
     if (!state.isAuthenticated) return;
+    // HUWAG mag-ping kapag lumipas na ang idle window (10 minutong walang
+    // tunay na interaction). Ang ping ang nagpapanatiling "fresh"
+    // (`last_seen_at`) ng active_sessions row, at ang fresh na row na may
+    // IBANG session id ang tumatanggi sa susunod na login (first-login-wins).
+    // Kapag huminto ang ping, mae-expire ang row pagkalipas ng ~5 minuto —
+    // kaya hindi na "hawak" ng bukas ngunit walang-tao na app ang account.
+    // Bumabalik ang ping pagkatapos ng susunod na totoong interaction
+    // (idinadagdag ng [SessionIdleDetector] ang idle deadline).
+    try {
+      final remaining = await SecureStorage.getRemainingIdleTime();
+      if (remaining != null && remaining.inSeconds <= 0) return;
+    } catch (_) {
+      // Kung hindi mabasa ang idle state, magpatuloy sa ping (safe default).
+    }
     final result = await SessionPing.ping();
     if (result == SessionPingResult.revoked) {
       await SecureStorage.clearAll();

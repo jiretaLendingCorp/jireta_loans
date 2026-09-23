@@ -85,6 +85,28 @@ void main() {
         isTrue,
       );
     });
+
+    test('Heartbeat hindi nagpi-ping habang idle', () async {
+      // BUG na sinusuri nito: ang minuto-minutong ping ang nagpapanatiling
+      // "fresh" (`last_seen_at`) ng active_sessions row, at ang fresh na row
+      // na may IBANG session id ang tumatanggi sa login ng lahat ng ibang
+      // device. Kapag patuloy ang ping kahit walang tao (nakalimutang bukas
+      // na app/tab), hindi na makakalogin ang account magpakailanman —
+      // "This account is already signed in on another device" kahit walang
+      // nakalogin. Dapat itigil ang ping kapag lumipas na ang idle window.
+      final src = await File(
+              'lib/presentation/shared/providers/auth_state_provider.dart')
+          .readAsString();
+      final start = src.indexOf('Future<void> _heartbeat()');
+      final end = src.indexOf('Future<void> notifyActivity()');
+      expect(start >= 0 && end > start, isTrue,
+          reason: 'Dapat may _heartbeat() bago ang notifyActivity().');
+      final heartbeat = src.substring(start, end);
+      expect(heartbeat.contains('getRemainingIdleTime'), isTrue,
+          reason: 'Dapat tsek ang idle state bago mag-ping.');
+      expect(heartbeat.contains('remaining.inSeconds <= 0'), isTrue,
+          reason: 'Kapag tapos na ang idle window, huwag mag-ping.');
+    });
   });
 
   group('REST API endpoints sanity', () {

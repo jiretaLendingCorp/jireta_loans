@@ -3,6 +3,7 @@ import { getAdminClient } from './db.ts';
 import { errorResponse } from './cors.ts';
 import { singleWithObjectEmbeds } from './types.ts';
 import { nowManilaISO } from './timezone.ts';
+import { phoneToE164 } from './validators.ts';
 
 export interface AuthUser {
   id: string;
@@ -63,7 +64,20 @@ export async function claimActiveSessionDetailed(
     p_session_identifier: sessionIdentifier,
   });
   if (error) {
-    console.error('[session] claim_active_session failed', error.message);
+    const message = error.message ?? 'unknown error';
+    console.error('[session] claim_active_session failed', message);
+    if (message.includes('permission denied')) {
+      // 42501 = ang request ay hindi tumatakbo bilang service_role. Karaniwang
+      // sanhi: ang admin client na ito ay ginamit sa
+      // `signInWithPassword`/`refreshSession`, kaya naging USER-scoped na ito
+      // (supabase-js `_getAccessToken()` → session token) at lahat ng kasunod
+      // na `.from()`/`.rpc()` ay `authenticated` na ang role. Ang claim ay
+      // SERVICE-ROLE-only: gumamit ng hiwalay na `getAnonClient()` para sa
+      // sign-in/refresh.
+      console.error(
+        '[session] claim_active_session 42501 — service-role-only ang claim; huwag i-reuse ang admin client pagkatapos ng signInWithPassword/refreshSession',
+      );
+    }
     return 'error';
   }
   return data === true ? 'claimed' : 'refused';
@@ -433,8 +447,10 @@ export function authDisplayMetadata(input: {
 /** Resulta ng [syncAuthUserIdentity]. */
 export interface AuthIdentitySync {
   ok: boolean;
-  /** May IBANG auth user nang gumagamit ng email — hindi ito naisulat. */
+  /** May IBANG auth user nang gumagamit ng email o phone — hindi ito naisulat. */
   duplicate: boolean;
+  /** Ang PHONE mismo ang gamit na ng ibang auth user (hindi email). */
+  phoneDuplicate?: boolean;
   /** Ang `auth.users.email` BAGO ang sync (para sa rollback). */
   previousEmail: string | null;
   error?: string;
@@ -450,8 +466,14 @@ export interface AuthIdentitySync {
  * sign-in (`auth-google` ay tumatanggi sa `@jireta.temp`), at hindi magagamit
  * ng GoTrue (email login / recovery) ang totoong address.
  *
+ * Sinusundan din nito ang **phone** sa GoTrue (`auth.users.phone`, E.164) —
+ * ito ang ginagamit ng OTP login, kaya kapag pinalitan ng head manager ang
+ * `public.users.phone_number` at hindi ito sumunod, wala nang auth user na
+ * mahahanap ang `signInWithPassword({ phone })` at "Unable to sign in. Please
+ * try again." ang isinasagot ng `auth-otp?fn=verify-otp`.
+ *
  * Tumatanggi ito (`duplicate: true`) kapag may ibang auth user nang gumagamit
- * ng email, para hindi magkahati ang `public.users` at `auth.users`.
+ * ng email/phone, para hindi magkahati ang `public.users` at `auth.users`.
  */
 export async function syncAuthUserIdentity(
   db: ReturnType<typeof getAdminClient>,
@@ -470,6 +492,7 @@ export async function syncAuthUserIdentity(
   };
 
   let currentEmail: string | null = null;
+  let currentPhone: string | null = null;
   let currentMeta: Record<string, unknown> = {};
   try {
     const { data, error } = await db.auth.admin.getUserById(userId);
@@ -480,6 +503,7 @@ export async function syncAuthUserIdentity(
       });
     } else {
       currentEmail = (data?.user?.email ?? null) as string | null;
+      currentPhone = (data?.user?.phone ?? null) as string | null;
       currentMeta = (data?.user?.user_metadata ?? {}) as Record<string, unknown>;
     }
   } catch (e) {
@@ -506,30 +530,49 @@ export async function syncAuthUserIdentity(
     update.user_metadata = { ...currentMeta, ...additions };
   }
 
-  if (Object.keys(update).length === 0) return result;
-
-  try {
-    const { error } = await db.auth.admin.updateUserById(userId, update);
-    if (!error) return result;
-    const msg = (error.message ?? '').toLowerCase();
+  const markFailed = (message: string, context: string, isPhone = false) => {
+    const msg = message.toLowerCase();
     result.ok = false;
-    result.error = error.message;
-    result.duplicate = msg.includes('already') ||
+    result.error = message;
+    result.duplicate = result.duplicate || msg.includes('already') ||
       msg.includes('duplicate') ||
       msg.includes('exists') ||
       msg.includes('registered');
-    console.error('[auth-identity] updateUserById failed', {
+    if (isPhone && result.duplicate) result.phoneDuplicate = true;
+    console.error(`[auth-identity] ${context} failed`, {
       userId,
       duplicate: result.duplicate,
-      msg: error.message,
+      msg: message,
     });
-  } catch (e) {
-    result.ok = false;
-    result.error = String(e);
-    console.error('[auth-identity] updateUserById threw', {
-      userId,
-      msg: String(e),
-    });
+  };
+
+  if (Object.keys(update).length > 0) {
+    try {
+      const { error } = await db.auth.admin.updateUserById(userId, update);
+      if (error) markFailed(error.message ?? 'update failed', 'updateUserById');
+    } catch (e) {
+      markFailed(String(e), 'updateUserById');
+    }
   }
+
+  // ── Login credential: `auth.users.phone` ─────────────────────────────────
+  // Ang OTP login (`auth-otp?fn=verify-otp`) ay sa AUTH phone naghahanap ng
+  // session (`signInWithPassword({ phone })`), kaya kapag binago ang numero sa
+  // `public.users.phone_number` at nanatili ang luma dito, wala nang
+  // mahahanap na credential → "Unable to sign in. Please try again.".
+  // Hiwalay na update ito para hindi mabara ng duplicate email sa itaas.
+  const nextPhone = phoneToE164(patch.phone);
+  if (nextPhone && nextPhone !== (currentPhone ?? '').trim()) {
+    try {
+      const { error } = await db.auth.admin.updateUserById(userId, {
+        phone: nextPhone,
+        phone_confirm: true,
+      });
+      if (error) markFailed(error.message ?? 'phone update failed', 'phone sync', true);
+    } catch (e) {
+      markFailed(String(e), 'phone sync', true);
+    }
+  }
+
   return result;
 }

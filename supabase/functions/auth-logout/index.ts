@@ -34,10 +34,19 @@ serve(async (req) => {
     }
 
     // ── Best-effort audit + GoTrue sign-out ──────────────────────────────
-    // requireAuth may reject the anon key (UNAUTHORIZED_ANON_TOKEN) or an
-    // expired token — that is fine, the revocation above already happened.
-    const authResult = await requireAuth(req);
-    if (isAuthUser(authResult)) {
+    // Ang logout ay madalas dumadaan sa ANON key (SessionRevoker: patay na o
+    // expired na ang access token) — normal iyon at nagawa na ang revocation sa
+    // itaas. Hindi na natin ipapasa ang anon key sa requireAuth para hindi
+    // mag-log ng error-level na `
+    // [requireAuth] 401 ANON_TOKEN` na maingay lang. Ang user token (buhay o
+    // expired) ay dumadaan pa rin para sa audit log at FCM cleanup.
+    const bearer = (req.headers.get('Authorization') ?? '')
+      .replace('Bearer ', '')
+      .trim();
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const isAnonKey = bearer !== '' && bearer === anonKey;
+    const authResult = isAnonKey ? null : await requireAuth(req);
+    if (authResult && isAuthUser(authResult)) {
       const user = authResult;
       const body = await req.json().catch(() => ({}));
       if (typeof body.fcm_token === 'string' && body.fcm_token.trim() !== '') {

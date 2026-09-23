@@ -82,9 +82,8 @@ class _LenderAccountUpgradeSubmitScreenState
     'valid_id': null,
     'selfie': null,
     'mayors_permit': null,
-    'birth_certificate': null,
     // 00149: face recognition / frontal face capture — required for identity
-    // verification, shown below the Birth Certificate.
+    // verification, shown after the Mayor's Permit.
     'face_recognition': null,
   };
 
@@ -97,13 +96,12 @@ class _LenderAccountUpgradeSubmitScreenState
   bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
 
   // REQUIRED: Valid Government ID, Mayor's Permit, at Face Recognition
-  // (may `*` sa label). Ang Selfie with ID at Birth Certificate ay optional
-  // supporting documents pa rin.
+  // (may `*` sa label). Ang Selfie with ID ay optional supporting document pa
+  // rin.
   final Map<String, String> _docLabels = {
     'valid_id': 'Valid Government ID *',
     'selfie': 'Selfie with ID',
     'mayors_permit': "Mayor's Permit *",
-    'birth_certificate': 'Birth Certificate',
     'face_recognition': 'Face Recognition *',
   };
 
@@ -111,7 +109,6 @@ class _LenderAccountUpgradeSubmitScreenState
     'valid_id': 'Philippine government-issued ID (UMID, PhilSys, Driver\'s License, Passport, etc.)',
     'selfie': 'A clear selfie holding your Valid ID',
     'mayors_permit': "Valid Mayor's Permit / Business Permit",
-    'birth_certificate': 'PSA/NSO Birth Certificate',
     // Android/iOS lang ang may ML Kit face detection + camera image stream.
     'face_recognition': FaceVerificationScreen.isSupported
         ? 'Tap to start the live Face Verification flow (camera scan + liveness check)'
@@ -122,7 +119,6 @@ class _LenderAccountUpgradeSubmitScreenState
     'valid_id': Icons.contact_page_rounded,
     'selfie': Icons.face_retouching_natural_rounded,
     'mayors_permit': Icons.business_rounded,
-    'birth_certificate': Icons.child_care_rounded,
     'face_recognition': Icons.face_retouching_natural_rounded,
   };
 
@@ -132,7 +128,6 @@ class _LenderAccountUpgradeSubmitScreenState
     'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
     'face_recognition': 'assets/icons/FACE RECOGNITION.jpg',
-    'birth_certificate': 'assets/icons/birth certificate.jpg',
   };
 
   final _formKey = GlobalKey<FormState>();
@@ -570,14 +565,14 @@ class _LenderAccountUpgradeSubmitScreenState
             ? 'Face Recognition is required'
             : null;
       default:
-        // Selfie with ID at Birth Certificate ay optional pa rin.
+        // Selfie with ID ay optional pa rin.
         return null;
     }
   }
 
   bool get _hasMissingDocs {
     // Required: Valid Government ID (front + back), Mayor's Permit, at Face
-    // Recognition. Ang Selfie with ID at Birth Certificate ay optional.
+    // Recognition. Ang Selfie with ID ay optional.
     return !_hasValidIdComplete ||
         _selectedFiles['mayors_permit'] == null ||
         (FaceVerificationScreen.isSupported &&

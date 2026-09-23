@@ -19,7 +19,7 @@ import {
 } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType, credentialEmailFor } from '../_shared/validators.ts';
+import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType, credentialEmailFor, phoneCredentialEmail } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
@@ -106,7 +106,7 @@ async function handleUpdateProfile(req: Request) {
     if (!validatePhone(sanitizeString(newPhone))) return errorResponse('Invalid phone', 400, 'VALIDATION_ERROR');
     const { data: taken } = await db.from('users').select('id').eq('phone_number', String(newPhone).trim()).neq('id', targetId).maybeSingle();
     if (taken) return errorResponse('Phone already used', 409, 'DUPLICATE');
-    updateFields.phone_number = String(newPhone).trim();
+    updateFields.phone_number = sanitizeString(String(newPhone));
   }
 
   // ── Email Uniqueness Check (security) ──────────────────────────────────
@@ -236,24 +236,52 @@ async function handleUpdateProfile(req: Request) {
   }
 
   if (Object.keys(updateFields).length > 0) {
-    // ── Display name (Auth dashboard) ayon sa GoTrue metadata ─────────────
+    // ── Display name (Auth dashboard) + LOGIN CREDENTIAL ayon sa GoTrue ─────
     // Sinusundan din nito ang pangalan: kung hindi, `-` ang nakikita ng staff
-    // sa Authentication → Users kahit na-update na ang profile. Hindi ito
-    // kailangan ng app (sa `public.users` ito nagbabasa) — non-fatal.
+    // sa Authentication → Users kahit na-update na ang profile. Sinusundan din
+    // ang NUMERO (phone + credential email) tuwing may nabago — ang OTP login
+    // (`auth-otp?fn=verify-otp`) ay dito naghahanap ng session at kapag hindi
+    // sumunod ang credential, "Unable to sign in. Please try again." ang
+    // isasagot (tingnan ang [syncAuthUserIdentity]).
     if (
       updateFields.first_name !== undefined ||
-      updateFields.last_name !== undefined
+      updateFields.last_name !== undefined ||
+      updateFields.phone_number !== undefined
     ) {
+      // Kapag binago ang numero, dapat SUMUNOD ang credential email ng GoTrue
+      // (`${phone}@jireta.temp`): iyon ang hinahanap ng OTP login sa
+      // `signInWithPassword({ email })` — lalo na kapag NAKA-DISABLE ang Phone
+      // provider ng project ("Phone logins are disabled"), kung saan ang email
+      // lang ang tanging paraan ng pagpasok. Hindi ito ginagalaw kapag may
+      // TOTOONG email ang account (iyon na ang credential) o kapag may email na
+      // ipinapadala ang app (hiwalay na block sa ibaba ang humahawak noon).
+      const followPhoneEmail = phoneCredentialEmail(
+        String(updateFields.phone_number ?? existing.phone_number ?? ''),
+        String(existing.email ?? ''),
+        updateFields.email !== undefined,
+      );
       const identitySync = await syncAuthUserIdentity(db, targetId, {
         firstName: (updateFields.first_name ?? existing.first_name) as string,
         lastName: (updateFields.last_name ?? existing.last_name) as string,
         phone: (updateFields.phone_number ?? existing.phone_number) as string,
+        email: followPhoneEmail || null,
       });
       if (!identitySync.ok) {
-        console.error('[users-manage] auth metadata sync failed (non-fatal)', {
+        console.error('[users-manage] auth identity sync failed', {
           targetId,
+          duplicate: identitySync.duplicate,
           msg: identitySync.error,
         });
+        // Bagong numero na gamit na ng IBANG GoTrue login: hindi ito dapat
+        // maisulat sa `public.users` — kung hindi, hindi na makakapasok ang
+        // may-ari nito (walang credential na tugma sa bagong numero).
+        if (updateFields.phone_number !== undefined && identitySync.phoneDuplicate) {
+          return errorResponse(
+            'Phone number is already registered to another login',
+            409,
+            'DUPLICATE',
+          );
+        }
       }
     }
 

@@ -16,9 +16,9 @@ import '../providers/hm_in_office_provider.dart';
 
 /// Mga dokumentong REQUIRED sa Lender Account Upgrade (walk-in) wizard.
 ///
-/// Valid ID (front + back) lang ang kailangan — OPSYONAL na ang Selfie with ID,
-/// Mayor's Permit, at Birth Certificate (pwede pa ring i-upload, pero hindi
-/// hinaharang ang Next/Submit). Pampubliko ito para masusuri ng unit test.
+/// Valid ID (front + back) lang ang kailangan — OPSYONAL na ang Selfie with ID
+/// at Mayor's Permit (pwede pa ring i-upload, pero hindi hinaharang ang
+/// Next/Submit). Pampubliko ito para masusuri ng unit test.
 const Set<String> kInOfficeRequiredDocTypes = {
   'valid_id',
   'valid_id_back',
@@ -69,12 +69,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     ('valid_id_back', 'Valid ID (Back)'),
     ('selfie', 'Selfie with ID'),
     ('mayors_permit', "Mayor's Permit"),
-    ('birth_certificate', 'Birth Certificate'),
   ];
 
   /// REQUIRED lang: Valid ID (front + back) — tingnan ang
-  /// [kInOfficeRequiredDocTypes]. Ang Selfie / Mayor's Permit / Birth
-  /// Certificate ay OPSYONAL — hindi na hinaharang ng mga ito ang Next/Submit,
+  /// [kInOfficeRequiredDocTypes]. Ang Selfie / Mayor's Permit ay OPSYONAL —
+  /// hindi na hinaharang ng mga ito ang Next/Submit,
   /// ngunit naka-upload pa rin kung may ibibigay ang lender.
   static const Set<String> _requiredDocTypes = kInOfficeRequiredDocTypes;
 
@@ -83,7 +82,6 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     'valid_id_back': 'assets/icons/id_card.png',
     'selfie': 'assets/icons/selfie with id.png',
     'mayors_permit': 'assets/icons/PERMIT.png',
-    'birth_certificate': 'assets/icons/birth certificate.jpg',
   };
 
   static const List<String> _genderOptions = ['male', 'female'];

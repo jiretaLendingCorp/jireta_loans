@@ -19,6 +19,8 @@ type AdminClient = Parameters<typeof syncAuthUserIdentity>[0];
 interface StubOptions {
   /** Kasalukuyang `auth.users.email`. */
   email?: string | null;
+  /** Kasalukuyang `auth.users.phone` (E.164 sa totoong GoTrue). */
+  phone?: string | null;
   /** Kasalukuyang `raw_user_meta_data` (para ma-test ang merge). */
   metadata?: Record<string, unknown>;
   /** Kapag pinasa, ibabalik itong error ng `updateUserById`. */
@@ -37,6 +39,7 @@ function stubDb(opts: StubOptions = {}) {
             data: {
               user: {
                 email: opts.email ?? null,
+                phone: opts.phone ?? null,
                 user_metadata: opts.metadata ?? {},
               },
             },
@@ -180,4 +183,59 @@ Deno.test("syncAuthUserIdentity with no patch does not touch GoTrue", async () =
 
   assertEquals(result.ok, true);
   assertEquals(stub.updates.length, 0);
+});
+
+// ── auth.users.phone (login credential) ────────────────────────────────────
+// Bug: kapag pinalitan ng head manager ang numero ng lender sa
+// `public.users.phone_number`, hindi ito sumusunod sa GoTrue — kaya sa OTP
+// login ay walang `signInWithPassword({ phone })` na tumutugma at
+// "Unable to sign in. Please try again." ang isinasagot.
+
+Deno.test("syncAuthUserIdentity moves the GoTrue phone to the new number", async () => {
+  const stub = stubDb({ phone: "+639171111111" });
+  const result = await syncAuthUserIdentity(stub.db, "user-1", {
+    phone: "09181234567",
+  });
+
+  assertEquals(result.ok, true);
+  // [0] display metadata (phone lang naman ang nabago), [1] ang credential.
+  const credentialUpdate = stub.updates.find((u) => "phone_confirm" in u);
+  assertEquals(credentialUpdate?.phone, "+639181234567");
+  assertEquals(credentialUpdate?.phone_confirm, true);
+});
+
+Deno.test("syncAuthUserIdentity skips the phone write when Auth already has it", async () => {
+  const stub = stubDb({ phone: "+639171234567" });
+  const result = await syncAuthUserIdentity(stub.db, "user-1", {
+    phone: "09171234567",
+  });
+
+  assertEquals(result.ok, true);
+  // Metadata lang ang naisusulat (display name sa dashboard) — walang
+  // credential update dahil pareho na ang numero.
+  assertEquals(stub.updates.filter((u) => "phone_confirm" in u).length, 0);
+});
+
+Deno.test("syncAuthUserIdentity reports a phone that belongs to another login", async () => {
+  const stub = stubDb({
+    phone: "+639171111111",
+    updateError: "A user with this phone number has already been registered",
+  });
+  const result: AuthIdentitySync = await syncAuthUserIdentity(stub.db, "user-1", {
+    phone: "09181234567",
+  });
+
+  assertEquals(result.ok, false);
+  assertEquals(result.duplicate, true);
+  assertEquals(result.phoneDuplicate, true);
+});
+
+Deno.test("syncAuthUserIdentity never moves the credential to a malformed phone", async () => {
+  const stub = stubDb({ phone: "+639171111111" });
+  const result = await syncAuthUserIdentity(stub.db, "user-1", {
+    phone: "12345",
+  });
+
+  assertEquals(result.ok, true);
+  assertEquals(stub.updates.filter((u) => "phone_confirm" in u).length, 0);
 });

@@ -32,8 +32,49 @@ export function validatePhone(phone: string): boolean {
   return /^09\d{9}$/.test(phone);
 }
 
+/**
+ * Ang E.164 (`+639XXXXXXXXX`) na katumbas ng isang Philippine mobile number —
+ * ito ang format na tinatanggap ng GoTrue sa `auth.users.phone`.
+ *
+ * Tinatanggap ang `09171234567` (local) at `639171234567` / `+639171234567`.
+ * `''` ang ibinabalik kapag hindi mobile number ang hugis, para hindi kailanman
+ * mailipat ang login credential sa bogus na numero.
+ */
+export function phoneToE164(phone: string | null | undefined): string {
+  const digits = (phone ?? '').replace(/\D/g, '');
+  if (/^09\d{9}$/.test(digits)) return `+63${digits.slice(1)}`;
+  if (/^639\d{9}$/.test(digits)) return `+${digits}`;
+  return '';
+}
+
 export function validateEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+/**
+ * Ang credential email na dapat nakatali sa isang numero sa GoTrue kapag WALANG
+ * totoong email ang account (`''` kapag hindi ito dapat galawin).
+ *
+ * Bakit: ang OTP login (`auth-otp?fn=verify-otp`) ay pumapasok gamit ang
+ * `signInWithPassword({ email: `${phone}@jireta.temp`, password })` — lalo na
+ * kapag NAKA-DISABLE ang Phone provider ng project ("Phone logins are
+ * disabled"), kung saan ang email lang ang tanging paraan ng pagpasok. Kapag
+ * binago ang numero sa `public.users.phone_number` at nanatili ang LUMANG
+ * `${oldPhone}@jireta.temp` sa credential, «Invalid login credentials» ang
+ * isasagot ng GoTrue at hindi na makakapasok ang lender.
+ *
+ * Hindi ginagalaw ang TOTOONG email (`juan@gmail.com`) ng account.
+ */
+export function phoneCredentialEmail(
+  phone: string | null | undefined,
+  currentEmail: string | null | undefined,
+  hasIncomingEmail = false,
+): string {
+  const cleanPhone = (phone ?? '').trim();
+  if (!cleanPhone || hasIncomingEmail) return '';
+  const email = (currentEmail ?? '').trim().toLowerCase();
+  if (email !== '' && !email.endsWith('@jireta.temp')) return '';
+  return `${cleanPhone}@jireta.temp`;
 }
 
 /** Totoong email-format ba (pareho ang rules sa [validateEmail])? */

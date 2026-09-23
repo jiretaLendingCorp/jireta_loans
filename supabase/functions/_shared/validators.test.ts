@@ -21,8 +21,39 @@ import {
 import {
   credentialEmailFor,
   isEmailFormat,
+  phoneCredentialEmail,
   validateEmail,
 } from "./validators.ts";
+
+// ── phoneCredentialEmail ──────────────────────────────────────────────────
+// Kapag binago ang numero ng lender, ang credential email sa GoTrue
+// (`${phone}@jireta.temp`) ay dapat sumunod — kung hindi, «Invalid login
+// credentials» ang isasagot ng `auth-otp?fn=verify-otp` lalo na kapag
+// naka-disable ang Phone provider ng project.
+
+Deno.test("phoneCredentialEmail follows the new number when the account has no real email", () => {
+  assertEquals(phoneCredentialEmail("09181234567", ""), "09181234567@jireta.temp");
+  assertEquals(
+    phoneCredentialEmail("09181234567", "09171234567@jireta.temp"),
+    "09181234567@jireta.temp",
+  );
+});
+
+Deno.test("phoneCredentialEmail never clobbers a real email", () => {
+  assertEquals(phoneCredentialEmail("09181234567", "Juan@Gmail.com"), "");
+});
+
+Deno.test("phoneCredentialEmail stands down when the app sends its own email", () => {
+  assertEquals(
+    phoneCredentialEmail("09181234567", "09171234567@jireta.temp", true),
+    "",
+  );
+});
+
+Deno.test("phoneCredentialEmail ignores a blank phone", () => {
+  assertEquals(phoneCredentialEmail("   ", "09171234567@jireta.temp"), "");
+  assertEquals(phoneCredentialEmail(null, ""), "");
+});
 
 // ── isEmailFormat ─────────────────────────────────────────────────────────
 

@@ -19,7 +19,7 @@ import {
   sessionIdentifierFromToken,
 } from '../_shared/auth.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
-import { getAdminClient } from '../_shared/db.ts';
+import { getAdminClient, getAnonClient } from '../_shared/db.ts';
 import { singleWithObjectEmbeds } from '../_shared/types.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
 
@@ -65,7 +65,11 @@ async function handleRefreshSession(req: Request) {
   if (!refresh_token) return errorResponse('refresh_token is required', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
-  const { data, error } = await db.auth.refreshSession({ refresh_token });
+  // Ang refresh ay sa HIWALAY na anon client — kapag ang service-role client
+  // (`db`) ang nag-refresh, itinatabi ng supabase-js ang session ng user doon,
+  // kaya ang mga kasunod na `.from()` (users / active_sessions) ay babagsak sa
+  // RLS bilang `authenticated` at hindi na ma-validate ang session.
+  const { data, error } = await getAnonClient().auth.refreshSession({ refresh_token });
   if (error || !data.session) return errorResponse('Invalid or expired refresh token', 401, 'UNAUTHORIZED');
 
   const { data: dbUserRow } = await db

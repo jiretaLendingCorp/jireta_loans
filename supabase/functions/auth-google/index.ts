@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
-import { getAdminClient } from '../_shared/db.ts';
+import { getAdminClient, getAnonClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 import {
@@ -156,8 +156,12 @@ async function handleExchange(req: Request) {
   let refreshTokenOut = refreshToken;
 
   if (refreshToken) {
+    // HIWALAY na client (anon) ang nagre-refresh: kapag ang service-role client
+    // (`db`) ang nag-refresh, itinatabi ng supabase-js ang session ng user doon
+    // kaya ang kasunod na `.from()` / `.rpc()` ay `authenticated` na ang role →
+    // 42501 sa service-role-only na `claim_active_session`.
     const { data: sessionData, error: refreshErr } =
-      await db.auth.refreshSession({ refresh_token: refreshToken });
+      await getAnonClient().auth.refreshSession({ refresh_token: refreshToken });
 
     if (refreshErr || !sessionData?.session) {
       console.error('[auth-google] step=refresh_session FAILED', {

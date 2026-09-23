@@ -224,9 +224,9 @@ async function handleVerify(req: Request) {
           const docs = (dRes as any).data ?? [];
           if (docs.length > 0) {
             // 00130: accept the in-office + account-upgrade doc set, including
-            // the new mayors_permit / birth_certificate / selfie_with_id codes.
-            // selfie_with_id is stored as selfie for consistency.
-            const docSet = new Set(['valid_id','valid_id_back','proof_of_income','barangay_clearance','pay_slip','selfie','selfie_with_id','mayors_permit','birth_certificate','proof_of_billing','certificate_of_employment','itr','business_registration','co_maker','ci_photo','evidence','site_photo','neighbor_interview','proof_of_residence','other']);
+            // the new mayors_permit / selfie_with_id codes. selfie_with_id is
+            // stored as selfie for consistency.
+            const docSet = new Set(['valid_id','valid_id_back','proof_of_income','barangay_clearance','pay_slip','selfie','selfie_with_id','mayors_permit','proof_of_billing','certificate_of_employment','itr','business_registration','co_maker','ci_photo','evidence','site_photo','neighbor_interview','proof_of_residence','other']);
             const docRows = docs.map((d: any) => {
               const raw = String(d.document_type ?? 'other');
               const normalized = raw === 'selfie_with_id' ? 'selfie' : (docSet.has(raw) ? raw : 'other');

@@ -3,8 +3,8 @@
 // REQUIRED NA DOKUMENTO SA LENDER ACCOUNT UPGRADE (walk-in)
 //
 // GINUSTO: **Valid ID (front + back) lang ang required** — hindi na dapat
-// harangin ng Selfie with ID, Mayor's Permit, at Birth Certificate ang
-// Submit/Next (opsyonal na lang ang mga ito).
+// harangin ng Selfie with ID at Mayor's Permit ang Submit/Next (opsyonal na
+// lang ang mga ito).
 //
 // BUG NA NAAYOS: may **UI/backend mismatch**. Ang wizard ay Valid ID lang ang
 // hiningi, pero ang `in-office-view?fn=submit-account` ay nag-e-enforce pa rin
@@ -25,11 +25,10 @@ void main() {
       expect(kInOfficeRequiredDocTypes, {'valid_id', 'valid_id_back'});
     });
 
-    test('opsyonal ang selfie / mayor\'s permit / birth certificate', () {
+    test('opsyonal ang selfie / mayor\'s permit', () {
       for (final type in const [
         'selfie',
         'mayors_permit',
-        'birth_certificate',
       ]) {
         expect(kInOfficeRequiredDocTypes.contains(type), isFalse,
             reason: '$type ay hindi na dapat required');
@@ -41,11 +40,10 @@ void main() {
     late final String src = _read(
         'supabase/functions/in-office-view/index.ts');
 
-    test('hindi na hino-hold ang submit sa selfie / permit / birth cert', () {
+    test('hindi na hino-hold ang submit sa selfie / permit', () {
       for (final type in const [
         "'selfie'",
         "'mayors_permit'",
-        "'birth_certificate'",
       ]) {
         expect(
           src.contains(RegExp(

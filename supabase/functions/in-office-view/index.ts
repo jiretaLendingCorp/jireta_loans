@@ -33,7 +33,7 @@ const RELATIONSHIPS = new Set([
 ]);
 const DOCUMENT_TYPES = new Set([
   'valid_id', 'valid_id_back', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
-  'selfie_with_id', 'mayors_permit', 'birth_certificate',
+  'selfie_with_id', 'mayors_permit',
   'proof_of_billing', 'certificate_of_employment', 'itr',
   'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
   'neighbor_interview', 'proof_of_residence', 'other',
@@ -777,8 +777,8 @@ async function handleSubmit(req: Request) {
 // the existing lender (and ensures it is verified).
 // ─────────────────────────────────────────────────────────────────────────────
 // REQUIRED lang: Valid ID (front + back) — pareho ng wizard UI. Ang Selfie /
-// Mayor's Permit / Birth Certificate ay OPSYONAL (pwede pang i-upload ng staff
-// kapag may dala ang lender) kaya hindi na hinaharang ang step-3 submit.
+// Mayor's Permit ay OPSYONAL (pwede pang i-upload ng staff kapag may dala ang
+// lender) kaya hindi na hinaharang ang step-3 submit.
 const STEP3_REQUIRED_DOCS = new Set([
   'valid_id',
   'valid_id_back',
