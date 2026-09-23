@@ -3,7 +3,7 @@
 // REQUIRED NA DOKUMENTO SA LENDER ACCOUNT UPGRADE (walk-in)
 //
 // GINUSTO: **Valid ID (front + back) lang ang required** — hindi na dapat
-// harangin ng Selfie with ID at Mayor's Permit ang Submit/Next (opsyonal na
+// harangin ng Selfie with ID at Business Permit ang Submit/Next (opsyonal na
 // lang ang mga ito).
 //
 // BUG NA NAAYOS: may **UI/backend mismatch**. Ang wizard ay Valid ID lang ang
@@ -25,7 +25,7 @@ void main() {
       expect(kInOfficeRequiredDocTypes, {'valid_id', 'valid_id_back'});
     });
 
-    test('opsyonal ang selfie / mayor\'s permit', () {
+    test('opsyonal ang selfie / business permit', () {
       for (final type in const [
         'selfie',
         'mayors_permit',

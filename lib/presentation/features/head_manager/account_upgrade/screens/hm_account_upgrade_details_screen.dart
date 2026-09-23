@@ -477,7 +477,7 @@ class _HmAccountUpgradeDetailsScreenState
     switch (docType) {
       case 'valid_id': return 'Valid Government ID';
       case 'selfie': return 'Selfie with ID';
-      case 'mayors_permit': return "Mayor's Permit";
+      case 'mayors_permit': return 'Business Permit';
       case 'lender_signature': return 'Lender Signature';
       default: return docType.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : w).join(' ');
     }

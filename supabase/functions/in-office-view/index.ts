@@ -777,7 +777,7 @@ async function handleSubmit(req: Request) {
 // the existing lender (and ensures it is verified).
 // ─────────────────────────────────────────────────────────────────────────────
 // REQUIRED lang: Valid ID (front + back) — pareho ng wizard UI. Ang Selfie /
-// Mayor's Permit ay OPSYONAL (pwede pang i-upload ng staff kapag may dala ang
+// Business Permit ay OPSYONAL (pwede pang i-upload ng staff kapag may dala ang
 // lender) kaya hindi na hinaharang ang step-3 submit.
 const STEP3_REQUIRED_DOCS = new Set([
   'valid_id',

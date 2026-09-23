@@ -18,11 +18,13 @@ void main() {
         ['valid_id', 'selfie', 'mayors_permit', 'lender_signature', 'face_recognition'],
       );
       expect(items.every((i) => !i.submitted), isTrue);
+      // Required lang: valid_id at mayors_permit (Business Permit). Ang
+      // selfie, lender_signature, at face_recognition ay optional.
       expect(items.map((i) => i.missingRequired).toList(),
-          [true, false, true, false, true]);
+          [true, false, true, false, false]);
     });
 
-    test('nandiyan pa rin ang Face Recognition kahit wala sa DB', () {
+    test('nandiyan pa rin ang Face Recognition kahit wala sa DB (optional)', () {
       // Ito ang totoong kaso sa screenshot: may ID/permit/signature
       // pero walang face_recognition row.
       final items = buildAccountUpgradeChecklist([
@@ -35,7 +37,8 @@ void main() {
       final face = items.firstWhere((i) => i.type == 'face_recognition');
       expect(face.submitted, isFalse);
       expect(face.doc, isNull);
-      expect(face.required, isTrue);
+      // Hindi na required ang Face Recognition — supporting document na lang.
+      expect(face.required, isFalse);
       expect(items.length, 5);
     });
 

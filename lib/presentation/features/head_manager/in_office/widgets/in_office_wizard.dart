@@ -17,7 +17,7 @@ import '../providers/hm_in_office_provider.dart';
 /// Mga dokumentong REQUIRED sa Lender Account Upgrade (walk-in) wizard.
 ///
 /// Valid ID (front + back) lang ang kailangan — OPSYONAL na ang Selfie with ID
-/// at Mayor's Permit (pwede pa ring i-upload, pero hindi hinaharang ang
+/// at Business Permit (pwede pa ring i-upload, pero hindi hinaharang ang
 /// Next/Submit). Pampubliko ito para masusuri ng unit test.
 const Set<String> kInOfficeRequiredDocTypes = {
   'valid_id',
@@ -68,11 +68,11 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     ('valid_id', 'Valid ID (Front)'),
     ('valid_id_back', 'Valid ID (Back)'),
     ('selfie', 'Selfie with ID'),
-    ('mayors_permit', "Mayor's Permit"),
+    ('mayors_permit', 'Business Permit'),
   ];
 
   /// REQUIRED lang: Valid ID (front + back) — tingnan ang
-  /// [kInOfficeRequiredDocTypes]. Ang Selfie / Mayor's Permit ay OPSYONAL —
+  /// [kInOfficeRequiredDocTypes]. Ang Selfie / Business Permit ay OPSYONAL —
   /// hindi na hinaharang ng mga ito ang Next/Submit,
   /// ngunit naka-upload pa rin kung may ibibigay ang lender.
   static const Set<String> _requiredDocTypes = kInOfficeRequiredDocTypes;

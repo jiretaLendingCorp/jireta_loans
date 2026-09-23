@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +27,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
 import '../../../../../core/constants/app_constants.dart';
+import '../../../../../core/di/injection.dart';
+import '../../../../../core/security/secure_storage.dart';
+import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../providers/lender_account_upgrade_provider.dart';
@@ -82,8 +87,8 @@ class _LenderAccountUpgradeSubmitScreenState
     'valid_id': null,
     'selfie': null,
     'mayors_permit': null,
-    // 00149: face recognition / frontal face capture — required for identity
-    // verification, shown after the Mayor's Permit.
+    // 00149: face recognition / frontal face capture — OPTIONAL supporting
+    // identity verification, shown after the Business Permit.
     'face_recognition': null,
   };
 
@@ -95,25 +100,19 @@ class _LenderAccountUpgradeSubmitScreenState
   bool get _hasValidIdBack => _validIdBackFile != null;
   bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
 
-  // REQUIRED: Valid Government ID, Mayor's Permit, at Face Recognition
-  // (may `*` sa label). Ang Selfie with ID ay optional supporting document pa
-  // rin.
+  // REQUIRED: Valid Government ID at Business Permit. Ang Selfie with ID at
+  // Face Recognition ay OPTIONAL supporting documents — may "(Optional)"
+  // suffix sila sa card (tingnan ang [_docOptional]). Wala nang `*` marker.
   final Map<String, String> _docLabels = {
-    'valid_id': 'Valid Government ID *',
+    'valid_id': 'Valid Government ID',
     'selfie': 'Selfie with ID',
-    'mayors_permit': "Mayor's Permit *",
-    'face_recognition': 'Face Recognition *',
+    'mayors_permit': 'Business Permit',
+    'face_recognition': 'Face Recognition',
   };
 
-  final Map<String, String> _docHints = {
-    'valid_id': 'Philippine government-issued ID (UMID, PhilSys, Driver\'s License, Passport, etc.)',
-    'selfie': 'A clear selfie holding your Valid ID',
-    'mayors_permit': "Valid Mayor's Permit / Business Permit",
-    // Android/iOS lang ang may ML Kit face detection + camera image stream.
-    'face_recognition': FaceVerificationScreen.isSupported
-        ? 'Tap to start the live Face Verification flow (camera scan + liveness check)'
-        : 'Available sa Android/iOS app lang (kailangan ang device camera)',
-  };
+  /// Mga dokumentong HINDI required — ipinapakita ang "(Optional)" sa tabi ng
+  /// label sa halip na `*` marker.
+  static const Set<String> _docOptional = {'selfie', 'face_recognition'};
 
   final Map<String, IconData> _docIcons = {
     'valid_id': Icons.contact_page_rounded,
@@ -149,6 +148,13 @@ class _LenderAccountUpgradeSubmitScreenState
   DateTime? _dob;
   String? _dobError;
   bool _showDocsError = false;
+  // Ang mga red validation message (docs / signature / DOB) ay 2 SEGUNDO lang
+  // nakikita — pagkatapos noon, awtomatikong nawawala (tulad ng walk-in
+  // wizard). Hindi humihina ang validation: ang `_hasMissingDocs` /
+  // `_isPersonalInfoValid()` pa rin ang humaharang sa Next/Submit — ang mga
+  // flag na ito lang ang kumokontrol kung iginuguhit pa ang red.
+  static const Duration _errorVisibleFor = Duration(seconds: 2);
+  Timer? _errorHideTimer;
   // 00147: lender signature captured on the Residence Address step and
   // submitted as a lender_signature document (visible to HM/employee).
   String? _lenderSignature;
@@ -192,43 +198,202 @@ class _LenderAccountUpgradeSubmitScreenState
     _zipCtrl.addListener(_onFieldChanged);
     _streetFocusNode.addListener(_onBottomFieldFocus);
     _zipFocusNode.addListener(_onBottomFieldFocus);
-    // Auto-fill the name fields with what the lender provided right after
-    // accepting Terms & Conditions (stored per-account in SharedPreferences).
-    _prefillNamesFromTerms();
+    // Auto-fill ng wizard mula sa datos na naibigay na ng lender (lokal na
+    // prefs + ang totoong profile sa server).
+    _prefillWizard();
   }
 
-  /// Reads the name captured after the one-time Terms & Conditions acceptance
-  /// (keys are suffixed with the user id, same as the per-account terms flag)
-  /// and pre-fills the Personal Info step so the lender doesn't retype it.
-  Future<void> _prefillNamesFromTerms() async {
-    final userId = ref.read(authStateProvider).user?.id ?? '';
+  /// Auto-fill ng Personal Info + Residence steps mula sa datos na naibigay na
+  /// ng lender — hindi na niya kailangang i-type muli ang pangalan / email /
+  /// address na napuno na niya dati.
+  ///
+  ///   (1) LOKAL — ang mga naisave ng Terms & Conditions / Verify Your Email
+  ///       step. Mabilis kaya agad may laman ang form.
+  ///   (2) SERVER — ang totoong profile (`users` + `lender_profiles` +
+  ///       `addresses`). ITO ang source na tumatagal kahit mag-relogin, mag-MPIN
+  ///       unlock, magbagong install, o magpalit ng device — hindi lang
+  ///       nakasalalay sa SharedPreferences ng device.
+  Future<void> _prefillWizard() async {
+    await _prefillFromLocalStorage();
+    await _prefillFromServerProfile();
+  }
+
+  /// Local na prefill mula sa Terms & Conditions / Verify Your Email step.
+  ///
+  /// Parehong pinagmulan ng suffix doon: ang `user.id` ng auth state, at kapag
+  /// wala pa itong laman (restored session / MPIN unlock), ang userId na
+  /// naka-save sa [SecureStorage]. May fallback din sa lumang walang-suffix na
+  /// key — doon naisave kapag walang `user` noong Continue.
+  Future<void> _prefillFromLocalStorage() async {
+    var userId = ref.read(authStateProvider).user?.id ?? '';
+    if (userId.isEmpty) {
+      userId = await SecureStorage.getUserId() ?? '';
+    }
     final suffix = userId.isEmpty ? '' : '_$userId';
     final prefs = await SharedPreferences.getInstance();
-    final firstName =
-        prefs.getString('${AppConstants.lenderFirstNameKey}$suffix') ?? '';
-    final middleName =
-        prefs.getString('${AppConstants.lenderMiddleNameKey}$suffix') ?? '';
-    final lastName =
-        prefs.getString('${AppConstants.lenderLastNameKey}$suffix') ?? '';
-    final suffixName =
-        prefs.getString('${AppConstants.lenderSuffixKey}$suffix') ?? '';
-    final email =
-        prefs.getString('${AppConstants.lenderEmailKey}$suffix') ?? '';
+    String pick(String key) {
+      final withSuffix = (prefs.getString('$key$suffix') ?? '').trim();
+      if (withSuffix.isNotEmpty || suffix.isEmpty) return withSuffix;
+      return (prefs.getString(key) ?? '').trim();
+    }
+
     if (!mounted) return;
+    _applyPrefill(
+      firstName: pick(AppConstants.lenderFirstNameKey),
+      middleName: pick(AppConstants.lenderMiddleNameKey),
+      lastName: pick(AppConstants.lenderLastNameKey),
+      suffix: pick(AppConstants.lenderSuffixKey),
+      email: pick(AppConstants.lenderEmailKey),
+    );
+  }
+
+  /// Prefill mula sa PROFILE na nasa server (get-profile) — ito ang source na
+  /// hindi nawawala sa re-login. Direktang fetch (hindi AutoDispose provider,
+  /// tulad ng sa lender dashboard) para deterministic ang resulta.
+  Future<void> _prefillFromServerProfile() async {
+    var userId = ref.read(authStateProvider).user?.id ?? '';
+    if (userId.isEmpty) {
+      userId = await SecureStorage.getUserId() ?? '';
+    }
+    UserModel? profile;
+    try {
+      profile = await sl<UserRemoteDataSource>().getProfile();
+      if (userId.isNotEmpty && profile.id != userId) profile = null;
+    } catch (e) {
+      // Offline / server error → manatili ang lokal na prefill.
+      if (kDebugMode) debugPrint('[Prefill] profile fetch failed: $e');
+    }
+    if (profile == null || !mounted) return;
+    _applyPrefill(
+      firstName: profile.firstName,
+      middleName: profile.middleName,
+      lastName: profile.lastName,
+      suffix: profile.suffix,
+      email: profile.email,
+      gender: _genderLabel(profile.gender),
+      civilStatus: _civilStatusLabel(profile.civilStatus),
+      dob: profile.dateOfBirth,
+      street: profile.streetAddress,
+      barangay: profile.barangay,
+      city: profile.city,
+      province: profile.province,
+      zip: profile.zipCode,
+    );
+  }
+
+  /// Inilalagay lang ang mga value na MAY LAMAN — hindi binubura ang naunang
+  /// napuno ng isa pang source (hal. local prefs) at hindi ginagalaw ang mga
+  /// field na pinili na ng user.
+  void _applyPrefill({
+    String? firstName,
+    String? middleName,
+    String? lastName,
+    String? suffix,
+    String? email,
+    String? gender,
+    String? civilStatus,
+    DateTime? dob,
+    String? street,
+    String? barangay,
+    String? city,
+    String? province,
+    String? zip,
+  }) {
     setState(() {
-      _firstNameCtrl.text = firstName;
-      _middleNameCtrl.text = middleName;
-      _lastNameCtrl.text = lastName;
-      _suffixCtrl.text = suffixName;
-      _emailCtrl.text = email;
-      // Lock only the fields that have a captured value — an empty middle
-      // name or suffix stays editable in this form.
-      _firstNameLocked = firstName.isNotEmpty;
-      _middleNameLocked = middleName.isNotEmpty;
-      _lastNameLocked = lastName.isNotEmpty;
-      _suffixLocked = suffixName.isNotEmpty;
-      _emailLocked = email.isNotEmpty;
+      if (_fill(firstName, _firstNameCtrl)) _firstNameLocked = true;
+      if (_fill(middleName, _middleNameCtrl)) _middleNameLocked = true;
+      if (_fill(lastName, _lastNameCtrl)) _lastNameLocked = true;
+      if (_fill(suffix, _suffixCtrl)) _suffixLocked = true;
+      if (_fill(email, _emailCtrl)) _emailLocked = true;
+      if (_gender == null && (gender ?? '').isNotEmpty) _gender = gender;
+      if (_civilStatus == null && (civilStatus ?? '').isNotEmpty) {
+        _civilStatus = civilStatus;
+      }
+      if (_dob == null && dob != null) {
+        _dob = dob;
+        _dobError = null;
+      }
+      if (_streetCtrl.text.trim().isEmpty) _streetCtrl.text = (street ?? '').trim();
+      _applyLocationPrefill(
+          province: province, city: city, barangay: barangay);
+      if (_zipCtrl.text.trim().isEmpty) _zipCtrl.text = (zip ?? '').trim();
     });
+  }
+
+  /// Naglalagay lang kapag may laman. `true` kapag may inilagay.
+  bool _fill(String? value, TextEditingController ctrl) {
+    final v = (value ?? '').trim();
+    if (v.isEmpty) return false;
+    ctrl.text = v;
+    return true;
+  }
+
+  /// Display label ng gender — ang DB ay nagtatago ng code ('male'/'female'/
+  /// 'other'), ang dropdown ay may Title Case na pagpipilian.
+  static String? _genderLabel(String? raw) {
+    switch ((raw ?? '').trim().toLowerCase()) {
+      case 'male':
+        return 'Male';
+      case 'female':
+        return 'Female';
+      case 'other':
+        return 'Prefer not to say';
+    }
+    return null;
+  }
+
+  /// Display label ng civil status ('single' → 'Single'), tugma sa dropdown.
+  static String? _civilStatusLabel(String? raw) {
+    final v = (raw ?? '').trim().toLowerCase();
+    if (v.isEmpty) return null;
+    return '${v[0].toUpperCase()}${v.substring(1)}';
+  }
+
+  /// Best-effort na pagpuno ng Region → Province → City/Municipality → Barangay
+  /// dropdowns mula sa naka-save nang address. Parehong PSA/PSGC data ang
+  /// pinagmulan (walk-in/account upgrade) kaya nagtutugma ang mga pangalan.
+  void _applyLocationPrefill({
+    String? province,
+    String? city,
+    String? barangay,
+  }) {
+    // May pinili na ang user / napuno na — huwag nang galawin.
+    if (_municipality != null) return;
+    final wantProvince = (province ?? '').trim().toLowerCase();
+    final wantCity = (city ?? '').trim().toLowerCase();
+    if (wantProvince.isEmpty && wantCity.isEmpty) return;
+
+    for (final region in philippineRegions) {
+      for (final prov in region.provinces) {
+        if (wantProvince.isNotEmpty &&
+            prov.name.trim().toLowerCase() != wantProvince) {
+          continue;
+        }
+        Municipality? matched;
+        if (wantCity.isNotEmpty) {
+          for (final m in prov.municipalities) {
+            if (m.name.trim().toLowerCase() == wantCity) {
+              matched = m;
+              break;
+            }
+          }
+          if (matched == null) continue;
+        }
+        _region = region;
+        _province = prov;
+        _municipality = matched;
+        final wantBarangay = (barangay ?? '').trim().toLowerCase();
+        if (matched != null && wantBarangay.isNotEmpty) {
+          for (final b in matched.barangays) {
+            if (b.trim().toLowerCase() == wantBarangay) {
+              _barangay = b;
+              break;
+            }
+          }
+        }
+        return;
+      }
+    }
   }
 
   void _onBottomFieldFocus() {
@@ -283,6 +448,7 @@ class _LenderAccountUpgradeSubmitScreenState
     _streetFocusNode.dispose();
     _zipFocusNode.dispose();
     _signatureConfirmedTimer?.cancel();
+    _errorHideTimer?.cancel();
     super.dispose();
   }
 
@@ -505,17 +671,34 @@ class _LenderAccountUpgradeSubmitScreenState
     });
   }
 
+  /// Ini-schedule ang 2-segundong auto-hide ng mga red validation message
+  /// (docs / signature / DOB). Kada bagong error, ni-re-reset ang timer para
+  /// buong 2 segundo pa ring nakikita ang pinakabagong mensahe.
+  void _autoHideErrorsSoon() {
+    _errorHideTimer?.cancel();
+    _errorHideTimer = Timer(_errorVisibleFor, () {
+      if (!mounted) return;
+      setState(() {
+        _showDocsError = false;
+        _dobError = null;
+        _signatureError = null;
+      });
+    });
+  }
+
   void _goNext() {
     if (!_formKey.currentState!.validate()) return;
     if (_step == 0) {
       // Inline field error only (no toast — DOB field already shows _dobError).
       if (_dob == null) {
         setState(() => _dobError = 'Date of birth is required');
+        _autoHideErrorsSoon();
         return;
       }
       if (!_isAdult(_dob!)) {
         setState(() => _dobError =
             'You must be at least 18 years old to submit account upgrade.');
+        _autoHideErrorsSoon();
         return;
       }
     }
@@ -524,6 +707,7 @@ class _LenderAccountUpgradeSubmitScreenState
       if (_lenderSignature == null || _lenderSignature!.isEmpty) {
         setState(() => _signatureError =
             'Please sign the pad before continuing');
+        _autoHideErrorsSoon();
         return;
       }
     }
@@ -557,100 +741,17 @@ class _LenderAccountUpgradeSubmitScreenState
     if (_selectedFiles[key] != null) return null;
     switch (key) {
       case 'mayors_permit':
-        return "Mayor's Permit is required";
-      case 'face_recognition':
-        // Sa platform na walang live face scan (web/desktop) hindi ito
-        // masasatisfy kaya hindi rin ito hinihinging requirement doon.
-        return FaceVerificationScreen.isSupported
-            ? 'Face Recognition is required'
-            : null;
+        return 'Business Permit is required';
       default:
-        // Selfie with ID ay optional pa rin.
+        // Selfie with ID at Face Recognition ay optional pa rin.
         return null;
     }
   }
 
   bool get _hasMissingDocs {
-    // Required: Valid Government ID (front + back), Mayor's Permit, at Face
-    // Recognition. Ang Selfie with ID ay optional.
-    return !_hasValidIdComplete ||
-        _selectedFiles['mayors_permit'] == null ||
-        (FaceVerificationScreen.isSupported &&
-            _selectedFiles['face_recognition'] == null);
-  }
-
-  /// Preview a just-picked local file (image) inside a modal so the lender can
-  /// review exactly what they uploaded before submitting.
-  Future<void> _previewFile(PlatformFile? file) async {
-    if (file == null) return;
-    final name = file.name.toLowerCase();
-    final isImage = name.endsWith('.jpg') ||
-        name.endsWith('.jpeg') ||
-        name.endsWith('.png') ||
-        name.endsWith('.webp');
-    Uint8List? bytes = file.bytes;
-    if (bytes == null && file.path != null) {
-      try {
-        bytes = await File(file.path!).readAsBytes();
-      } catch (_) {}
-    }
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 520,
-            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.visibility_outlined,
-                        size: 18, color: AppColors.lenderBlue),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        file.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close, size: 20),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: isImage && bytes != null
-                    ? InteractiveViewer(
-                        child: Image.memory(bytes, fit: BoxFit.contain),
-                      )
-                    : const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text(
-                          'Preview is not available for this file type.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary),
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    // Required: Valid Government ID (front + back) at Business Permit. Ang
+    // Selfie with ID at Face Recognition ay optional.
+    return !_hasValidIdComplete || _selectedFiles['mayors_permit'] == null;
   }
 
   Future<void> _submit() async {
@@ -668,6 +769,8 @@ class _LenderAccountUpgradeSubmitScreenState
       setState(() => _showDocsError = true);
       // Pabalik sa itaas ng step para agad makita ang unang kulang na card.
       _scrollToTop();
+      // Ang red na "... is required" sa ilalim ng card ay 2s lang nakikita.
+      _autoHideErrorsSoon();
       return;
     }
     // Full validation across all 3 steps — no toast here since every text/
@@ -685,6 +788,7 @@ class _LenderAccountUpgradeSubmitScreenState
       });
       _scrollToTop();
       _showInlineErrorsOnCurrentStep();
+      _autoHideErrorsSoon();
       return;
     }
     if (!_isResidenceValid()) {
@@ -700,6 +804,7 @@ class _LenderAccountUpgradeSubmitScreenState
         _signatureError = 'Please sign the pad before continuing';
       });
       _scrollToTop();
+      _autoHideErrorsSoon();
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -709,6 +814,7 @@ class _LenderAccountUpgradeSubmitScreenState
         _dobError = 'Date of birth is required';
       });
       _scrollToTop();
+      _autoHideErrorsSoon();
       return;
     }
     if (!_isAdult(_dob!)) {
@@ -718,6 +824,7 @@ class _LenderAccountUpgradeSubmitScreenState
             'You must be at least 18 years old to submit account upgrade.';
       });
       _scrollToTop();
+      _autoHideErrorsSoon();
       return;
     }
 
@@ -920,19 +1027,14 @@ class _LenderAccountUpgradeSubmitScreenState
         Expanded(
           child: SingleChildScrollView(
             controller: _scrollController,
-            padding: EdgeInsets.fromLTRB(16, 16, 16, 100 + bottomInset),
+            padding: EdgeInsets.fromLTRB(16, 16, 16, 24 + bottomInset),
             keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildStepContent(),
-                const SizedBox(height: 14),
-                _buildWizardBar(state),
-                const SizedBox(height: 8),
-              ],
-            ),
+            child: _buildStepContent(),
           ),
         ),
+        // Back/Submit ay nakapirme na sa ilalim (hindi na nag-i-scroll kasama
+        // ng form) — nasa TAAS ito ng floating bottom nav pill.
+        _buildWizardBar(state),
       ],
     );
   }
@@ -1066,25 +1168,16 @@ class _LenderAccountUpgradeSubmitScreenState
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary),
         ),
-        const SizedBox(height: 8),
-        const Text(
-          'Files must be JPG, PNG, or PDF under 5MB.',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-        ),
-        const SizedBox(height: 4),
-        const Text(
-          'Documents marked with * are required.',
-          style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-        ),
         const SizedBox(height: 20),
         Padding(
           padding: const EdgeInsets.only(bottom: 14),
+          // Lender role: WALANG "View" button — ang Valid Government ID ay
+          // live camera scan (front + back), hindi ini-review ng lender mula
+          // sa screen na ito. Nasa HM/Employee reviewer screens ang View.
           child: _ValidIdCard(
             hasFront: _hasValidIdFront,
             hasBack: _hasValidIdBack,
             onPick: () => _pickFile('valid_id'),
-            onView: () => _previewFile(
-                _selectedFiles['valid_id'] ?? _validIdBackFile),
             errorText: _validIdError(),
           ),
         ),
@@ -1094,17 +1187,13 @@ class _LenderAccountUpgradeSubmitScreenState
                   padding: const EdgeInsets.only(bottom: 14),
                   child: _DocUploadCard(
                     label: _docLabels[e.key]!,
-                    hint: _docHints[e.key]!,
+                    optional: _docOptional.contains(e.key),
                     icon: _docIcons[e.key]!,
                     assetPath: _docAssetIcons[e.key],
                     file: e.value,
                     onPick: () => _pickFile(e.key),
-                    // Face Recognition: WALANG "View" button — hindi ito
-                    // ini-upload na file kundi live face scan, kaya walang
-                    // file preview na dapat ipakita.
-                    onView: e.key == 'face_recognition'
-                        ? null
-                        : () => _previewFile(e.value),
+                    // Lender role: WALANG "View" button sa kahit anong
+                    // dokumento — ang review ay sa HM/Employee screens.
                     errorText: _docError(e.key),
                   ),
                 )),
@@ -1412,8 +1501,21 @@ class _LenderAccountUpgradeSubmitScreenState
     // Buttons stay active even when the form is incomplete — tapping them
     // triggers inline Form validation (field error text only, no toast).
     final isBusy = _isSubmitting || state.isLoading;
+    // Nakapirmeng action bar sa ilalim ng screen. Ang bottom padding nito ay
+    // ang buong clearance ng floating bottom nav pill ([mobileBottomNavHeight]
+    // = safe area + 36px float + 74px pill) para hindi ito matakpan ng nav.
+    // MAHALAGA: ang `context` dito ay ang SCREEN context — nasa LABAS ito ng
+    // body ng `MobileScaffold`, kaya [mobileBottomNavHeight] ang tama (ang
+    // [mobileBottomNavInset] ay para lang sa loob ng body).
+    // Kapag bukas ang keyboard (natatakpan din ang nav nito), hindi na
+    // idinadagdag ang clearance para hindi lumutang ang buttons.
+    final navInset = mobileBottomNavHeight(context);
+    final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
+    final bottomPad = keyboardInset > 0 ? 10.0 : 10.0 + navInset;
+    // Walang background card / border / shadow — transparent ang likod ng
+    // buttons, nakalutang lang sila sa itaas ng bottom nav.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
+      padding: EdgeInsets.fromLTRB(16, 10, 16, bottomPad),
       child: Row(
         children: [
           const Spacer(),
@@ -1913,14 +2015,12 @@ class _ValidIdCard extends StatelessWidget {
   final bool hasFront;
   final bool hasBack;
   final VoidCallback onPick;
-  final VoidCallback? onView;
   final String? errorText;
 
   const _ValidIdCard({
     required this.hasFront,
     required this.hasBack,
     required this.onPick,
-    this.onView,
     this.errorText,
   });
 
@@ -1928,11 +2028,6 @@ class _ValidIdCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final complete = hasFront && hasBack;
     final hasError = errorText != null && errorText!.isNotEmpty;
-    final subtitle = complete
-        ? 'Front ✓  •  Back ✓'
-        : hasFront
-            ? 'Front ✓  •  Back missing — tap to add'
-            : 'Front + Back of your government-issued ID';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1965,41 +2060,18 @@ class _ValidIdCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 14),
-                Expanded(
+                const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Valid Government ID *',
+                      Text('Valid Government ID',
                           style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
                               color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: complete
-                                ? AppColors.lenderBlue
-                                : AppColors.textSecondary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
                     ],
                   ),
                 ),
-                if (hasFront && onView != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: TextButton.icon(
-                      onPressed: onView,
-                      style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: const Size(0, 32)),
-                      icon: const Icon(Icons.visibility_outlined, size: 16),
-                      label: const Text('View', style: TextStyle(fontSize: 12)),
-                    ),
-                  ),
                 Icon(complete ? Icons.check_circle : Icons.upload_file_outlined,
                     color: complete
                         ? AppColors.success
@@ -2023,23 +2095,24 @@ class _ValidIdCard extends StatelessWidget {
 
 class _DocUploadCard extends StatelessWidget {
   final String label;
-  final String hint;
   final IconData icon;
   final String? assetPath;
   final PlatformFile? file;
   final VoidCallback onPick;
-  final VoidCallback? onView;
   final String? errorText;
+
+  /// Hindi required ang dokumentong ito — nagpapakita ng "(Optional)" sa tabi
+  /// ng label.
+  final bool optional;
 
   const _DocUploadCard({
     required this.label,
-    required this.hint,
     required this.icon,
     this.assetPath,
     this.file,
     required this.onPick,
-    this.onView,
     this.errorText,
+    this.optional = false,
   });
 
   @override
@@ -2101,37 +2174,30 @@ class _DocUploadCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(label,
-                          style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(
-                        hasFile ? file!.name : hint,
-                        style: TextStyle(
-                            fontSize: 12,
-                            color: hasFile
-                                ? AppColors.lenderBlue
-                                : AppColors.textSecondary),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary)),
+                          ),
+                          if (optional) ...[
+                            const SizedBox(width: 6),
+                            const Text('(Optional)',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    fontStyle: FontStyle.italic,
+                                    color: AppColors.textTertiary)),
+                          ],
+                        ],
                       ),
                     ],
                   ),
                 ),
-                if (hasFile && onView != null)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: TextButton.icon(
-                      onPressed: onView,
-                      style: TextButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          minimumSize: const Size(0, 32)),
-                      icon: const Icon(Icons.visibility_outlined, size: 16),
-                      label: const Text('View', style: TextStyle(fontSize: 12)),
-                    ),
-                  ),
                 Icon(
                     hasFile ? Icons.check_circle : Icons.upload_file_outlined,
                     color: hasFile
