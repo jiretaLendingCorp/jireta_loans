@@ -91,8 +91,10 @@ class LandingBreakpoints {
   /// Max content width of each section.
   static const double contentMaxWidth = 1180;
 
-  /// Height of the sticky navigation bar.
-  static const double navHeight = 76;
+  /// Height of the navigation chrome at the top of the page: the header bar
+  /// plus its hairline/accent edges, and the landing-only trust ribbon above
+  /// it. Used to offset section jumps so a section never lands under the bar.
+  static const double navHeight = 106;
 }
 
 /// Publishes a "the page scrolled" tick down to every [LandingReveal] so they
