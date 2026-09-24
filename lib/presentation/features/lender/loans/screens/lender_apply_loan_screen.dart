@@ -845,11 +845,20 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// floating bottom nav bar — safe area + float gap (36) + pill height (74) +
   /// [kGapAboveFloatingNav] na maliit na pagitan — kaya hindi dikit sa pill at
   /// hindi rin masyadong mataas.
-  double get _stepNavBottomPadding =>
-      MediaQuery.paddingOf(context).bottom +
-      kFloatingNavFloatGap +
-      kFloatingNavPillHeight +
-      kGapAboveFloatingNav;
+  ///
+  /// KAPAG BUKAS ANG KEYBOARD: hindi na idinadagdag ang clearance ng nav pill
+  /// (~144px). Nakabalot na sa ibabaw ng keyboard ang buong body
+  /// (`resizeToAvoidBottomInset`) at natatakpan na rin ng keyboard ang nav —
+  /// kaya ang dating padding ay nag-iiwan lang ng malaking blangkong banda sa
+  /// ilalim ng Back/Next: lumulutang ang buttons sa gitna ng screen at natatakip
+  /// ang susunod na fields (tingnan ang "Emergency Contact" na hati).
+  double get _stepNavBottomPadding {
+    if (MediaQuery.viewInsetsOf(context).bottom > 0) return 10;
+    return MediaQuery.paddingOf(context).bottom +
+        kFloatingNavFloatGap +
+        kFloatingNavPillHeight +
+        kGapAboveFloatingNav;
+  }
 
   Widget _buildLoanDetailsStep(
       NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
@@ -1805,7 +1814,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     // Next/Submit stay tappable so the step validators can run and surface
     // inline errors; the individual step handlers perform the real checks.
     final canProceed = !isSubmitting;
-    return Padding(
+    // NAKA-SOLID sa page background (hindi transparent): kapag transparent,
+    // sumisilip sa likod ng Back/Next ang PUTING card/surface ng step (o ang
+    // liwanag ng floating nav pill) — lalo na kapag naka-scroll pababa ang
+    // form. Dahil tuluy-tuloy na ang kulay ng page dito, wala nang puting
+    // banda sa likod ng buttons at hindi na rin dumadaan sa ilalim nila ang
+    // nilalaman ng step habang nag-i-scroll.
+    return Container(
+      width: double.infinity,
+      color: context.cPageBg,
       padding: EdgeInsets.fromLTRB(16, 10, 16, _stepNavBottomPadding),
       child: Row(
         children: [
@@ -2335,6 +2352,14 @@ class _NavTextButton extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(10),
+        // WALANG puting overlay sa likod ng label:
+        //  • hoverColor    — ang light/puting kahon na lumalabas sa web kapag
+        //                    naka-hover ang mouse sa "Back"/"Next".
+        //  • highlightColor— ang puting fill habang nakapindot.
+        // Ang splash ay tinted (hindi puti) para may feedback pa rin sa tap.
+        hoverColor: Colors.transparent,
+        highlightColor: Colors.transparent,
+        splashColor: AppColors.lenderBlue.withValues(alpha: 0.08),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           child: Row(

@@ -815,44 +815,50 @@ class NotificationDropdownPanel extends ConsumerWidget {
     );
   }
 
+  /// PREFIX matching ang gamit — ang totoong type codes ay may suffix (hal.
+  /// `account_upgrade_submitted`, `collection_pending_approval`,
+  /// `ci_completed`), kaya ang dating exact-match na `switch` ay hindi tumutugma
+  /// kahit isa at puro generic na bell ang icon sa lahat ng notification.
   IconData _typeIcon(String? type) {
-    switch (type) {
-      case 'loan':
-        return Icons.account_balance_outlined;
-      case 'payment':
-        return Icons.payment_outlined;
-      case 'account_upgrade_verified':
-        return Icons.verified_rounded;
-      case 'account_upgrade_rejected':
-        return Icons.gpp_bad_outlined;
-      case 'account_upgrade':
-        return Icons.verified_user_outlined;
-      case 'collection':
-        return Icons.local_shipping_outlined;
-      case 'ci':
-        return Icons.search_outlined;
-      default:
-        return Icons.notifications_outlined;
+    final t = (type ?? '').toLowerCase().trim();
+    if (t.startsWith('account_upgrade_verified')) return Icons.verified_rounded;
+    if (t.startsWith('account_upgrade_rejected')) return Icons.gpp_bad_outlined;
+    if (t.startsWith('account_upgrade')) return Icons.verified_user_outlined;
+    if (t.startsWith('collection')) return Icons.local_shipping_outlined;
+    if (t == 'ci' || t.startsWith('ci_')) return Icons.search_outlined;
+    if (t.startsWith('payment')) return Icons.payment_outlined;
+    if (t.startsWith('disbursement')) {
+      return Icons.account_balance_wallet_outlined;
     }
+    if (t.startsWith('penalty')) return Icons.warning_amber_rounded;
+    if (t.startsWith('loan')) return Icons.account_balance_outlined;
+    if (t.startsWith('user_created')) return Icons.person_add_alt_1_outlined;
+    return Icons.notifications_outlined;
   }
 
   Color _typeColor(String? type) {
-    switch (type) {
-      case 'loan':
-        return AppColors.deepNavy;
-      case 'payment':
-        return AppColors.success;
-      case 'account_upgrade_verified':
-        return AppColors.success;
-      case 'account_upgrade_rejected':
-        return AppColors.error;
-      case 'account_upgrade':
-        return AppColors.info;
-      case 'collection':
-        return AppColors.warning;
-      default:
-        return AppColors.textSecondary;
+    final t = (type ?? '').toLowerCase().trim();
+    // Approve / verify / accept → berde; reject / decline → pula.
+    if (t.startsWith('account_upgrade_verified') ||
+        t.startsWith('ci_approved') ||
+        t.startsWith('ci_accepted') ||
+        t.startsWith('collection_approved') ||
+        t.startsWith('collection_accepted')) {
+      return AppColors.success;
     }
+    if (t.startsWith('account_upgrade_rejected') ||
+        t.startsWith('ci_rejected') ||
+        t.startsWith('ci_declined') ||
+        t.startsWith('collection_rejected') ||
+        t.startsWith('collection_declined')) {
+      return AppColors.error;
+    }
+    if (t.startsWith('account_upgrade')) return AppColors.info;
+    if (t.startsWith('collection')) return AppColors.warning;
+    if (t.startsWith('payment') || t.startsWith('disbursement')) {
+      return AppColors.success;
+    }
+    return AppColors.textSecondary;
   }
 }
 

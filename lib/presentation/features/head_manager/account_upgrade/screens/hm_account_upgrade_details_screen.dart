@@ -75,7 +75,8 @@ class _HmAccountUpgradeDetailsScreenState
         title: 'Verify All Documents',
         message:
             'Verify the lender\'s entire account upgrade submission at once?',
-        confirmLabel: 'Verify All',
+        confirmLabel: 'Verify',
+        icon: Icons.verified_rounded,
       );
       if (confirmed != true || !mounted) return;
     }
