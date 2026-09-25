@@ -18,6 +18,7 @@ import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../../disbursements/screens/hm_disbursement_details_screen.dart';
 import '../providers/hm_loan_provider.dart';
+import '../providers/hm_loan_history_provider.dart';
 import '../widgets/approve_reject_modal.dart';
 import '../../in_office/providers/hm_in_office_provider.dart';
 import '../../in_office/widgets/in_office_wizard.dart';
@@ -61,6 +62,10 @@ class _HmLoanApplicationsListScreenState
     FilterTabDef('completed', 'Completed', Icons.verified_rounded),
     FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
     FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
+    // Tapos nang magbayad (`completed`) + malapit nang matapos (isang
+    // installment na lang ang natitira) — progreso ng bayad kada loan ang
+    // pokus nito, kaya naka-base sa `loans-view?fn=get-history`.
+    FilterTabDef('loan_history', 'Loan History', Icons.history_rounded),
   ];
 
   /// Manila-day bounds ng napiling filter — `null` kapag walang date filter.
@@ -82,6 +87,8 @@ class _HmLoanApplicationsListScreenState
       ref.read(hmInOfficeProvider.notifier).setDateRange(from, to);
     } else if (_overrideTab == 'disbursements') {
       ref.read(hmDisbursementProvider.notifier).setDateRange(from, to);
+    } else if (_overrideTab == 'loan_history') {
+      ref.read(hmLoanHistoryProvider.notifier).setDateRange(from, to);
     }
   }
 
@@ -97,9 +104,11 @@ class _HmLoanApplicationsListScreenState
     final loanState = ref.watch(hmLoanProvider);
     final inOfficeState = ref.watch(hmInOfficeProvider);
     final disbState = ref.watch(hmDisbursementProvider);
+    final historyState = ref.watch(hmLoanHistoryProvider);
     final effectiveTab = _overrideTab ?? loanState.tabFilter;
     final isInOffice = effectiveTab == 'in_office';
     final isDisbursements = effectiveTab == 'disbursements';
+    final isLoanHistory = effectiveTab == 'loan_history';
 
     return WebScaffold(
       title: 'Loan Records',
@@ -116,13 +125,18 @@ class _HmLoanApplicationsListScreenState
               // Toolbar stays visible for both modes; search filters the
               // currently visible list. For In-Office we still show the
               // same outer box (no inner box) with placeholder "Search".
-              _buildToolbar(loanState, inOfficeState, disbState,
-                  isInOffice, isDisbursements),
+              _buildToolbar(loanState, inOfficeState, disbState, historyState,
+                  isInOffice, isDisbursements, isLoanHistory),
               const SizedBox(height: 16),
               if (isInOffice) ...[
                 _buildInOfficeSection(inOfficeState),
               ] else if (isDisbursements) ...[
                 _buildDisbursementSection(disbState),
+              ] else if (isLoanHistory) ...[
+                _buildLoanHistorySection(historyState),
+                // Pagination bar — palaging nakikita kahit isang page lang.
+                const SizedBox(height: 16),
+                _buildHistoryPagination(historyState),
               ] else ...[
                 if (loanState.isLoading)
                   _buildLoadingShimmer()
@@ -185,6 +199,13 @@ class _HmLoanApplicationsListScreenState
                     .setDateRange(_dateFromParam, _dateToParam);
                 return;
               }
+              if (t.key == 'loan_history') {
+                setState(() => _overrideTab = 'loan_history');
+                ref
+                    .read(hmLoanHistoryProvider.notifier)
+                    .setDateRange(_dateFromParam, _dateToParam);
+                return;
+              }
               if (_overrideTab != null) setState(() => _overrideTab = null);
               ref.read(hmLoanProvider.notifier).setTab(t.key);
             },
@@ -200,15 +221,17 @@ class _HmLoanApplicationsListScreenState
       HmLoanState loanState,
       HmInOfficeState inOfficeState,
       HmDisbursementState disbState,
+      HmLoanHistoryState historyState,
       bool isInOffice,
-      bool isDisbursements) =>
+      bool isDisbursements,
+      bool isLoanHistory) =>
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ResponsiveSearchToolbar(
           searchField: TextField(
             controller: _searchCtrl,
             decoration: InputDecoration(
-              hintText: isDisbursements
+              hintText: (isDisbursements || isLoanHistory)
                   ? 'Search loan number or lender...'
                   : 'Search loan applications...',
               prefixIcon: const Icon(Icons.search, size: 20),
@@ -223,6 +246,8 @@ class _HmLoanApplicationsListScreenState
                 setState(() => _inOfficeSearch = v);
               } else if (isDisbursements) {
                 ref.read(hmDisbursementProvider.notifier).setSearch(v);
+              } else if (isLoanHistory) {
+                ref.read(hmLoanHistoryProvider.notifier).setSearch(v);
               } else {
                 ref.read(hmLoanProvider.notifier).setSearch(v);
               }
@@ -235,7 +260,9 @@ class _HmLoanApplicationsListScreenState
                   ? _filteredInOffice(inOfficeState.applications).length
                   : isDisbursements
                       ? disbState.disbursements.length
-                      : loanState.totalCount,
+                      : isLoanHistory
+                          ? historyState.totalCount
+                          : loanState.totalCount,
             ),
           ],
         ),
@@ -279,6 +306,234 @@ class _HmLoanApplicationsListScreenState
       );
     }
     return _Entrance(child: _buildDisbursementTable(st.disbursements));
+  }
+
+  // ──────────────────────── Loan History (embedded tab) ──────────────────────
+  // Mga loan na TAPOS nang bayaran (status `completed`) at ang mga MALAPIT nang
+  // matapos (isang installment na lang ang natitira). Server-side ang filter
+  // (`loans-view?fn=get-history`) dahil DERIVED ang outstanding balance — wala
+  // itong column sa `loans` kaya hindi mai-filter sa query ng client.
+  Widget _buildLoanHistorySection(HmLoanHistoryState st) {
+    if (st.isLoading) return _buildLoadingShimmer();
+    if (st.loans.isEmpty) {
+      final isFiltered = st.search.isNotEmpty;
+      return EmptyStateWidget(
+        title: isFiltered ? 'No matching loans' : 'No Loan History Yet',
+        message: isFiltered
+            ? 'Walang loan na tugma sa hinahanap. Subukan ang ibang termino.'
+            : 'Lalabas dito ang mga loan na tapos nang bayaran at ang mga malapit nang matapos.',
+        icon: isFiltered ? Icons.search_off_rounded : Icons.history_rounded,
+      );
+    }
+    return _Entrance(child: _buildLoanHistoryTable(st.loans));
+  }
+
+  /// Progreso ng bayad kada loan — Principal · Total Paid · Outstanding ·
+  /// Progress % · Status · Huling Bayad.
+  // NAKA-TABLE ito sa lahat ng desktop na lapad: `minTableWidth: 880` —
+  // kapareho ng Disbursements tab ng parehong screen (ang unang bersyon ay 1120
+  // kaya bumabagsak sa stacked-card layout sa ~1080px na viewport, kahit
+  // desktop pa). Sa mas makitid pa, ang `ResponsiveTableScroll` ang
+  // nagpapa-horizontal-scroll sa table, hindi ang layout ang nagbabago.
+  Widget _buildLoanHistoryTable(List<LoanModel> loans) {
+    final fmt = NumberFormat('#,##0.00', 'en_PH');
+    final dayFmt = DateFormat('MMM dd, yyyy');
+    final timeFmt = DateFormat('h:mm a');
+
+    return ResponsiveListCard(
+      minTableWidth: 880,
+      columns: const [
+        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Principal', icon: Icons.payments_outlined, flex: 2),
+        ResponsiveCol('Total Paid', icon: Icons.savings_outlined, flex: 2),
+        // flex 3 (hindi 2) para kasya ang buong "Outstanding" header nang
+        // walang ellipsis sa 880px na table.
+        ResponsiveCol('Outstanding',
+            icon: Icons.account_balance_wallet_outlined, flex: 3),
+        // Progress flex 2 / Status flex 3: ang "For Completion" (~108px kasama
+        // ang status dot) ang PINAKAMAHABANG laman ng table — kapag pantay ang
+        // bigay sa Status, dumadaan ito sa Last Payment column at natatakpan.
+        // Ang progress bar naman ay hindi kailangan ng malawak na column.
+        ResponsiveCol('Progress',
+            icon: Icons.trending_up_rounded, flex: 2),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
+        ResponsiveCol('Last Payment',
+            icon: Icons.event_available_outlined, flex: 3),
+      ],
+      actionsCol: const ResponsiveActionsCol(
+          width: 96, alignment: Alignment.topLeft),
+      rowHeight: 64,
+      rowPadding: const EdgeInsets.symmetric(horizontal: 16),
+      rowCrossAxisAlignment: CrossAxisAlignment.start,
+      rows: loans.map((loan) {
+        final lenderName =
+            '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
+        final isFullyPaid = loan.isFullyPaid;
+        final progress = loan.progress.clamp(0.0, 1.0).toDouble();
+        final pct = progress * 100;
+        final accent = isFullyPaid ? AppColors.success : AppColors.goldDark;
+        final lastPayment = loan.lastPaymentAt;
+        return ResponsiveRow(
+          onTap: () => _openDetails(context, loan.id),
+          cells: [
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  loan.loanNumber,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                      color: AppColors.textPrimary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  lenderName.isEmpty ? '—' : lenderName,
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textTertiary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+            Text(
+              '₱${fmt.format(loan.principalAmount)}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              '₱${fmt.format(loan.totalPaid)}',
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.success),
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              '₱${fmt.format(loan.outstandingBalance)}',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: isFullyPaid
+                    ? AppColors.textSecondary
+                    : AppColors.deepNavy,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+            // Progress % — parehong panuntunan ng "Outstanding & Progress"
+            // column ng Active Loans: porsyento + bar, berde kapag 100%.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '${pct.toStringAsFixed(0)}%',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                      color: accent),
+                ),
+                const SizedBox(height: 6),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: progress,
+                    minHeight: 6,
+                    backgroundColor: AppColors.divider,
+                    valueColor: AlwaysStoppedAnimation<Color>(accent),
+                  ),
+                ),
+              ],
+            ),
+            // Status — 'Completed' kapag bayad na lahat (kahit `active` pa ang
+            // hilaw na status), 'For Completion' kapag isang bayad na lang.
+            _StatusInline(
+              status: loan.status,
+              labelOverride: loan.completionLabel,
+              colorOverride: isFullyPaid
+                  ? AppColors.info
+                  : AppColors.goldDark,
+            ),
+            // Huling bayad — petsa sa unang linya, oras sa ilalim (kaparehong
+            // dalawang-linyang pattern ng "Applied" column ng loan table) para
+            // hindi maputol sa makitid na column.
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  lastPayment != null ? dayFmt.format(lastPayment) : 'N/A',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: lastPayment != null
+                          ? AppColors.textPrimary
+                          : AppColors.textTertiary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                if (lastPayment != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    timeFmt.format(lastPayment),
+                    style: const TextStyle(
+                        fontSize: 11, color: AppColors.textTertiary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ],
+          actions: _ActionIcon(
+            icon: Icons.visibility_outlined,
+            color: AppColors.deepNavy,
+            tooltip: 'View details',
+            onTap: () => _openDetails(context, loan.id),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
+  Widget _buildHistoryPagination(HmLoanHistoryState state) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      child: Row(
+        children: [
+          const Spacer(),
+          _PageBtn(
+            icon: Icons.chevron_left_rounded,
+            enabled: state.currentPage > 1,
+            onTap: () => ref
+                .read(hmLoanHistoryProvider.notifier)
+                .load(page: state.currentPage - 1),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.deepNavy,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              '${state.currentPage} / ${state.totalPages}',
+              style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white),
+            ),
+          ),
+          const SizedBox(width: 8),
+          _PageBtn(
+            icon: Icons.chevron_right_rounded,
+            enabled: state.currentPage < state.totalPages,
+            onTap: () => ref
+                .read(hmLoanHistoryProvider.notifier)
+                .load(page: state.currentPage + 1),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildDisbursementTable(List<DisbursementModel> items) {

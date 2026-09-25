@@ -163,6 +163,96 @@ export async function sumVerifiedPaymentsByLoan(
   return paidByLoan;
 }
 
+/**
+ * Pinakahuling petsa ng verified na bayad kada loan — "Huling Bayad" column ng
+ * Loan History.
+ *
+ * Kapareho ng payment→loan mapping ng `sumVerifiedPaymentsByLoan` (schedule
+ * link, at collection-assignment fallback na deduplicated): kung lumihis ito,
+ * may loan na may bayad ang balance pero walang petsa (o kabaliktaran) sa
+ * listahan. Ang bayad na kabilang sa koleksyong hindi pa na-approve ay hindi
+ * binibilang — hindi pa ito epektibong bayad.
+ */
+export async function getLastPaymentDatesBatch(
+  db: DbClient,
+  loanIds: string[],
+): Promise<Record<string, string>> {
+  const ids = (loanIds ?? []).filter(Boolean);
+  const latest: Record<string, string> = {};
+  if (ids.length === 0) return latest;
+
+  const { data: scheduleRows } = await db
+    .from('loan_schedules')
+    .select('id, loan_id')
+    .in('loan_id', ids);
+  const scheduleLoan = new Map<string, string>(
+    (scheduleRows ?? [])
+      .filter((s) => s?.id && s?.loan_id)
+      .map((s) => [String(s.id), String(s.loan_id)]),
+  );
+  const scheduleIds = [...scheduleLoan.keys()];
+  if (scheduleIds.length === 0) return latest;
+
+  const { data: assignmentRows } = await db
+    .from('collection_assignments')
+    .select('id, loan_schedule_id, status')
+    .in('loan_schedule_id', scheduleIds);
+  const assignmentLoan = new Map<string, string>();
+  const nonCounting = new Set<string>();
+  for (const a of (assignmentRows ?? []) as Array<{ id: string; loan_schedule_id: string | null; status: string | null }>) {
+    const lid = scheduleLoan.get(String(a.loan_schedule_id));
+    if (lid) assignmentLoan.set(String(a.id), lid);
+    if ((NON_COUNTING_COLLECTION_STATUSES as readonly string[]).includes(String(a.status))) {
+      nonCounting.add(String(a.id));
+    }
+  }
+
+  const { data: bySchedule } = await db
+    .from('payments')
+    .select('id, paid_at, loan_schedule_id, collection_assignment_id')
+    .eq('status', 'verified')
+    .in('loan_schedule_id', scheduleIds);
+
+  let byAssignment: Array<{
+    id?: string | null;
+    paid_at?: string | null;
+    collection_assignment_id?: string | null;
+  }> = [];
+  const assignmentIds = [...assignmentLoan.keys()].filter((id) => !nonCounting.has(id));
+  if (assignmentIds.length > 0) {
+    const { data } = await db
+      .from('payments')
+      .select('id, paid_at, collection_assignment_id')
+      .eq('status', 'verified')
+      .in('collection_assignment_id', assignmentIds);
+    byAssignment = (data ?? []) as typeof byAssignment;
+  }
+
+  const counted = new Set<string>();
+  const bump = (loanId: string | undefined, at: unknown) => {
+    if (!loanId || !at) return;
+    const iso = String(at);
+    if (!latest[loanId] || iso > latest[loanId]) latest[loanId] = iso;
+  };
+  for (const p of (bySchedule ?? []) as Array<{
+    id?: string | null;
+    paid_at?: string | null;
+    loan_schedule_id?: string | null;
+    collection_assignment_id?: string | null;
+  }>) {
+    if (p.collection_assignment_id && nonCounting.has(String(p.collection_assignment_id))) continue;
+    const lid = scheduleLoan.get(String(p.loan_schedule_id));
+    if (!lid) continue;
+    if (p.id) counted.add(String(p.id));
+    bump(lid, p.paid_at);
+  }
+  for (const p of byAssignment) {
+    if (p.id && counted.has(String(p.id))) continue; // hindi ma-doble
+    bump(assignmentLoan.get(String(p.collection_assignment_id)), p.paid_at);
+  }
+  return latest;
+}
+
 // Outstanding balance = total_payable + penalties - verified payments.
 // `db` is the service-role client returned by getAdminClient().
 export async function getLoanFinancials(db: DbClient, loanId: string): Promise<LoanFinancials | null> {

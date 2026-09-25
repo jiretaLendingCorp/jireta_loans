@@ -23,27 +23,27 @@ class LandingTrustBar extends StatelessWidget {
 
   static const List<(IconData, String, String, Color)> _items = [
     (
-      Icons.shield_outlined,
-      'Secure',
-      'Protected accounts and encrypted financial records.',
+      Icons.verified_user_rounded,
+      'Bank-Grade Security',
+      'Protected accounts, end-to-end encrypted financial records and audit trails.',
       LandingPalette.navy,
     ),
     (
-      Icons.bolt_rounded,
-      'Fast',
-      'Applications reviewed and released without long queues.',
+      Icons.speed_rounded,
+      'Instant Processing',
+      'Digital applications reviewed and released within 24–48 hours.',
       LandingPalette.amber,
     ),
     (
-      Icons.layers_outlined,
-      'Organized',
-      'Loans, payments and collections in one shared workspace.',
+      Icons.hub_rounded,
+      'Unified Workspace',
+      'Loans, GCash payments, and rider collections synchronized seamlessly.',
       LandingPalette.accent,
     ),
     (
-      Icons.verified_outlined,
-      'Reliable',
-      'Accurate schedules, balances and receipts every time.',
+      Icons.check_circle_rounded,
+      'Transparent Terms',
+      'Accurate amortization schedules, zero hidden deductions, reliable receipts.',
       LandingPalette.green,
     ),
   ];
@@ -52,7 +52,7 @@ class LandingTrustBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final isDesktop = LandingBreakpoints.isDesktop(width);
-    final columns = isDesktop ? 4 : (width < 560 ? 1 : 2);
+    final columns = isDesktop ? 4 : (width < 600 ? 1 : 2);
 
     return LandingContainer(
       child: LandingReveal(
@@ -1412,6 +1412,673 @@ class _CompanyRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Interactive Loan Calculator
+// ─────────────────────────────────────────────────────────────────────────────
+
+class LandingCalculatorSection extends StatefulWidget {
+  final VoidCallback onApply;
+
+  const LandingCalculatorSection({super.key, required this.onApply});
+
+  @override
+  State<LandingCalculatorSection> createState() => _LandingCalculatorSectionState();
+}
+
+class _LandingCalculatorSectionState extends State<LandingCalculatorSection> {
+  double _amount = 25000;
+  int _months = 6;
+  static const double _interestRate = 0.20; // 20% interest per loan term
+
+  double get _interest => _amount * _interestRate;
+  double get _totalPayable => _amount + _interest;
+  double get _monthlyPayment => _totalPayable / _months;
+
+  String _formatCurrency(double val) {
+    return '₱${val.toStringAsFixed(0).replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        )}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = LandingBreakpoints.isDesktop(width);
+
+    return LandingContainer(
+      child: Column(
+        children: [
+          const LandingReveal(
+            child: LandingSectionHeading(
+              eyebrow: 'Loan Calculator',
+              title: 'Estimate your loan in seconds',
+              subtitle:
+                  'Transparent computation with no hidden charges. Calculate your '
+                  'monthly installment and choose the repayment term that fits your budget.',
+            ),
+          ),
+          const SizedBox(height: 40),
+          LandingReveal(
+            child: Container(
+              padding: EdgeInsets.all(isDesktop ? 36 : 22),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(24),
+                border: Border.all(color: LandingPalette.line),
+                boxShadow: LandingPalette.cardShadow,
+              ),
+              child: isDesktop
+                  ? Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Expanded(flex: 6, child: _buildControls()),
+                        const SizedBox(width: 48),
+                        Expanded(flex: 5, child: _buildSummaryCard()),
+                      ],
+                    )
+                  : Column(
+                      children: [
+                        _buildControls(),
+                        const SizedBox(height: 32),
+                        _buildSummaryCard(),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildControls() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(
+          alignment: WrapAlignment.spaceBetween,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 10,
+          children: [
+            const Text(
+              'Loan Amount',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: LandingPalette.ink,
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              decoration: BoxDecoration(
+                color: LandingPalette.accentSoft,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                _formatCurrency(_amount),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
+                  color: LandingPalette.accent,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: LandingPalette.accent,
+            inactiveTrackColor: LandingPalette.accentSoft,
+            thumbColor: LandingPalette.accent,
+            overlayColor: LandingPalette.accent.withValues(alpha: 0.15),
+            trackHeight: 6,
+          ),
+          child: Slider(
+            value: _amount,
+            min: 3000,
+            max: 100000,
+            divisions: 97,
+            onChanged: (val) => setState(() => _amount = val),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 12),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('₱3,000', style: TextStyle(fontSize: 11, color: LandingPalette.faint)),
+              Text('₱100,000', style: TextStyle(fontSize: 11, color: LandingPalette.faint)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 28),
+        const Text(
+          'Repayment Term',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: LandingPalette.ink,
+          ),
+        ),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [3, 4, 6, 8, 12].map((m) {
+            final selected = _months == m;
+            return InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _months = m),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: BoxDecoration(
+                  color: selected ? LandingPalette.navy : Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: selected ? LandingPalette.navy : LandingPalette.line,
+                    width: 1.5,
+                  ),
+                  boxShadow: selected
+                      ? [
+                          BoxShadow(
+                            color: LandingPalette.navy.withValues(alpha: 0.20),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
+                          ),
+                        ]
+                      : null,
+                ),
+                child: Text(
+                  '$m Months',
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: selected ? Colors.white : LandingPalette.ink,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    final width = MediaQuery.sizeOf(context).width;
+    final isVerySmall = width < 360;
+
+    return Container(
+      padding: EdgeInsets.all(isVerySmall ? 18 : 26),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0F1B2C), Color(0xFF1B2F49)],
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: LandingPalette.navy.withValues(alpha: 0.20),
+            blurRadius: 28,
+            offset: const Offset(0, 14),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Flexible(
+                child: Text(
+                  'ESTIMATED MONTHLY',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: LandingPalette.goldSoft,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: const Text(
+                  '20% Term Rate',
+                  style: TextStyle(fontSize: 10, color: Colors.white),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _formatCurrency(_monthlyPayment),
+              style: const TextStyle(
+                fontSize: 34,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -1,
+                color: Colors.white,
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(height: 1, color: Colors.white.withValues(alpha: 0.12)),
+          const SizedBox(height: 18),
+          _summaryRow('Principal Amount', _formatCurrency(_amount)),
+          const SizedBox(height: 10),
+          _summaryRow('Total Interest', _formatCurrency(_interest)),
+          const SizedBox(height: 10),
+          _summaryRow('Total Repayment', _formatCurrency(_totalPayable), isBold: true),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: LandingPrimaryButton(
+              label: 'Apply For This Loan',
+              compact: isVerySmall,
+              trailingIcon: Icons.arrow_forward_rounded,
+              onTap: widget.onApply,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value, {bool isBold = false}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: Colors.white.withValues(alpha: isBold ? 0.95 : 0.70),
+            fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: isBold ? 15 : 13.5,
+            color: isBold ? LandingPalette.goldSoft : Colors.white,
+            fontWeight: isBold ? FontWeight.w800 : FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Testimonials Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class LandingTestimonialsSection extends StatelessWidget {
+  const LandingTestimonialsSection({super.key});
+
+  static const List<(String, String, String, String)> _reviews = [
+    (
+      'Maria Santos',
+      'Sari-Sari Store Owner, Bulacan',
+      'Napakabilis ng release ng puhunan para sa tindahan ko. Dahil sa GCash payment option, hindi ko na kailangan pumila sa sangay buwan-buwan.',
+      '₱45,000 Business Expansion',
+    ),
+    (
+      'Roberto Cruz',
+      'Tricycle Operator, Pampanga',
+      'Transparent ang computation at walang biglaang charges. Pati si kuya rider na bumibisita para sa collection, magalang at on-time lagi.',
+      '₱25,000 Vehicle Upgrade',
+    ),
+    (
+      'Elena Reyes',
+      'Market Vendor, Laguna',
+      'Simula noong nag-online application ang Jireta, napakadali mag-renew ng loan kapag kailangan ng karagdagang paninda.',
+      '₱35,000 Inventory Loan',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final width = MediaQuery.sizeOf(context).width;
+    final isDesktop = LandingBreakpoints.isDesktop(width);
+    final columns = isDesktop ? 3 : (width >= LandingBreakpoints.tablet ? 2 : 1);
+
+    return LandingContainer(
+      child: Column(
+        children: [
+          const LandingReveal(
+            child: LandingSectionHeading(
+              eyebrow: 'Client Stories',
+              title: 'Trusted by over 50,000+ borrowers',
+              subtitle:
+                  'Hear from real small business owners and families across Luzon '
+                  'who continue to grow with Jireta Loans.',
+            ),
+          ),
+          const SizedBox(height: 44),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 20.0;
+              final tileWidth =
+                  (constraints.maxWidth - gap * (columns - 1)) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (var i = 0; i < _reviews.length; i++)
+                    SizedBox(
+                      width: tileWidth,
+                      child: LandingReveal(
+                        order: i,
+                        child: _TestimonialCard(
+                          name: _reviews[i].$1,
+                          role: _reviews[i].$2,
+                          quote: _reviews[i].$3,
+                          tag: _reviews[i].$4,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TestimonialCard extends StatelessWidget {
+  final String name;
+  final String role;
+  final String quote;
+  final String tag;
+
+  const _TestimonialCard({
+    required this.name,
+    required this.role,
+    required this.quote,
+    required this.tag,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: LandingPalette.line),
+        boxShadow: LandingPalette.cardShadow,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < 5; i++)
+                    const Padding(
+                      padding: EdgeInsets.only(right: 3),
+                      child: Icon(Icons.star_rounded, size: 17, color: Color(0xFFF59E0B)),
+                    ),
+                ],
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: LandingPalette.accentSoft,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  tag,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: LandingPalette.accent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Text(
+            '"$quote"',
+            style: const TextStyle(
+              fontSize: 13.5,
+              height: 1.62,
+              fontStyle: FontStyle.italic,
+              color: LandingPalette.ink,
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 19,
+                backgroundColor: LandingPalette.navy,
+                child: Text(
+                  name.split(' ').map((n) => n[0]).take(2).join(),
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: LandingPalette.ink,
+                      ),
+                    ),
+                    Text(
+                      role,
+                      style: const TextStyle(
+                        fontSize: 11.5,
+                        color: LandingPalette.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FAQ Section
+// ─────────────────────────────────────────────────────────────────────────────
+
+class LandingFaqSection extends StatefulWidget {
+  const LandingFaqSection({super.key});
+
+  @override
+  State<LandingFaqSection> createState() => _LandingFaqSectionState();
+}
+
+class _LandingFaqSectionState extends State<LandingFaqSection> {
+  int? _expandedIndex;
+
+  static const List<(String, String)> _faqs = [
+    (
+      'What are the eligibility requirements for a loan?',
+      'Borrowers must be at least 21 years old, Filipino citizens with valid government-issued IDs, proof of billing, and proof of steady income or legitimate business operation.',
+    ),
+    (
+      'How fast are loan applications processed and released?',
+      'Initial credit evaluation is usually completed within 24 hours. Once your documents are confirmed and credit investigation is completed, funds are disbursed promptly.',
+    ),
+    (
+      'What payment methods are supported for loan amortization?',
+      'You can settle repayments directly through GCash with automated receipt tracking, in person at any Jireta branch, or via scheduled field collection with our authorized riders.',
+    ),
+    (
+      'What are the interest rates and repayment terms?',
+      'Jireta offers transparent lending with standard terms from 3 to 12 months with a 20% interest rate per loan term. No surprise maintenance or hidden service fees.',
+    ),
+    (
+      'Can I track my balance and payment schedule online?',
+      'Yes! Registered borrowers have access to their live borrower dashboard where every installment, remaining balance, and historical receipt is updated in real time.',
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return LandingContainer(
+      child: Column(
+        children: [
+          const LandingReveal(
+            child: LandingSectionHeading(
+              eyebrow: 'Got Questions?',
+              title: 'Frequently Asked Questions',
+              subtitle:
+                  'Find clear answers to common inquiries about loan applications, '
+                  'processing schedules, and payment channels.',
+            ),
+          ),
+          const SizedBox(height: 40),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 820),
+            child: Column(
+              children: [
+                for (var i = 0; i < _faqs.length; i++)
+                  LandingReveal(
+                    order: i,
+                    child: Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: _FaqItem(
+                        question: _faqs[i].$1,
+                        answer: _faqs[i].$2,
+                        isOpen: _expandedIndex == i,
+                        onToggle: () => setState(() {
+                          _expandedIndex = _expandedIndex == i ? null : i;
+                        }),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FaqItem extends StatelessWidget {
+  final String question;
+  final String answer;
+  final bool isOpen;
+  final VoidCallback onToggle;
+
+  const _FaqItem({
+    required this.question,
+    required this.answer,
+    required this.isOpen,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isOpen ? LandingPalette.accent.withValues(alpha: 0.4) : LandingPalette.line,
+        ),
+        boxShadow: LandingPalette.cardShadow,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Column(
+          children: [
+            InkWell(
+              onTap: onToggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        question,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: isOpen ? LandingPalette.accent : LandingPalette.ink,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    AnimatedRotation(
+                      turns: isOpen ? 0.5 : 0.0,
+                      duration: const Duration(milliseconds: 200),
+                      child: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: LandingPalette.muted,
+                        size: 24,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            AnimatedCrossFade(
+              firstChild: const SizedBox(width: double.infinity),
+              secondChild: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(22, 0, 22, 20),
+                child: Text(
+                  answer,
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    height: 1.65,
+                    color: LandingPalette.muted,
+                  ),
+                ),
+              ),
+              crossFadeState:
+                  isOpen ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+              duration: const Duration(milliseconds: 220),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

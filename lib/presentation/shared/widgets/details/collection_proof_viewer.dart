@@ -7,7 +7,23 @@ import '../../../../core/theme/app_colors.dart';
 class CollectionProofItem {
   final String label;
   final String url;
-  const CollectionProofItem({required this.label, required this.url});
+
+  /// Signature proof ba ito?
+  ///
+  /// Ang signature ay TRANSPARENT na PNG na MADILIM ang tinta — hindi ito
+  /// makikita sa itim na background ng fullscreen viewer (dating itim-sa-itim
+  /// kaya halos blangko ang "Lender Signature"). Kapag `null`, awtomatikong
+  /// nababatay sa label ('Lender Signature' ang label sa lahat ng tawag),
+  /// kaya hindi kailangang isa-isahin ang mga call site.
+  final bool? isSignature;
+  const CollectionProofItem({
+    required this.label,
+    required this.url,
+    this.isSignature,
+  });
+
+  bool get looksLikeSignature =>
+      isSignature ?? label.toLowerCase().contains('signature');
 }
 
 /// Opens a dialog showing the rider's submitted proofs.
@@ -176,14 +192,25 @@ class _ProofFullscreenViewerState extends State<_ProofFullscreenViewer> {
               // larawan sa loob), kaya nananatiling naka-center ang larawan
               // habang nag-zoom at hindi ito gumagalaw sa sarili nitong
               // direksyon.
-              child: Center(
-                child: Image.network(
-                  widget.items[i].url,
-                  fit: BoxFit.contain,
-                  errorBuilder: (_, __, ___) => const Icon(
-                      Icons.broken_image_outlined,
-                      size: 60,
-                      color: Colors.white24),
+              //
+              // PUTING "papel" ang background ng signature: transparent ang PNG
+              // nito at madilim ang tinta, kaya sa dating itim na background ay
+              // itim-sa-itim ito. Mananatiling itim ang mga litrato.
+              child: ColoredBox(
+                color: widget.items[i].looksLikeSignature
+                    ? Colors.white
+                    : Colors.black,
+                child: Center(
+                  child: Image.network(
+                    widget.items[i].url,
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => Icon(
+                        Icons.broken_image_outlined,
+                        size: 60,
+                        color: widget.items[i].looksLikeSignature
+                            ? Colors.black26
+                            : Colors.white24),
+                  ),
                 ),
               ),
             ),
@@ -198,8 +225,12 @@ class _ProofFullscreenViewerState extends State<_ProofFullscreenViewer> {
                 widget.items.length > 1
                     ? '${item.label}  •  ${_index + 1}/${widget.items.length}'
                     : item.label,
-                style: const TextStyle(
-                    color: Colors.white70,
+                // Sa puting signature page, itim na text ang kailangan —
+                // mawawala ang puting caption sa puting background.
+                style: TextStyle(
+                    color: item.looksLikeSignature
+                        ? Colors.black87
+                        : Colors.white70,
                     fontSize: 13,
                     fontWeight: FontWeight.w600),
               ),
@@ -228,6 +259,10 @@ class _ProofTile extends StatelessWidget {
   final String url;
   const _ProofTile({required this.label, required this.url});
 
+  /// Signature ba ang tile na ito? (Label-based; kapareho ng default ng
+  /// [CollectionProofItem.looksLikeSignature].)
+  bool get looksLikeSignature => label.toLowerCase().contains('signature');
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -251,7 +286,13 @@ class _ProofTile extends StatelessWidget {
                 fit: StackFit.expand,
                 children: [
                   Image.network(url,
-                      fit: BoxFit.cover,
+                      // Signature = transparent na PNG; `contain` para buo itong
+                      // nakikita sa thumbnail (hindi na-cropped ng `cover`).
+                      // Maliwanag naman ang background ng tile
+                      // (`surfaceVariant`), kaya kita ang madilim na tinta.
+                      fit: looksLikeSignature
+                          ? BoxFit.contain
+                          : BoxFit.cover,
                       loadingBuilder: (_, child, progress) =>
                           progress == null
                               ? child

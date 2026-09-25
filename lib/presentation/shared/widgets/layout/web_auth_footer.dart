@@ -182,7 +182,7 @@ class _CompactFooter extends StatelessWidget {
         SizedBox(height: 8),
         _ContactLine(icon: Icons.phone_outlined, text: '(02) 8XXX-XXXX'),
         SizedBox(height: 8),
-        _ContactLine(icon: Icons.location_on_outlined, text: 'Jireta Loans & Credit Corp, Philippines'),
+        _ContactLine(icon: Icons.location_on_outlined, text: 'Jireta Loans & Credit Corp'),
       ],
     );
   }

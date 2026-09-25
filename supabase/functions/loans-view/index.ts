@@ -16,7 +16,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination, validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
-import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
+import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLastPaymentDatesBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
 import { searchUserIdsByName } from '../_shared/search.ts';
@@ -63,6 +63,9 @@ serve(async (req) => {
       case 'get-schedule-preview':
         // ── [moved from functions/loans-get-schedule-preview/index.ts] ───
         return await handleGetSchedulePreview(req);
+      case 'get-history':
+        // ── [Loan Records → Loan History tab] ──────────────────────────────
+        return await handleGetHistory(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -400,6 +403,135 @@ async function handleGetDetails(req: Request) {
     };
 
     return jsonResponse(loanOut);
+}
+
+// ── [Loan Records → Loan History tab] ──────────────────────────────────────
+/**
+ * Loan History — ang mga loan na TAPOS nang bayaran (status `completed`) at ang
+ * mga MALAPIT nang matapos (ang natitirang balanse ay kasinlaki na lang ng
+ * isang installment, o wala nang natitira pero hindi pa na-tag na completed).
+ *
+ * Bakit server-side ang filter: ang outstanding balance ay DERIVED sa
+ * `_shared/loan_financials.ts` (wala itong column sa `loans`), kaya hindi ito
+ * mai-`eq()`/`lte()` sa query. Ang mga NA-RELEASE na loan lang ang kandidato —
+ * walang balanse ang hindi pa na-disburse (pending/approved/ci_*). Ang nasa
+ * listahan ay hindi nao-overlap sa "active" pipeline ng Loan Records.
+ */
+const HISTORY_CANDIDATE_STATUSES = ['active', 'overdue', 'completed'];
+/** Cap sa kandidato bago ang in-memory na pagination (maliit na dataset). */
+const HISTORY_MAX_CANDIDATES = 1000;
+
+async function handleGetHistory(req: Request) {
+    const authResult = await requireAuth(req);
+    if (!isAuthUser(authResult)) return authResult;
+    const user = authResult;
+    // Staff-only screen (Loan Records ng HM/Employee).
+    if (user.role !== ROLES.HEAD_MANAGER && user.role !== ROLES.EMPLOYEE) {
+      return errorResponse('Access denied', 403, 'FORBIDDEN');
+    }
+
+    const url = new URL(req.url);
+    const { page, limit } = validatePagination(url.searchParams.get('page'), url.searchParams.get('limit'));
+    const search = url.searchParams.get('search');
+    const dateFrom = url.searchParams.get('date_from');
+    const dateTo = url.searchParams.get('date_to');
+    const offset = (page - 1) * limit;
+
+    const db = getAdminClient();
+    let query = db.from('loans')
+      .select(`id, loan_number, lender_id, principal_amount, interest_rate,
+        installment_amount, payment_frequency, status, created_at, updated_at,
+        lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name))`)
+      .in('status', HISTORY_CANDIDATE_STATUSES);
+
+    if (search) {
+      // Kapareho ng get-list: ang lender-name search ay naha-resolve muna sa
+      // IDs (hindi kayang i-parse ng PostgREST ang embedded paths).
+      const lenderIds = await searchUserIdsByName(db, search);
+      const term = String(search).replace(/[(),.%*[\].]/g, '');
+      if (lenderIds.length > 0) {
+        query = query.or(
+          `loan_number.ilike.%${term}%,lender_id.in.(${lenderIds.join(',')})`,
+        );
+      } else {
+        query = query.ilike('loan_number', `%${term}%`);
+      }
+    }
+    if (dateFrom) query = query.gte('created_at', dateFrom);
+    if (dateTo) query = query.lte('created_at', dateTo);
+
+    const { data, error } = await query
+      .order('created_at', { ascending: false })
+      .limit(HISTORY_MAX_CANDIDATES);
+    if (error) return errorResponse('Failed to fetch loan history', 500, 'SERVER_ERROR');
+
+    const candidates = (data ?? []) as unknown as Array<Record<string, any>>;
+    const [financials, disbursements] = await Promise.all([
+      getLoanFinancialsBatch(db, candidates.map((r) => String(r.id))),
+      getLoanDisbursementsBatch(db, candidates.map((r) => String(r.id))),
+    ]);
+
+    const history = candidates.filter((r) => {
+      if (String(r.status) === 'completed') return true;
+      const outstanding = financials[String(r.id)]?.outstanding_balance ?? 0;
+      // Malapit nang matapos: kasing-laki na lang ng isang installment ang
+      // natitira (o wala nang natitira pero hindi pa na-tag na completed).
+      const installment = Number(r.installment_amount ?? 0);
+      return outstanding <= (installment > 0 ? installment : 0);
+    });
+
+    const pageRows = history.slice(offset, offset + limit);
+    // Petsa ng huling bayad para lang sa mga row na talagang ipapakita.
+    const lastPayments = await getLastPaymentDatesBatch(
+      db,
+      pageRows.map((r) => String(r.id)),
+    );
+
+    const mapped = pageRows.map((r) => {
+      const fin = financials[String(r.id)];
+      const paymentsTotal = fin?.payments_total ?? 0;
+      const totalPayable = fin?.total_payable ?? 0;
+      const lp = embedAsObject(r.lender_profiles);
+      const borrower = lp ? embedAsObject(lp.users) : null;
+      return {
+        id: r.id,
+        loan_number: r.loan_number,
+        lender_id: r.lender_id,
+        lender_name: borrower
+          ? `${borrower.first_name ?? ''} ${borrower.last_name ?? ''}`.trim()
+          : null,
+        principal_amount: r.principal_amount,
+        interest_rate: r.interest_rate,
+        total_payable: totalPayable,
+        // Kabuuang verified na bayad (batayan ng "Total Paid" at progress).
+        payments_total: paymentsTotal,
+        outstanding_balance: fin?.outstanding_balance ?? 0,
+        // 0..1 — fraction ng total payable na nabayaran na (0 kapag wala pang
+        // total payable para hindi mag-divide by zero sa UI).
+        progress: totalPayable > 0
+          ? Math.round(Math.min(1, paymentsTotal / totalPayable) * 10000) / 10000
+          : 0,
+        installment_amount: r.installment_amount,
+        payment_frequency: r.payment_frequency,
+        status: r.status,
+        // `completed` = tapos na; `for_completion` = pa-tapos pa lang.
+        completion_state: String(r.status) === 'completed'
+          ? 'completed'
+          : 'for_completion',
+        last_payment_at: lastPayments[String(r.id)] ?? null,
+        disbursed_at: disbursements[String(r.id)]?.disbursed_at ?? null,
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      };
+    });
+
+    return jsonResponse({
+      data: mapped,
+      total: history.length,
+      page,
+      limit,
+      totalPages: Math.max(1, Math.ceil(history.length / limit)),
+    });
 }
 
 // ── [moved from functions/loans-get-schedule-preview/index.ts] ──────────────

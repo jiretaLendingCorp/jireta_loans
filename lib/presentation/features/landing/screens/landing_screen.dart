@@ -183,6 +183,10 @@ class _LandingScreenState extends State<LandingScreen> {
                         _howItWorksSection(),
                         const LandingDevicesSection(),
                         _aboutSection(),
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 78),
+                          child: LandingFaqSection(),
+                        ),
                         _finalCtaSection(),
                       ],
                     ),

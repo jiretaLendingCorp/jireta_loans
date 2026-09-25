@@ -44,7 +44,10 @@ class _RiderEditProfileScreenState
   String? _vehicleBrand;
   bool _initialized = false;
 
-  static const _brands = [
+  /// MOTORCYCLE brands lang — walang car brands (Toyota, Mitsubishi, …).
+  /// Kapag lumang car brand ang naka-save sa profile, awtomatikong napupunta
+  /// ito sa 'Other' (naka-fill ang brand name) kaya hindi nawawala.
+  static const _motorcycleBrands = [
     'Honda',
     'Yamaha',
     'Suzuki',
@@ -58,14 +61,24 @@ class _RiderEditProfileScreenState
     'Benelli',
     'Rusi',
     'Royal Enfield',
-    'Toyota',
-    'Mitsubishi',
-    'Nissan',
-    'Hyundai',
-    'Isuzu',
-    'Ford',
-    'Chevrolet',
   ];
+
+  /// Motorcycle lang ang uri ng rider.
+  static const _vehicleTypes = ['motorcycle'];
+
+  /// Isinasama pa rin ang KASALUKUYANG halaga kung legacy ito (hal. 'bicycle' /
+  /// 'car' mula sa lumang record) — kapag wala sa `items` ang value, nag-a-
+  /// assert ang dropdown.
+  List<String> get _vehicleTypeItems {
+    final current = _vehicleType;
+    if (current.isEmpty || _vehicleTypes.contains(current)) {
+      return _vehicleTypes;
+    }
+    return [..._vehicleTypes, current];
+  }
+
+  static String _vehicleTypeLabel(String v) =>
+      v.isEmpty ? v : v[0].toUpperCase() + v.substring(1);
 
   static const _navItems = [
     MobileNavItem(
@@ -114,6 +127,9 @@ class _RiderEditProfileScreenState
     _plateCtrl.text = user.plateNumber ?? '';
     _licenseCtrl.text = user.driversLicenseNumber ?? '';
 
+    // Motorcycle lang ang valid na uri ngayon; ang legacy na 'bicycle'/'car'
+    // ay pinapanatili pa rin (kasama sa dropdown items) para hindi basta-basta
+    // mabago ang naka-save na halaga — ang susunod na save na ang bahala.
     final type = (user.vehicleType ?? '').toString().toLowerCase();
     _vehicleType =
         (type == 'bicycle' || type == 'car') ? type : 'motorcycle';
@@ -121,7 +137,7 @@ class _RiderEditProfileScreenState
     final brand = (user.vehicleBrand ?? '').toString().trim();
     if (brand.isEmpty) {
       _vehicleBrand = null;
-    } else if (_brands.contains(brand)) {
+    } else if (_motorcycleBrands.contains(brand)) {
       _vehicleBrand = brand;
     } else {
       _vehicleBrand = 'other';
@@ -314,12 +330,10 @@ class _RiderEditProfileScreenState
                           key: ValueKey('vt-$_vehicleType'),
                           label: 'Vehicle Type',
                           value: _vehicleType,
-                          items: const [
-                            DropdownMenuItem(
-                                value: 'motorcycle', child: Text('Motorcycle')),
-                            DropdownMenuItem(
-                                value: 'bicycle', child: Text('Bicycle')),
-                            DropdownMenuItem(value: 'car', child: Text('Car')),
+                          items: [
+                            for (final t in _vehicleTypeItems)
+                              DropdownMenuItem(
+                                  value: t, child: Text(_vehicleTypeLabel(t))),
                           ],
                           onChanged: (v) =>
                               setState(() => _vehicleType = v ?? 'motorcycle'),
@@ -331,7 +345,7 @@ class _RiderEditProfileScreenState
                           value: _vehicleBrand,
                           hint: 'Select brand',
                           items: [
-                            ..._brands.map((b) => DropdownMenuItem(
+                            ..._motorcycleBrands.map((b) => DropdownMenuItem(
                                 value: b, child: Text(b))),
                             const DropdownMenuItem(
                                 value: 'other', child: Text('Other')),

@@ -30,7 +30,10 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
   bool _loading = false;
   String? _error;
 
-  static const List<String> _brands = [
+  /// MOTORCYCLE brands lang — walang car brands (Toyota, Mitsubishi, …). Ang
+  /// rider ng Jireta ay motorcycle messenger, kaya puro motor brand ang
+  /// listahan; may 'Other' pa rin sa dulo para sa hindi nakalista.
+  static const List<String> _motorcycleBrands = [
     'Honda',
     'Yamaha',
     'Suzuki',
@@ -44,13 +47,6 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
     'Benelli',
     'Rusi',
     'Royal Enfield',
-    'Toyota',
-    'Mitsubishi',
-    'Nissan',
-    'Hyundai',
-    'Isuzu',
-    'Ford',
-    'Chevrolet',
   ];
 
   String get _resolvedBrand {
@@ -154,15 +150,13 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                           initialValue: _vehicleType,
                           decoration: _dec('Vehicle Type'),
                           items: const [
+                            // Motorcycle LANG — walang Bicycle/Car: motorcycle
+                            // messenger rider ang lahat ng rider, kaya hindi na
+                            // kailangang pumili ng ibang uri.
                             DropdownMenuItem(
                               value: 'motorcycle',
                               child: Text('Motorcycle'),
                             ),
-                            DropdownMenuItem(
-                              value: 'bicycle',
-                              child: Text('Bicycle'),
-                            ),
-                            DropdownMenuItem(value: 'car', child: Text('Car')),
                           ],
                           onChanged: (v) => setState(() => _vehicleType = v!),
                         ),
@@ -174,7 +168,7 @@ class _EmpCreateRiderModalState extends ConsumerState<EmpCreateRiderModal> {
                           decoration: _dec('Vehicle Brand'),
                           hint: const Text('Select brand'),
                           items: [
-                            ..._brands.map((b) => DropdownMenuItem(
+                            ..._motorcycleBrands.map((b) => DropdownMenuItem(
                                 value: b, child: Text(b))),
                             const DropdownMenuItem(
                                 value: 'other', child: Text('Other')),

@@ -78,7 +78,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                   _InfoRow('Loan Number', col.loanNumber.isNotEmpty ? col.loanNumber : 'N/A'),
                   _InfoRow('Request Type', isOffice ? 'Pay at the Office' : 'Rider Collection'),
                   _InfoRow('Status', col.status),
-                  const Divider(height: 20),
                   _InfoRow('Amount Due', schedule['amount_due'] != null ? '₱${fmt.format((schedule['amount_due'] as num).toDouble())}' : 'N/A'),
                   _InfoRow('Amount Collected', col.amountCollected != null ? '₱${fmt.format(col.amountCollected!)}' : 'Not yet collected'),
                 ]),
@@ -103,35 +102,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                   _InfoRow('Notes', col.notes ?? 'None'),
                 ]),
               ),
-              const SizedBox(height: 16),
-              _PremiumSectionCard(
-                title: 'Payment Info',
-                subtitle: 'Reconciliation & proof',
-                icon: Icons.payments_rounded,
-                accent: AppColors.deepNavy,
-                child: Column(children: [
-                  _InfoRow('Due Date', schedule['due_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(schedule['due_date'])) : 'N/A'),
-                  _InfoRow('Period', '${schedule['period_number'] ?? schedule['installment_number'] ?? 'N/A'}'),
-                  _InfoRow('Idempotency Key', col.idempotencyKey ?? 'N/A'),
-                  if (hasProof) ...[
-                    const SizedBox(height: 12),
-                    Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 3))]),
-                      child: ElevatedButton.icon(
-                        onPressed: () => showCollectionProofDialog(context, [
-                          if (col.proofPhoto != null) CollectionProofItem(label: 'Payment Proof', url: col.proofPhoto!),
-                          if (col.borrowerSignature != null) CollectionProofItem(label: 'Lender Signature', url: col.borrowerSignature!),
-                          if (col.collectionPhoto != null) CollectionProofItem(label: 'Scene Photo', url: col.collectionPhoto!),
-                        ]),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                        icon: const Icon(Icons.visibility_rounded, size: 18, color: Colors.white),
-                        label: const Text('View Collection Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                      ),
-                    ),
-                  ],
-                ]),
-              ),
               if (col.locationLat != null) ...[
                 const SizedBox(height: 16),
                 _PremiumSectionCard(
@@ -147,74 +117,278 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
               ],
             ]);
 
-            final rightRail = SizedBox(
-              width: isNarrow ? double.infinity : 340,
-              child: Column(children: [
+            // Collection Status — nasa TAAS na ng page (full width): dito agad
+            // nakikita ang progreso ng koleksyon at ang approve/reject actions.
+            final statusCard = Container(
+              decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(
-                  decoration: BoxDecoration(color: Colors.white, border: Border.all(color: AppColors.border), boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))]),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
+                  child: const Row(children: [
+                    SizedBox(width: 8),
+                    Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                  ]),
+                ),
+                Padding(
+                  padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                      decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
-                      child: const Row(children: [
-                        SizedBox(width: 8),
-                        Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
-                      ]),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(children: [
-                        _buildStatusCard(col),
-                        _buildReviewActions(context, ref, col),
-                      ]),
+                    _buildStatusCard(col),
+                    // Hindi na naka-stretch sa buong lapad ng page ang
+                    // Approve/Reject ngayong nasa itaas na ang card.
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: _buildReviewActions(context, ref, col),
                     ),
                   ]),
                 ),
               ]),
             );
 
-            if (isNarrow) {
-              return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [leftColumn, const SizedBox(height: 16), rightRail]);
-            }
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 5, child: leftColumn), const SizedBox(width: 16), rightRail]);
+            // Payment Info — inilipat sa dating pwesto ng Collection Status
+            // (right rail), kasama ang View Collection Proof button.
+            final paymentInfoCard = _PremiumSectionCard(
+              title: 'Payment Info',
+              subtitle: 'Reconciliation & proof',
+              icon: Icons.payments_rounded,
+              accent: AppColors.deepNavy,
+              child: Column(children: [
+                _InfoRow('Due Date', schedule['due_date'] != null ? DateFormat('MMM d, yyyy').format(DateTime.parse(schedule['due_date'])) : 'N/A'),
+                _InfoRow('Period', '${schedule['period_number'] ?? schedule['installment_number'] ?? 'N/A'}'),
+                _InfoRow('Idempotency Key', col.idempotencyKey ?? 'N/A'),
+                if (hasProof) ...[
+                  const SizedBox(height: 12),
+                  // Compact na button — HINDI na buong lapad ng card. Sa
+                  // desktop, kasya lang ito sa nilalaman at naka-left align:
+                  // dati ay `width: double.infinity` kaya apat na salitang
+                  // label ay humahaba sa buong lapad ng "Payment Info" card.
+                  // Sa makitid na screen (< 860px) buong lapad pa rin — mas
+                  // madaling tapikin gamit ang hinlalaki.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: SizedBox(
+                      width: isNarrow ? double.infinity : null,
+                      child: Container(
+                        decoration: BoxDecoration(gradient: const LinearGradient(colors: [AppColors.deepNavy, Color(0xFF1A2E4A)]), borderRadius: BorderRadius.circular(10), boxShadow: [BoxShadow(color: AppColors.deepNavy.withValues(alpha: 0.2), blurRadius: 10, offset: const Offset(0, 3))]),
+                        child: ElevatedButton.icon(
+                          onPressed: () => showCollectionProofDialog(context, [
+                            if (col.proofPhoto != null) CollectionProofItem(label: 'Payment Proof', url: col.proofPhoto!),
+                            if (col.borrowerSignature != null) CollectionProofItem(label: 'Lender Signature', url: col.borrowerSignature!),
+                            if (col.collectionPhoto != null) CollectionProofItem(label: 'Scene Photo', url: col.collectionPhoto!),
+                          ]),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.transparent, shadowColor: Colors.transparent, padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                          icon: const Icon(Icons.visibility_rounded, size: 18, color: Colors.white),
+                          label: const Text('View Collection Proof', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ]),
+            );
+
+            final rightRail = SizedBox(
+              width: isNarrow ? double.infinity : 340,
+              child: Column(children: [paymentInfoCard]),
+            );
+
+            // Collection Status ang nasa ITAAS, tapos ang dalawang column
+            // (left: overview/assignment, right: payment info) sa ilalim.
+            return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              statusCard,
+              const SizedBox(height: 16),
+              if (isNarrow)
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [leftColumn, const SizedBox(height: 16), rightRail])
+              else
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(flex: 5, child: leftColumn), const SizedBox(width: 16), rightRail]),
+            ]);
           }),
         ],
       ),
     );
   }
 
+  /// Progress pipeline ng koleksyon — ito ALONE ang laman ng card.
+  ///
+  /// Ang status icon + "Completed / Payment collected and approved" na header
+  /// ay tinanggal (per request): ang pipeline na mismo ang nagpapakita ng
+  /// progreso, at nasa Collection Overview pa rin ang hilaw na status row.
+  ///
+  /// HORIZONTAL ang mga stage (kaparehong wika ng "Workflow Progress" stepper
+  /// ng CI details): dots na may connector sa pagitan, berde kapag tapos na,
+  /// asul ang kasalukuyang stage, pula ang bigo, kulay-abuhin ang hindi pa.
+  /// Nasa makitid na screen lang ang vertical na bersyon — doon kasi
+  /// mag-c-cramp ang mga label kapag pinilit sa isang linya.
   Widget _buildStatusCard(CollectionAssignmentModel col) {
     final s = col.status.toLowerCase();
-    final color = _accentForStatus(col.status);
-    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Container(width: 36, height: 36, decoration: BoxDecoration(color: color.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(9)), child: Icon(_iconForStatus(s), size: 18, color: color)),
-        const SizedBox(width: 10),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(_statusLabel(col.status), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-          Text(_statusHint(s), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-        ])),
-      ]),
-      const SizedBox(height: 14),
-      const Divider(height: 1, color: AppColors.border),
-      const SizedBox(height: 12),
-      _StatusRow('Requested', col.collectionSchedule != null),
-      _StatusRow('Assigned', col.assignedByName.isNotEmpty),
-      _StatusRow('Accepted', col.responseAt != null),
+    final isRejected = s == 'rejected';
+    final steps = <({String label, bool done, IconData icon})>[
+      (label: 'Requested', done: col.collectionSchedule != null, icon: Icons.request_page_rounded),
+      (label: 'Assigned', done: col.assignedByName.isNotEmpty, icon: Icons.assignment_ind_rounded),
+      (label: 'Accepted', done: col.responseAt != null, icon: Icons.handshake_rounded),
       // Business rule: Completed lang kapag status == 'completed' (amount +
       // proof na-submit). Ang `completed_at` ay sine-set lang ng upload-proof
       // ngayon, pero status pa rin ang basehan dito — hindi timestamp.
-      _StatusRow('Collected (payment recorded)',
-          col.amountCollected != null ||
-              s == 'in_progress' ||
-              s == 'pending_approval' ||
-              s == 'completed'),
-      _StatusRow('Submitted for approval', s == 'pending_approval' || s == 'completed'),
+      (
+        label: 'Payment recorded',
+        done: col.amountCollected != null ||
+            s == 'in_progress' ||
+            s == 'pending_approval' ||
+            s == 'completed',
+        icon: Icons.payments_rounded,
+      ),
+      (label: 'Submitted', done: s == 'pending_approval' || s == 'completed', icon: Icons.rate_review_rounded),
       // Business rule: `completed` lang kapag na-approve ng HM/Employee — dito
       // lang bumaba ang loan balance.
-      _StatusRow('Approved & completed', s == 'completed'),
-      if (s == 'rejected') const _StatusRow('Rejected (money not received)', false),
+      (label: 'Approved', done: s == 'completed', icon: Icons.verified_rounded),
+      // Hindi nakuha ang pera — pulang huling stage (hindi "tapos").
+      if (isRejected)
+        (label: 'Rejected', done: false, icon: Icons.close_rounded),
+    ];
+    final activeIndex = isRejected
+        ? steps.length - 1
+        : s == 'completed'
+            ? 5
+            : s == 'pending_approval'
+                ? 4
+                : (s == 'in_progress' || s == 'failed')
+                    ? 3
+                    : s == 'accepted'
+                        ? 2
+                        : (s == 'assigned' || s == 'declined')
+                            ? 1
+                            : 0;
+    final failedIndex = isRejected ? steps.length - 1 : null;
+
+    // Malawak na card ito (nasa taas na ng page) → horizontal pipeline para
+    // puno ang lapad; makitid (mobile/tablet) → vertical.
+    return LayoutBuilder(builder: (context, c) {
+      if (c.maxWidth >= 720) {
+        return _buildHorizontalPipeline(steps, activeIndex, failedIndex);
+      }
+      return _buildVerticalPipeline(steps, activeIndex, failedIndex);
+    });
+  }
+
+  /// Vertical pipeline (makitid na screen): dot + label kada stage, may
+  /// connector sa pagitan na nakatapat sa ilalim ng dot.
+  Widget _buildVerticalPipeline(
+      List<({String label, bool done, IconData icon})> steps,
+      int activeIndex,
+      int? failedIndex) {
+    return Column(children: [
+      for (int i = 0; i < steps.length; i++) ...[
+        Row(children: [
+          _pipelineDot(steps[i], i == activeIndex, i == failedIndex),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              steps[i].label,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight:
+                      i == activeIndex ? FontWeight.w800 : FontWeight.w600,
+                  color: i == activeIndex
+                      ? AppColors.deepNavy
+                      : AppColors.textSecondary),
+            ),
+          ),
+        ]),
+        if (i < steps.length - 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: SizedBox(
+              width: 22,
+              child: Center(
+                child: Container(
+                  width: 1.5,
+                  height: 12,
+                  color: steps[i].done
+                      ? AppColors.riderGreen.withValues(alpha: 0.4)
+                      : AppColors.border,
+                ),
+              ),
+            ),
+          ),
+      ],
     ]);
+  }
+
+  /// Horizontal pipeline (malawak na card): naka-centro ang dot sa ibabaw ng
+  /// label, may connector na linya sa pagitan ng mga stage.
+  Widget _buildHorizontalPipeline(
+      List<({String label, bool done, IconData icon})> steps,
+      int activeIndex,
+      int? failedIndex) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (int i = 0; i < steps.length; i++) ...[
+          if (i > 0)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  height: 2,
+                  color: steps[i - 1].done
+                      ? AppColors.riderGreen.withValues(alpha: 0.4)
+                      : AppColors.border,
+                ),
+              ),
+            ),
+          SizedBox(
+            width: 110,
+            child: Column(children: [
+              _pipelineDot(steps[i], i == activeIndex, i == failedIndex),
+              const SizedBox(height: 6),
+              Text(
+                steps[i].label,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight:
+                        i == activeIndex ? FontWeight.w800 : FontWeight.w600,
+                    color: i == activeIndex
+                        ? AppColors.deepNavy
+                        : AppColors.textSecondary),
+              ),
+            ]),
+          ),
+        ],
+      ],
+    );
+  }
+
+  /// Isang dot ng pipeline: berde = tapos, asul = kasalukuyang stage, pula =
+  /// bigong stage (rejected), abuhin = hindi pa.
+  Widget _pipelineDot(({String label, bool done, IconData icon}) step,
+      bool isActive, bool isFailed) {
+    final dotColor = isFailed
+        ? AppColors.error
+        : step.done
+            ? AppColors.riderGreen
+            : isActive
+                ? AppColors.lenderBlue
+                : AppColors.surfaceVariant;
+    return Container(
+      width: 22,
+      height: 22,
+      decoration: BoxDecoration(
+        color: dotColor,
+        shape: BoxShape.circle,
+        border: Border.all(
+            color: step.done || isActive || isFailed
+                ? dotColor
+                : AppColors.border),
+      ),
+      child: Icon(
+        step.icon,
+        size: 12,
+        color: step.done || isActive || isFailed
+            ? Colors.white
+            : AppColors.textTertiary,
+      ),
+    );
   }
 
   /// Approve/Reject actions — lumalabas LANG habang `pending_approval`.
@@ -399,84 +573,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     ));
   }
 
-  IconData _iconForStatus(String s) {
-    switch (s) {
-      case 'requested':
-        return Icons.request_page_rounded;
-      case 'assigned':
-        return Icons.assignment_ind_rounded;
-      case 'accepted':
-        return Icons.handshake_rounded;
-      case 'in_progress':
-        return Icons.directions_bike_rounded;
-      case 'pending_approval':
-        return Icons.hourglass_top_rounded;
-      case 'completed':
-        return Icons.verified_rounded;
-      case 'rejected':
-      case 'failed':
-      case 'declined':
-        return Icons.cancel_rounded;
-      default:
-        return Icons.flag_rounded;
-    }
-  }
-
-  String _statusLabel(String s) {
-    switch (s.toLowerCase()) {
-      case 'in_progress':
-        return 'In Progress';
-      default:
-        return s.isEmpty ? 'Unknown' : s[0].toUpperCase() + s.substring(1);
-    }
-  }
-
-  String _statusHint(String s) {
-    switch (s) {
-      case 'requested':
-        return 'Lender request awaiting a rider';
-      case 'assigned':
-        return 'Rider assigned, awaiting acceptance';
-      case 'accepted':
-        return 'Rider accepted the collection';
-      case 'in_progress':
-        return 'Cash collected, awaiting proof upload';
-      case 'pending_approval':
-        return 'Rider submitted — awaiting approval';
-      case 'completed':
-        return 'Payment collected and approved';
-      case 'rejected':
-        return 'Rejected — money not received';
-      case 'failed':
-      case 'declined':
-        return 'Collection was not completed';
-      default:
-        return '';
-    }
-  }
-
-  Color _accentForStatus(String s) {
-    switch (s.toLowerCase()) {
-      case 'requested':
-        return AppColors.warning;
-      case 'assigned':
-        return AppColors.lenderBlue;
-      case 'accepted':
-        return AppColors.riderGreen;
-      case 'in_progress':
-        return const Color(0xFFFFA000);
-      case 'pending_approval':
-        return AppColors.warning;
-      case 'completed':
-        return AppColors.riderGreen;
-      case 'rejected':
-      case 'failed':
-      case 'declined':
-        return AppColors.error;
-      default:
-        return AppColors.textSecondary;
-    }
-  }
 }
 
 class _PremiumSectionCard extends StatelessWidget {
@@ -523,24 +619,6 @@ class _InfoRow extends StatelessWidget {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(width: 130, child: Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary, fontWeight: FontWeight.w600))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary))),
-      ]),
-    );
-  }
-}
-
-class _StatusRow extends StatelessWidget {
-  final String label;
-  final bool done;
-  const _StatusRow(this.label, this.done);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5),
-      child: Row(children: [
-        Icon(done ? Icons.check_circle_rounded : Icons.radio_button_unchecked_rounded, size: 16, color: done ? AppColors.riderGreen : AppColors.textTertiary),
-        const SizedBox(width: 8),
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: done ? FontWeight.w700 : FontWeight.w600, color: done ? AppColors.textPrimary : AppColors.textSecondary)),
       ]),
     );
   }

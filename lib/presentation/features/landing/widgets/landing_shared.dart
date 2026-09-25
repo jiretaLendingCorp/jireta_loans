@@ -37,6 +37,25 @@ class LandingPalette {
   static const Color green = AppColors.success;
   static const Color amber = AppColors.warning;
 
+  /// Modern fintech gradients
+  static const LinearGradient heroGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: [Color(0xFF04080F), Color(0xFF0A121D), Color(0xFF0F1A28)],
+  );
+
+  static const LinearGradient darkCardGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFF131F30), Color(0xFF0B1420)],
+  );
+
+  static const LinearGradient goldGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [Color(0xFFF3D884), Color(0xFFC9A84C), Color(0xFFA88A30)],
+  );
+
   static const LinearGradient navyGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
@@ -58,14 +77,27 @@ class LandingPalette {
 
   static final List<BoxShadow> cardShadow = [
     BoxShadow(
-      color: navy.withValues(alpha: 0.06),
-      blurRadius: 24,
-      offset: const Offset(0, 12),
+      color: navy.withValues(alpha: 0.05),
+      blurRadius: 28,
+      offset: const Offset(0, 14),
     ),
     BoxShadow(
-      color: navy.withValues(alpha: 0.03),
-      blurRadius: 6,
+      color: navy.withValues(alpha: 0.02),
+      blurRadius: 8,
       offset: const Offset(0, 2),
+    ),
+  ];
+
+  static final List<BoxShadow> hoverShadow = [
+    BoxShadow(
+      color: accent.withValues(alpha: 0.12),
+      blurRadius: 36,
+      offset: const Offset(0, 20),
+    ),
+    BoxShadow(
+      color: navy.withValues(alpha: 0.06),
+      blurRadius: 12,
+      offset: const Offset(0, 4),
     ),
   ];
 }
@@ -191,20 +223,7 @@ class _LandingRevealState extends State<LandingReveal>
     if (top > viewport * 0.92) return;
 
     _triggered = true;
-    final reduceMotion =
-        MediaQuery.maybeOf(context)?.disableAnimations ?? false;
-    if (reduceMotion) {
-      _ctrl.value = 1;
-      return;
-    }
-    final delay = Duration(milliseconds: 60 * widget.order.clamp(0, 6));
-    if (delay == Duration.zero) {
-      _ctrl.forward();
-      return;
-    }
-    Future.delayed(delay, () {
-      if (mounted) _ctrl.forward();
-    });
+    _ctrl.forward();
   }
 
   @override
@@ -450,17 +469,21 @@ class _LandingPrimaryButtonState extends State<LandingPrimaryButton> {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: widget.compact ? 14 : 15.5,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    letterSpacing: 0.1,
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: widget.compact ? 14 : 15.5,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: 0.1,
+                    ),
                   ),
                 ),
                 if (widget.trailingIcon != null) ...[
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 8),
                   Transform.translate(
                     offset: Offset(_hovered ? 3 : 0, 0),
                     child: Icon(

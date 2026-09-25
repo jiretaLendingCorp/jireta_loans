@@ -31,7 +31,20 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
   String? _vehicleType;
   bool _submitting = false;
 
-  static const _vehicleTypes = ['Motorcycle', 'Bicycle', 'Car', 'Van', 'Truck'];
+  /// Motorcycle LANG ang valid na uri — motorcycle messenger rider ang lahat
+  /// ng rider. Walang Bicycle/Car/Van/Truck.
+  static const _vehicleTypes = ['Motorcycle'];
+
+  /// Idinadagdag pa rin ang KASALUKUYANG halaga kung legacy ito (hal. naka-
+  /// 'Car' pa sa lumang record): kapag wala sa `items` ang value ng dropdown,
+  /// nag-a-assert ito at hindi bubukas ang modal.
+  List<String> get _vehicleTypeItems {
+    final current = _vehicleType;
+    if (current == null || current.isEmpty) return _vehicleTypes;
+    return _vehicleTypes.contains(current)
+        ? _vehicleTypes
+        : [..._vehicleTypes, current];
+  }
 
   @override
   void initState() {
@@ -156,7 +169,7 @@ class _EditRiderModalState extends ConsumerState<EditRiderModal> {
                       AppDropdown<String>(
                         value: _vehicleType,
                         label: 'Vehicle Type',
-                        items: _vehicleTypes
+                        items: _vehicleTypeItems
                             .map((v) =>
                                 DropdownMenuItem(value: v, child: Text(v)))
                             .toList(),

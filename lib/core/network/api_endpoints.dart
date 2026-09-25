@@ -75,6 +75,9 @@ class ApiEndpoints {
   static const String loansGetDetails = 'loans-view?fn=get-details';
   static const String loansGetSchedulePreview =
       'loans-view?fn=get-schedule-preview';
+  // Loan History tab ng Loan Records: mga loan na tapos nang bayaran
+  // (`completed`) at ang mga malapit nang matapos (isang installment na lang).
+  static const String loansGetHistory = 'loans-view?fn=get-history';
   static const String loansApplyPenalty = 'loans-manage?fn=apply-penalty';
   static const String loansRequestCi = 'loans-manage?fn=request-ci';
 

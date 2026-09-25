@@ -93,6 +93,33 @@ function na(value: unknown): unknown {
   return value;
 }
 
+/**
+ * Reference na ipapakita ng Payment Report.
+ *
+ * Ang `payments.xendit_reference` ay NULL para sa office cash at rider
+ * collection (Xendit lang ang may reference), kaya dating "N/A" ang buong
+ * `referenceNumber` column ng Payment Report. Ang app mismo (receipt,
+ * HM/employee payment details, lender transactions) ay may `displayReference`
+ * na gumagawa ng stable na `JR-<payment id prefix>` kapag walang Xendit
+ * reference — pareho na ngayon ang laman ng report at ng app.
+ *
+ * Prefix lang ng id (hindi ang buong UUID) ang ipinapakita, kaya hindi
+ * nilalabag ang rule na walang raw UUID sa report rows.
+ */
+function paymentReference(
+  id: unknown,
+  xenditReference: unknown,
+  idempotencyKey: unknown,
+): string {
+  const raw = xenditReference == null ? '' : String(xenditReference).trim();
+  if (raw) return raw;
+  for (const candidate of [id, idempotencyKey]) {
+    const compact = String(candidate ?? '').replace(/-/g, '').toUpperCase();
+    if (compact) return `JR-${compact.length >= 12 ? compact.slice(0, 12) : compact}`;
+  }
+  return NA;
+}
+
 /** ISO string / calendar date → Date, o `null` kapag blangko o di-mabasa. */
 function asDate(value: unknown): Date | null {
   if (value === null || value === undefined) return null;
@@ -241,7 +268,8 @@ async function buildPaymentReport(
     : null;
 
   let query = db.from('payments').select(
-    `amount, payment_method, status, xendit_reference, paid_at, created_at,
+    `id, amount, payment_method, status, xendit_reference, idempotency_key,
+     paid_at, created_at,
      schedule:loan_schedules!payments_loan_schedule_id_fkey(
        loan:loans(${LOAN_EMBED})
      ),
@@ -262,7 +290,7 @@ async function buildPaymentReport(
     const lender = loan ? embedAsObject<{ users?: { first_name?: string; last_name?: string } }>(loan.lender_profiles as any) : null;
     const lenderUser = lender ? embedAsObject(lender.users) : null;
     return {
-      referenceNumber: na(p.xendit_reference),
+      referenceNumber: paymentReference(p.id, p.xendit_reference, p.idempotency_key),
       loanNumber: na(loan?.loan_number),
       lenderName: name(lenderUser?.first_name, lenderUser?.last_name),
       amount: na(p.amount),

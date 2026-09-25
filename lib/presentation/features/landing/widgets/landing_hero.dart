@@ -66,30 +66,50 @@ class LandingLaptopHero extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF07090D), Color(0xFF0A0E15), Color(0xFF151B26)],
+          colors: [Color(0xFF04080F), Color(0xFF09111C), Color(0xFF111D2E)],
         ),
       ),
       child: Stack(
         children: [
+          // Ambient grid overlay
+          Positioned.fill(
+            child: IgnorePointer(
+              child: Opacity(
+                opacity: 0.25,
+                child: CustomPaint(
+                  painter: _HeroGridPainter(),
+                ),
+              ),
+            ),
+          ),
           // Indigo light pool behind the laptop, like the reference shot.
           const Positioned(
-            bottom: -200,
+            bottom: -180,
             left: 0,
             right: 0,
             child: Center(
               child: LandingGlow(
-                color: Color(0xFF3B3F8F),
-                size: 760,
-                alpha: 0.34,
+                color: Color(0xFF3B5BDB),
+                size: 820,
+                alpha: 0.32,
               ),
             ),
           ),
           const Positioned(
-            top: -80,
-            right: -120,
+            top: -60,
+            right: -80,
             child: LandingGlow(
               color: LandingPalette.gold,
-              size: 400,
+              size: 420,
+              alpha: 0.12,
+            ),
+          ),
+          const Positioned(
+            top: 100,
+            left: -100,
+            child: LandingGlow(
+              color: Color(0xFF0F9D8E),
+              size: 380,
               alpha: 0.10,
             ),
           ),
@@ -236,18 +256,57 @@ class _HeroCopy extends StatelessWidget {
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final titleSize = width >= LandingBreakpoints.desktop
-        ? 42.0
+        ? 44.0
         : (width >= LandingBreakpoints.tablet ? 36.0 : 27.0);
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
         onDark ? 20 : 34,
-        onDark ? 32 : 26,
+        onDark ? 28 : 22,
         onDark ? 20 : 34,
         24,
       ),
       child: Column(
         children: [
+          // Trust tag pill
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: onDark
+                  ? Colors.white.withValues(alpha: 0.08)
+                  : LandingPalette.navy.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(
+                color: onDark
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : LandingPalette.line,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF10B981),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'NEXT-GEN MICROFINANCE PLATFORM',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.1,
+                    color: onDark ? LandingPalette.goldSoft : LandingPalette.navy,
+                  ),
+                ),
+              ],
+            ),
+          ),
           Text(
             'Lending Management System',
             textAlign: TextAlign.center,
@@ -261,7 +320,7 @@ class _HeroCopy extends StatelessWidget {
           ),
           const SizedBox(height: 13),
           ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 620),
+            constraints: const BoxConstraints(maxWidth: 640),
             child: Text(
               'Manage loan applications, approvals, payments, collections, and '
               'lending operations in one secure platform.',
@@ -728,23 +787,43 @@ class _RiderCard extends StatelessWidget {
               ),
             ),
           ],
-        ),
-        Positioned(
-          right: -6,
-          top: -6,
-          child: Container(
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: LandingPalette.green,
-              shape: BoxShape.circle,
-              border: Border.all(color: Colors.white, width: 2),
+        ),          Positioned(
+            right: -6,
+            top: -6,
+            child: Container(
+              width: 22,
+              height: 22,
+              decoration: BoxDecoration(
+                color: LandingPalette.green,
+                shape: BoxShape.circle,
+                border: Border.all(color: Colors.white, width: 2),
+              ),
+              child:
+                  const Icon(Icons.check_rounded, size: 12, color: Colors.white),
             ),
-            child:
-                const Icon(Icons.check_rounded, size: 12, color: Colors.white),
           ),
-        ),
-      ],
-    );
+        ],
+      );
+    }
   }
+
+class _HeroGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.05)
+      ..strokeWidth = 0.8
+      ..style = PaintingStyle.stroke;
+    const gap = 48.0;
+    for (double x = 0; x < size.width; x += gap) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    }
+    for (double y = 0; y < size.height; y += gap) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
+

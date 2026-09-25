@@ -96,6 +96,38 @@ class LoanRemoteDataSource {
     };
   }
 
+  /// Loan History tab: mga loan na tapos nang bayaran (completed) at ang mga
+  /// malapit nang matapos (isang installment na lang ang natitira).
+  ///
+  /// Kapareho ng `getList` ang shape ng ibinabalik (`data` + `meta`) dahil
+  /// kapareho rin ng screen ang toolbar at pagination nito.
+  Future<Map<String, dynamic>> getHistory({
+    int page = 1,
+    int limit = 10,
+    String? search,
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.loansGetHistory,
+      queryParams: {
+        'page': page,
+        'limit': limit,
+        if (search != null) 'search': search,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
+      },
+    );
+    final list = (res.data['data'] as List?) ?? [];
+    final total = (res.data['total'] as num?)?.toInt() ?? list.length;
+    final totalPages = (res.data['totalPages'] as num?)?.toInt() ??
+        (limit == 0 ? 1 : (total / limit).ceil());
+    return {
+      'data': list,
+      'meta': {'page': page, 'total_pages': totalPages, 'total': total},
+    };
+  }
+
   Future<LoanModel> getLoanDetails(String loanId) async {
     final res = await _client.get(
       ApiEndpoints.loansGetDetails,

@@ -14,6 +14,14 @@ class LoanModel extends LoanEntity {
   final String? purpose;
   final Map<String, dynamic>? lenderAddress;
   final bool riderDeliveryAssigned;
+  /// Kabuuang verified na bayad (`payments_total` ng `loans-view?fn=get-history`).
+  final double totalPaid;
+  /// Petsa ng pinakahuling verified na bayad — `null` kapag wala pang bayad.
+  final DateTime? lastPaymentAt;
+  /// 0..1 — porsyento ng total payable na nabayaran na (Loan History tab).
+  final double progress;
+  /// `completed` (tapos nang bayaran) o `for_completion` (pa-tapos pa lang).
+  final String? completionState;
   final double _installmentAmount;
 
   const LoanModel({
@@ -48,6 +56,10 @@ class LoanModel extends LoanEntity {
     this.purpose,
     this.lenderAddress,
     this.riderDeliveryAssigned = false,
+    this.totalPaid = 0,
+    this.lastPaymentAt,
+    this.progress = 0,
+    this.completionState,
     double installmentAmount = 0,
   }) : _installmentAmount = installmentAmount;
 
@@ -114,6 +126,12 @@ class LoanModel extends LoanEntity {
       purpose: json['purpose'],
       lenderAddress: json['lender_address'],
       riderDeliveryAssigned: parseBool(json['rider_delivery_assigned'], fallback: false),
+      totalPaid: _toDouble(json['payments_total']),
+      lastPaymentAt: json['last_payment_at'] != null
+          ? parseManila(json['last_payment_at'])
+          : null,
+      progress: ((json['progress'] as num?)?.toDouble() ?? 0).clamp(0, 1).toDouble(),
+      completionState: json['completion_state'] as String?,
       installmentAmount: _toDouble(json['installment_amount']),
     );
   }
@@ -171,6 +189,15 @@ class LoanModel extends LoanEntity {
           : 0.0);
 
   String get paymentFrequency => frequency;
+
+  /// Bayad na lahat ng lender (`outstanding_balance` = 0) — hindi lang basta
+  /// naka-tag na `completed` sa DB: may mga loan na lubos nang nabayaran pero
+  /// nananatiling `active` dahil hindi na-trigger ang auto-complete.
+  bool get isFullyPaid => outstandingBalance <= 0;
+
+  /// Label ng Loan History table: 'Completed' kapag tapos na, 'For Completion'
+  /// kapag isang installment na lang (o wala nang natitira pero 'active' pa).
+  String get completionLabel => isFullyPaid ? 'Completed' : 'For Completion';
 
   String get termUnit {
     switch (frequency) {
