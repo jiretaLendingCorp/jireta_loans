@@ -128,6 +128,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   Widget _buildProfile(dynamic user) {
     final userModel = ref.watch(lenderProfileProvider).user;
     final phone = user.phoneNumber as String? ?? '';
+    // Ang `${phone}@jireta.temp` ay internal GoTrue credential lang (phone
+    // login) — hindi ito ipinapakita bilang email ng lender.
+    final rawEmail = (userModel?.email ?? '').trim();
+    final email =
+        rawEmail.toLowerCase().endsWith('@jireta.temp') ? '' : rawEmail;
     final accountStatus = user.accountStatus as String?;
     final fullName = _buildFullName(userModel ?? user);
     final accountUpgradeStatus =
@@ -158,24 +163,10 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             flat: true,
           ),
           const SizedBox(height: 16),
-          if (isVerified)
-            Align(
-              alignment: Alignment.center,
-              child: TextButton.icon(
-                onPressed: () =>
-                    context.push('${RouteConstants.lenderProfile}/edit'),
-                icon: const Icon(Icons.edit_outlined, size: 16, color: _accent),
-                label: const Text(
-                  'Edit Profile',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: _accent,
-                  ),
-                ),
-              ),
-            )
-          else
+          // Kapag verified na, may sariling "Edit" button ang bawat section sa
+          // ibaba (Personal Details / Residence Address) — hindi na kailangan
+          // ang isang "Edit Profile" button na pinagsama ang lahat.
+          if (!isVerified)
             ModernMenuCard(items: [
               ModernMenuItem(
                 icon: Icons.verified_outlined,
@@ -197,6 +188,9 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               icon: Icons.person_outline_rounded,
               collapsible: true,
               initiallyExpanded: false,
+              onEdit: () =>
+                  context.push(RouteConstants.lenderEditPersonalInfo),
+              editColor: _accent,
               rows: [
                 ModernInfoRowData(
                     icon: Icons.person_outline_rounded,
@@ -221,10 +215,58 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                       ? _formatDate(userModel!.dateOfBirth!)
                       : '—',
                 ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // HIWALAY na card + edit para sa email — sariling screen at sariling
+            // Save (hindi kasama sa Personal Information).
+            ModernInfoCard(
+              title: 'Email',
+              icon: Icons.email_outlined,
+              // Toggle-able pa rin (collapse/expand) kahit walang naka-set na
+              // email — pareho sa iba pang section card.
+              collapsible: true,
+              initiallyExpanded: false,
+              onEdit: () => context.push(RouteConstants.lenderEditEmail),
+              editColor: _accent,
+              rows: [
                 ModernInfoRowData(
-                    icon: Icons.location_on_outlined,
-                    label: 'Address',
-                    value: _buildAddress(userModel)),
+                    icon: Icons.alternate_email_rounded,
+                    label: 'Login email',
+                    value: email.isEmpty ? 'Not set' : email),
+              ],
+            ),
+            const SizedBox(height: 12),
+            // HIWALAY na card + edit para sa address — sariling screen at
+            // sariling Save (hindi kasama sa Personal Information).
+            ModernInfoCard(
+              title: 'Residence Address',
+              icon: Icons.location_on_outlined,
+              collapsible: true,
+              initiallyExpanded: false,
+              onEdit: () => context.push(RouteConstants.lenderEditAddress),
+              editColor: _accent,
+              rows: [
+                ModernInfoRowData(
+                    icon: Icons.signpost_outlined,
+                    label: 'Street',
+                    value: (userModel?.streetAddress ?? '').trim()),
+                ModernInfoRowData(
+                    icon: Icons.holiday_village_outlined,
+                    label: 'Barangay',
+                    value: (userModel?.barangay ?? '').trim()),
+                ModernInfoRowData(
+                    icon: Icons.location_city_outlined,
+                    label: 'City / Municipality',
+                    value: (userModel?.city ?? '').trim()),
+                ModernInfoRowData(
+                    icon: Icons.map_outlined,
+                    label: 'Province',
+                    value: (userModel?.province ?? '').trim()),
+                ModernInfoRowData(
+                    icon: Icons.markunread_mailbox_outlined,
+                    label: 'ZIP Code',
+                    value: (userModel?.zipCode ?? '').trim()),
               ],
             ),
             // 00128: Financial Details + Emergency Contact no longer live on the
@@ -408,17 +450,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       user?.suffix,
     ].where((e) => e != null && e.toString().isNotEmpty).toList();
     return parts.isEmpty ? '—' : parts.join(' ');
-  }
-
-  String _buildAddress(dynamic user) {
-    final parts = [
-      user?.streetAddress,
-      user?.barangay,
-      user?.city,
-      user?.province,
-      user?.zipCode,
-    ].where((e) => e != null && e.toString().isNotEmpty).toList();
-    return parts.isEmpty ? '—' : parts.join(', ');
   }
 
   String _formatDate(DateTime d) =>

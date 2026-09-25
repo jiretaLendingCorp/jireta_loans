@@ -127,5 +127,7 @@ class RouteConstants {
   static const String lenderUploadDocument = '/lender/documents/upload';
   static const String lenderNotifications = '/lender/notifications';
   static const String lenderProfile = '/lender/profile';
-  static const String lenderEditProfile = '/lender/profile/edit';
+  static const String lenderEditPersonalInfo = '/lender/profile/edit/personal';
+  static const String lenderEditEmail = '/lender/profile/edit/email';
+  static const String lenderEditAddress = '/lender/profile/edit/address';
 }

@@ -598,7 +598,7 @@ assigned rider's real-time location on a map, and download payment receipts.
 | Notifications (Lender)          | All push notifications: loan status, payment due, disbursement, collection. Mark read. Badge count on bottom nav.                                                                      |
 | Lender Notification Provider    | Fetches, marks read. FCM foreground listener.                                                                                                                                          |
 | Lender Profile                  | View: name, phone, GCash, employment, income. Upload profile photo.                                                                                                                    |
-| Edit Profile                    | Edit all personal details. Save calls users/update-profile.                                                                                                                            |
+| Edit Profile                    | Separate screens for Personal Information, Email Address, and Residence Address. Each Save calls users/update-profile.                                                                |
 | Lender Profile Provider         | Fetch + update lender profile.                                                                                                                                                         |
 
 ito naman ung sa dapat ui design ng frontend dapat may kabilang dito use lucide
@@ -2437,5 +2437,5 @@ notifications. Mark read. Loan/payment deep-links. │ └── profile/ ├─
 │ └── lender_profile_provider.dart │ # users-get-profile, users-update-profile.
 │ └── screens/ ├── lender_profile_screen.dart │ # Name, phone (masked), GCash,
 employment, income. │ # Upload profile photo button. │ └──
-lender_edit_profile_screen.dart # Edit all personal details. Save calls
-users-update-profile..
+lender_edit_profile_screen.dart # Separate edit screens: Personal Info, Email,
+Address. Save calls users-update-profile.

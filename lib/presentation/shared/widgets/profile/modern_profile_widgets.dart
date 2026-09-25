@@ -294,6 +294,13 @@ class ModernInfoCard extends StatefulWidget {
   /// sa page, hairlines pa rin ang naghihiwalay sa rows.
   final bool flat;
 
+  /// Opsyonal na edit action sa header — kapag may [onEdit], may maliit na
+  /// "Edit" button sa kanan (ginagamit ng per-section edit ng profile).
+  final VoidCallback? onEdit;
+
+  /// Kulay ng edit action. Default: neutral na icon color.
+  final Color? editColor;
+
   const ModernInfoCard({
     super.key,
     required this.title,
@@ -302,6 +309,8 @@ class ModernInfoCard extends StatefulWidget {
     this.collapsible = false,
     this.initiallyExpanded = true,
     this.flat = false,
+    this.onEdit,
+    this.editColor,
   });
 
   @override
@@ -346,6 +355,31 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
               ),
             ),
           ),
+          if (widget.onEdit != null)
+            TextButton.icon(
+              onPressed: widget.onEdit,
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              icon: Icon(
+                Icons.edit_outlined,
+                size: 15,
+                color: widget.editColor ??
+                    ModernProfileStyles.iconColorOf(context),
+              ),
+              label: Text(
+                'Edit',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                  color: widget.editColor ??
+                      ModernProfileStyles.iconColorOf(context),
+                ),
+              ),
+            ),
           if (widget.collapsible)
             AnimatedRotation(
               turns: _expanded ? 0 : 0.5,

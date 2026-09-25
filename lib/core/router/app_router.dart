@@ -772,9 +772,17 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.lenderProfile,
           builder: (ctx, s) => const LenderProfileScreen()),
       GoRoute(
-          path: RouteConstants.lenderEditProfile,
+          path: RouteConstants.lenderEditPersonalInfo,
           builder: (ctx, s) =>
-              const lender_edit_profile.LenderProfileEditScreen()),
+              const lender_edit_profile.LenderEditPersonalInfoScreen()),
+      GoRoute(
+          path: RouteConstants.lenderEditEmail,
+          builder: (ctx, s) =>
+              const lender_edit_profile.LenderEditEmailScreen()),
+      GoRoute(
+          path: RouteConstants.lenderEditAddress,
+          builder: (ctx, s) =>
+              const lender_edit_profile.LenderEditAddressScreen()),
     ],
     errorBuilder: (ctx, s) =>
         Scaffold(body: Center(child: Text('Page not found: ${s.uri.path}'))),
