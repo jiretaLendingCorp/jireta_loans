@@ -101,3 +101,97 @@ String formatEtaSmart({required double distanceKm, int? durationSecs, double? sp
   if (durationSecs != null && durationSecs > 0) return formatEtaFromDuration(durationSecs);
   return formatEta(distanceKm, speedKmh: speedKmh, fallbackToEstimate: true);
 }
+
+// ── Destination (lender / borrower) pin ─────────────────────────────────────
+//
+// Ang destination pin ay LAGING galing sa naka-save na coordinates ng address
+// record (`addresses.latitude/longitude`) na siyang ni-encode ng office — hindi
+// sa client-side geocoding ng address text. Ang `locationFromAddress` ay
+// walang web implementation (silent fail sa Chrome) at pwedeng mag-return ng
+// maling barangay sa mobile, kaya dati ay walang lumalabas na destination
+// marker / route / ETA kahit may address naman ang task.
+class MapDestination {
+  final double? lat;
+  final double? lng;
+  /// `street, barangay, city` — maikling label para sa marker info window.
+  final String? label;
+  /// `street, barangay, city, province` — buong address para sa card.
+  final String? address;
+
+  const MapDestination({this.lat, this.lng, this.label, this.address});
+
+  bool get hasCoords => lat != null && lng != null;
+  bool get isEmpty => lat == null && lng == null && address == null;
+}
+
+double? _asDouble(dynamic v) {
+  if (v is num) return v.toDouble();
+  if (v is String) return double.tryParse(v.trim());
+  return null;
+}
+
+Map<String, dynamic>? _asMap(dynamic v) => v is Map
+    ? v.map((k, val) => MapEntry(k.toString(), val))
+    : (v is List && v.isNotEmpty ? _asMap(v.first) : null);
+
+String? _joinParts(Map<String, dynamic> a, List<String> keys) {
+  final parts = keys
+      .map((k) => (a[k] ?? '').toString().trim())
+      .where((p) => p.isNotEmpty && p != 'null')
+      .toList();
+  return parts.isEmpty ? null : parts.join(', ');
+}
+
+MapDestination _fromAddressRecord(Map<String, dynamic> a) => MapDestination(
+      lat: _asDouble(a['latitude']),
+      lng: _asDouble(a['longitude']),
+      label: _joinParts(a, ['street', 'barangay', 'city']),
+      address: _joinParts(a, ['street', 'barangay', 'city', 'province']),
+    );
+
+/// Reliable destination mula sa listahan ng address records (`lender_addresses`
+/// sa collections, `addresses` sa loob ng loan payload).
+///
+/// Priority: unang record na MAY naka-save na lat/lng (para may pin na
+/// maidodrowing), fallback sa primary/home record para sa text lang.
+MapDestination destinationFromAddresses(List<dynamic>? addresses) {
+  final maps = (addresses ?? const [])
+      .map(_asMap)
+      .whereType<Map<String, dynamic>>()
+      .toList();
+  if (maps.isEmpty) return const MapDestination();
+
+  Map<String, dynamic>? withCoords;
+  for (final m in maps) {
+    final d = _fromAddressRecord(m);
+    if (d.hasCoords) {
+      withCoords = m;
+      break;
+    }
+  }
+  final textOnly = maps.firstWhere(
+    (m) => m['is_primary'] == true || m['address_type'] == 'home',
+    orElse: () => maps.first,
+  );
+  return _fromAddressRecord(withCoords ?? textOnly);
+}
+
+/// Destination mula mismo sa loan payload — sinusuportahan ang embedded
+/// `lender_profiles.users.addresses` (collections / disbursements / CI) at ang
+/// flat `lender_address` snapshot (CI list) kapag wala ang embed.
+MapDestination destinationFromLoan(Map<String, dynamic>? loan) {
+  if (loan == null) return const MapDestination();
+  for (final key in ['lender_profiles', 'lender_profile', 'lender']) {
+    final profile = _asMap(loan[key]);
+    if (profile == null) continue;
+    final users = _asMap(profile['users']) ?? profile;
+    final list = users['addresses'] ?? profile['addresses'];
+    if (list is List && list.isNotEmpty) {
+      final d = destinationFromAddresses(list);
+      if (!d.isEmpty) return d;
+    }
+  }
+  final flat = _asMap(loan['lender_address']) ?? _asMap(loan['address']);
+  if (flat != null) return _fromAddressRecord(flat);
+  return const MapDestination();
+}

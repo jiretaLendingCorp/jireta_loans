@@ -87,7 +87,7 @@ async function handleGetList(req: Request) {
        id, loan_number, status,
        lender_profiles!loans_lender_id_fkey(
          id, gcash_number,
-         users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)
+         users!lender_profiles_id_fkey(id, first_name, last_name, phone_number, addresses:addresses!addresses_user_id_fkey(address_type, street, barangay, city, province, latitude, longitude))
        )
      ),
      rider:rider_profiles(id, plate_number, vehicle_type, users!rider_profiles_id_fkey(first_name, last_name))`,
@@ -140,12 +140,18 @@ async function handleGetList(req: Request) {
     for (const field of PROOF_FIELDS) {
       proofs[field] = await signProof(db, r[field]);
     }
+    // Lender addresses WITH their saved coordinates. Kailangan ito ng rider
+    // live tracking para maidrowing ang destination pin ng delivery — ang
+    // rider ay naka-assign sa bahay ng lender, hindi sa office.
+    const lenderAddressList = (users as { addresses?: unknown } | null)?.addresses;
+    const lenderAddresses = Array.isArray(lenderAddressList) ? lenderAddressList : [];
     return {
       ...r,
       ...proofs,
       lender_name: users
         ? `${users.first_name} ${users.last_name}`.trim()
         : null,
+      lender_addresses: lenderAddresses,
       disbursed_by_name: authorizedByName || null,
       loan_number: loan?.loan_number ?? null,
     };

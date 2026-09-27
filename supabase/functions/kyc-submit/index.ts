@@ -11,6 +11,7 @@ import { getAdminClient } from "../_shared/db.ts";
 import { notifyStaff } from "../_shared/notifications.ts";
 import { requireRole, ROLES } from "../_shared/rbac.ts";
 import { sanitizeString } from "../_shared/validators.ts";
+import { geocodeInBackground } from "../_shared/geocode.ts";
 
 function normalizeEnum(value: string | undefined | null): string | null {
   if (!value) return null;
@@ -359,8 +360,11 @@ serve(async (req) => {
           region: ai.region ? sanitizeString(ai.region) : undefined,
           zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : undefined,
         }).eq("id", existingAddr.id);
+        // Coordinates (pin ng rider maps): `overwrite` dahil nag-EDIT ng
+        // address text — kung hindi, stale na pin ang mananatili.
+        geocodeInBackground(db, [existingAddr.id], { overwrite: true });
       } else {
-        await db.from("addresses").insert({
+        const { data: inserted } = await db.from("addresses").insert({
           user_id: user.id,
           address_type: "home",
           street: sanitizeString(ai.street_address),
@@ -370,7 +374,10 @@ serve(async (req) => {
           region: ai.region ? sanitizeString(ai.region) : null,
           zip_code: ai.zip_code ? sanitizeString(ai.zip_code) : null,
           is_primary: true,
-        });
+        }).select("id").single();
+        // TEXT lang ang kinukuha ng KYC form (walang lat/lng) → i-geocode sa
+        // background para may naka-save na pin ang rider maps (web + mobile).
+        geocodeInBackground(db, [inserted?.id as string | undefined]);
       }
     }
 

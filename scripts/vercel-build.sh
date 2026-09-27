@@ -71,7 +71,7 @@ if [ -n "${CORS_ALLOWED_ORIGINS:-}" ]; then
     echo "⚠️  WARNING: CORS_ALLOWED_ORIGINS does not contain jireta.vercel.app"
     echo "   Edge Functions will return Access-Control-Allow-Origin: null for that origin,"
     echo "   causing Dio to throw and the app to show 'No Internet Connection' even when online."
-    echo "   Fix: supabase secrets set CORS_ALLOWED_ORIGINS=https://jireta.vercel.app,https://lending-jet-five.vercel.app,https://app.jiretaloanscorp.com"
+    echo "   Fix: supabase secrets set CORS_ALLOWED_ORIGINS=https://jireta.vercel.app,https://www.jireta.com"
   fi
 fi
 
@@ -87,14 +87,17 @@ EOF
 echo "Generated assets/env/.env:"
 cat assets/env/.env | sed -E 's/(SUPABASE_ANON_KEY=).*/\1***/; s/(XENDIT_PUBLIC_KEY=).*/\1***/'
 
-# Inject the Google Maps key into web/index.html (google_maps_flutter_web
-# requires the JS API script tag or the map throws a red error box).
-# Keys are alphanumeric + - _, safe for sed replacement.
-if [ -n "${GOOGLE_MAPS_API_KEY:-}" ]; then
-  sed -i "s/YOUR_GOOGLE_MAPS_API_KEY/${GOOGLE_MAPS_API_KEY}/g" web/index.html || true
-  echo "Injected GOOGLE_MAPS_API_KEY into web/index.html"
-else
-  echo "WARNING: GOOGLE_MAPS_API_KEY not set — web map will use placeholder key"
+# ── Google Maps key ──────────────────────────────────────────────────────────
+# Nothing to inject into web/index.html anymore: the Maps JavaScript API
+# <script> tag is created at runtime by
+# lib/core/services/google_maps_loader_web.dart using the GOOGLE_MAPS_API_KEY
+# written into assets/env/.env above (with `loading=async` + callback, the
+# pattern Google recommends). One source of truth for dev and release — the
+# old sed-injection into the committed index.html only ever worked on Vercel,
+# so `flutter run -d chrome` kept loading the placeholder key and the map
+# stayed blank with InvalidKeyMapError.
+if [ -z "${GOOGLE_MAPS_API_KEY:-}" ]; then
+  echo "WARNING: GOOGLE_MAPS_API_KEY not set — the web map will stay blank"
 fi
 
 # ── APK download ("Download APK" button sa web login page) ───────────────────

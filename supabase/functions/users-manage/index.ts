@@ -24,6 +24,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { geocodeInBackground } from '../_shared/geocode.ts';
 
 // ── [moved from users-update-profile] ───────────────────────────────────────
 // Normalize display values (e.g. "Self-Employed") to the lowercase/underscored
@@ -393,8 +394,11 @@ async function handleUpdateProfile(req: Request) {
         province: addr.province !== undefined ? sanitizeString(addr.province) : undefined,
         zip_code: addr.zip_code !== undefined ? sanitizeString(addr.zip_code) : undefined,
       }).eq('id', existingAddr.id);
+      // Coordinates (pin ng rider maps): `overwrite` dahil nag-EDIT ng address
+      // text — kung hindi, stale na pin ang mananatili sa lumang address.
+      geocodeInBackground(db, [existingAddr.id], { overwrite: true });
     } else if (addr.street_address && addr.barangay && addr.city && addr.province) {
-      await db.from('addresses').insert({
+      const { data: inserted } = await db.from('addresses').insert({
         user_id: targetId,
         address_type: 'home',
         street: sanitizeString(addr.street_address),
@@ -403,7 +407,8 @@ async function handleUpdateProfile(req: Request) {
         province: sanitizeString(addr.province),
         zip_code: addr.zip_code ? sanitizeString(addr.zip_code) : null,
         is_primary: true,
-      });
+      }).select('id').single();
+      geocodeInBackground(db, [inserted?.id as string | undefined]);
     }
   }
 

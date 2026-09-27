@@ -11,6 +11,7 @@ import 'app.dart';
 import 'core/config/env_config.dart';
 import 'core/di/injection.dart';
 import 'core/services/fcm_service.dart';
+import 'core/services/google_maps_loader.dart';
 import 'core/utils/logger.dart';
 import 'core/utils/url_strategy.dart';
 import 'firebase_options.dart';
@@ -40,6 +41,19 @@ void main() async {
     runApp(const _PlaceholderEnvApp());
     return;
   }
+
+  // ── Google Maps JavaScript API (web) ────────────────────────────────────
+  // `google_maps_flutter_web` reads `window.google.maps` as soon as a map view
+  // is built, and web/index.html no longer hard-codes the API <script> (it
+  // shipped the committed placeholder key → `InvalidKeyMapError` + "loaded
+  // directly without loading=async" + the broken IntersectionObserver error).
+  // The tag is injected at runtime from assets/env/.env with Google's
+  // documented `loading=async&callback=…` pattern — see
+  // lib/core/services/google_maps_loader_web.dart.
+  // Kicked off here (rather than just before runApp) so the request overlaps
+  // the Supabase / Firebase / DI startup instead of adding to it. No-op on
+  // mobile and desktop.
+  final googleMapsReady = ensureGoogleMapsLoaded();
 
   await Supabase.initialize(
     url: EnvConfig.supabaseUrl,
@@ -78,6 +92,10 @@ void main() async {
       statusBarIconBrightness: Brightness.dark,
     ),
   );
+
+  // Awaited so no GoogleMap can be built before the JS API is ready — on web
+  // that throws instead of rendering (see the kick-off above).
+  await googleMapsReady;
 
   runApp(const ProviderScope(child: JiretaApp()));
 

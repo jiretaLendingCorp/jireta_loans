@@ -23,6 +23,7 @@ import { validateEmail, sanitizeString, validatePhone, normalizeVehicleType, cre
 import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
+import { geocodeInBackground } from '../_shared/geocode.ts';
 
 // ── [moved from users-create-employee] ──────────────────────────────────────
 const DEFAULT_PASSWORD = '12345678';
@@ -68,7 +69,7 @@ async function insertPrimaryAddress(
   const city = src.city ? sanitizeString(String(src.city)).trim() : '';
   const province = src.province ? sanitizeString(String(src.province)).trim() : '';
   if (!street || !barangay || !city || !province) return false;
-  const { error } = await db.from('addresses').insert({
+  const { data: inserted, error } = await db.from('addresses').insert({
     user_id: userId,
     address_type: 'home',
     street,
@@ -77,9 +78,17 @@ async function insertPrimaryAddress(
     province,
     zip_code: src.zip_code ? sanitizeString(String(src.zip_code)) : null,
     is_primary: true,
-  });
-  if (error) console.error('[users-create] address insert failed:', error.message);
-  return !error;
+  }).select('id').single();
+  if (error) {
+    console.error('[users-create] address insert failed:', error.message);
+    return false;
+  }
+  // Coordinates: TEXT lang ang kinukuha ng form (walang lat/lng), kaya
+  // ini-geocode ito sa background at ini-save sa `addresses` — ito ang pin ng
+  // rider maps (Live Tracking / Navigate to Lender) sa web at mobile.
+  // Tingnan ang _shared/geocode.ts.
+  geocodeInBackground(db, [inserted?.id as string | undefined]);
+  return true;
 }
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════

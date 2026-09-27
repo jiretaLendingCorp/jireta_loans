@@ -13,7 +13,7 @@
 //                        delivers to the account owner — every other recipient
 //                        gets HTTP 403 "testing domain restriction".
 //   RESEND_FROM_NAME   — display name (default: "Jireta Loans")
-//   APP_URL            — web app origin used for reset links (default: https://app.jiretaloanscorp.com)
+//   APP_URL            — web app origin used for reset links (default: https://www.jireta.com)
 //
 // In local dev (no RESEND_API_KEY) the caller should fall back to
 // `db.auth.resetPasswordForEmail(...)` so the email still appears in

@@ -84,8 +84,12 @@ async function handleUpdateRider(req: Request) {
     }
 
     const rateLimitKey = `location_update_${authResult.id}`;
-    const limited = await checkRateLimit({ key: rateLimitKey, maxAttempts: 120, windowMinutes: 60 });
-    if (limited.allowed === false) return errorResponse('Rate limit exceeded. One update per 30s.', 429, 'RATE_LIMIT');
+    // Riders legitimately post every ~30s (120/hour), so the old 120 cap sat
+    // exactly at the cadence and any extra trigger (app resume, GPS toggle, a
+    // retry) tipped it into a 429 that then blocked the real updates for the
+    // rest of the window. Keep 2x headroom while still catching genuine abuse.
+    const limited = await checkRateLimit({ key: rateLimitKey, maxAttempts: 240, windowMinutes: 60 });
+    if (limited.allowed === false) return errorResponse('Rate limit exceeded. Please try again shortly.', 429, 'RATE_LIMIT');
 
     const body = await req.json();
     const { latitude, longitude, accuracy, speed, speed_kmh, speed_mps } = body;

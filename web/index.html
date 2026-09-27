@@ -33,12 +33,13 @@
   <title>jireta_loans</title>
   <link rel="manifest" href="manifest.json">
 
-  <!-- Google Maps JavaScript API (required by google_maps_flutter on web —
-       without this the Live Tracking map throws and shows a red error box).
-       vercel-build.sh replaces YOUR_GOOGLE_MAPS_API_KEY with
-       $GOOGLE_MAPS_API_KEY at build time; for local web dev, paste a real
-       key here. -->
-  <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY"></script>
+  <!-- Google Maps JavaScript API: NOT hard-coded here. The <script> tag is
+       injected at runtime by lib/core/services/google_maps_loader_web.dart,
+       using GOOGLE_MAPS_API_KEY from assets/env/.env (one source of truth for
+       dev and release) together with Google's `loading=async` + callback
+       pattern. Hard-coding it here used to ship the placeholder key — the
+       map logged InvalidKeyMapError and stayed blank, and the committed key
+       had to be sed-replaced at build time. -->
 </head>
 <body>
   <!--

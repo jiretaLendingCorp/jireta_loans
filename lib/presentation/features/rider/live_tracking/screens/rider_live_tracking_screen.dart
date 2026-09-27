@@ -44,6 +44,10 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
   LatLng? _lastRouteDest;
   bool _fetchingRoute = false;
   bool _geocoding = false;
+  /// Naka-select na task pero WALANG makitang destination (walang naka-save na
+  /// coordinates at bigo ang geocoding ng address text). Dati tahimik lang na
+  /// walang marker — ngayon may nakikitang paliwanag sa mapa.
+  bool _destUnresolved = false;
 
   static const _phCenter = LatLng(14.5995, 120.9842);
 
@@ -110,6 +114,20 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
     if (_destPos != null) _fetchRoute(newPos, _destPos!);
   }
 
+  void _clearDestination(String label) {
+    setState(() {
+      _destPos = null;
+      _destLabel = label;
+      _routePoints = null;
+      _routeDistanceKm = null;
+      _routeDurationSecs = null;
+      _lastRouteOrigin = null;
+      _lastRouteDest = null;
+      _geocoding = false;
+      _destUnresolved = true;
+    });
+  }
+
   Future<void> _resolveSelectedDestination() async {
     final dash = ref.read(riderDashboardProvider);
     final allTasks = _allTasks(dash);
@@ -118,19 +136,35 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
     final task = allTasks[idx];
     final address = task['address'] as String? ?? '';
     final label = task['label'] as String? ?? 'Lender';
-    if (address.trim().isEmpty || address == 'Address not available') {
+    final savedLat = task['destLat'] as double?;
+    final savedLng = task['destLng'] as double?;
+
+    // 1) Ang NAKA-SAVE na pin mula sa lender address record ang laging panalo —
+    //    hindi na dumadaan sa geocoding ng address text.
+    if (savedLat != null && savedLng != null) {
+      final dest = LatLng(savedLat, savedLng);
       setState(() {
-        _destPos = null;
+        _destPos = dest;
         _destLabel = label;
-        _routePoints = null;
-        _routeDistanceKm = null;
-        _routeDurationSecs = null;
-        _lastRouteOrigin = null;
-        _lastRouteDest = null;
+        _geocoding = false;
+        _destUnresolved = false;
       });
+      if (_displayPos != null) await _fetchRoute(_displayPos!, dest);
+      _fitToAll();
       return;
     }
-    setState(() => _geocoding = true);
+
+    if (address.trim().isEmpty || address == 'Address not available') {
+      _clearDestination(label);
+      return;
+    }
+
+    // 2) Legacy record na walang coordinates: geocoding ng address text
+    //    (gumagana ito sa mobile; sa Flutter web walang geocoder).
+    setState(() {
+      _geocoding = true;
+      _destUnresolved = false;
+    });
     try {
       final locs = await locationFromAddress(address);
       if (!mounted) return;
@@ -140,16 +174,21 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
           _destPos = dest;
           _destLabel = label;
           _geocoding = false;
+          _destUnresolved = false;
         });
         if (_displayPos != null) await _fetchRoute(_displayPos!, dest);
         _fitToAll();
       } else {
-        setState(() => _geocoding = false);
+        _clearDestination(label);
       }
     } catch (_) {
-      if (mounted) setState(() => _geocoding = false);
+      if (mounted) _clearDestination(label);
     }
   }
+
+  String _tasksSignature(List<Map<String, dynamic>> tasks) => tasks
+      .map((t) => '${t['subtitle']}|${t['address']}|${t['destLat']}|${t['destLng']}')
+      .join('~');
 
   String _formatLenderLabel(String name, String fallback) {
     if (name.trim().isEmpty) return fallback;
@@ -161,26 +200,57 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
   List<Map<String, dynamic>> _allTasks(RiderDashboardState dash) {
     final list = <Map<String, dynamic>>[];
     for (final c in dash.todayCollections) {
-      final addrs = c.lenderAddresses;
-      String addr = '';
-      if (addrs.isNotEmpty && addrs.first is Map) {
-        final m = addrs.first as Map;
-        addr = [m['street'], m['barangay'], m['city'], m['province']].where((e) => e.toString().isNotEmpty).join(', ');
-      }
+      // Destination pin: galing sa naka-save na coordinates ng lender address
+      // (`lender_addresses`) — pareho ng ginagamit ng "Navigate to Lender"
+      // screen, kaya hindi na nag-geocode ng text address.
+      final dest = destinationFromAddresses(c.lenderAddresses);
+      final addr = dest.address ?? '';
       final rawLabel = c.lenderName.isEmpty ? 'Collection' : c.lenderName;
       final label = _formatLenderLabel(rawLabel, 'LENDER: Collection');
-      list.add({'type': 'Collection', 'label': label, 'subtitle': c.loanNumber, 'address': addr, 'status': c.statusLabel, 'raw': c});
+      list.add({
+        'type': 'Collection',
+        'label': label,
+        'subtitle': c.loanNumber,
+        'address': addr,
+        'status': c.statusLabel,
+        'destLat': dest.lat,
+        'destLng': dest.lng,
+        'raw': c,
+      });
     }
     for (final d in dash.todayDeliveries) {
-      final addr = d.loan?['lender_address']?.toString() ?? d.loan?['address']?.toString() ?? '';
+      final dest = destinationFromLoan(d.loan);
+      final addr = dest.address ??
+          d.loan?['lender_address']?.toString() ??
+          d.loan?['address']?.toString() ??
+          '';
       final rawLabel = d.lenderName.isEmpty ? 'Delivery' : d.lenderName;
       final label = _formatLenderLabel(rawLabel, 'LENDER: Delivery');
-      list.add({'type': 'Delivery', 'label': label, 'subtitle': d.loanNumber, 'address': addr, 'status': d.status, 'raw': d});
+      list.add({
+        'type': 'Delivery',
+        'label': label,
+        'subtitle': d.loanNumber,
+        'address': addr,
+        'status': d.status,
+        'destLat': dest.lat,
+        'destLng': dest.lng,
+        'raw': d,
+      });
     }
     for (final ci in dash.todayCiTasks) {
+      final dest = destinationFromLoan(ci.loan);
       final rawCiLabel = ci.borrowerName.isEmpty ? 'Lender' : ci.borrowerName;
       final ciLabel = _formatLenderLabel(rawCiLabel, 'LENDER');
-      list.add({'type': 'CI', 'label': ciLabel, 'subtitle': ci.loanNumber, 'address': ci.borrowerAddress, 'status': ci.statusLabel, 'raw': ci});
+      list.add({
+        'type': 'CI',
+        'label': ciLabel,
+        'subtitle': ci.loanNumber,
+        'address': dest.address ?? ci.borrowerAddress,
+        'status': ci.statusLabel,
+        'destLat': dest.lat,
+        'destLng': dest.lng,
+        'raw': ci,
+      });
     }
     // filter
     if (_filter == 'Collections') return list.where((e) => e['type'] == 'Collection').toList();
@@ -267,6 +337,19 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
       if (lat == null || lng == null) return;
       if (prev?.lastLat == lat && prev?.lastLng == lng) return;
       _animateTo(LatLng(lat, lng));
+    });
+
+    // Ang tasks ay async na dumarating (AutoDispose provider) — kapag nag-load
+    // o nagbago ang listahan (bagong assignment, bagong lender address),
+    // i-resolve muli ang destination. Dati, kung walang task pa noong binuksan
+    // ang screen, tuluyan nang walang destination pin kahit may task na.
+    ref.listen(riderDashboardProvider, (prev, next) {
+      final now = _tasksSignature(_allTasks(next));
+      final before = prev == null ? '' : _tasksSignature(_allTasks(prev));
+      if (now == before) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _resolveSelectedDestination();
+      });
     });
 
     if (_displayPos == null && loc.lastLat != null && loc.lastLng != null) {
@@ -560,6 +643,18 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                       SizedBox(width: 4),
                       Text('$riderDistText • ETA: $riderEtaText', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.riderGreen)),
                     ]),
+                  ] else if (_destUnresolved) ...[
+                    SizedBox(height: 4),
+                    Row(children: [
+                      Icon(Icons.location_off, size: 12, color: AppColors.warning),
+                      SizedBox(width: 4),
+                      Expanded(
+                        child: Text('No saved map pin for this task',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.warning)),
+                      ),
+                    ]),
                   ],
                 ]),
               ),
@@ -575,6 +670,25 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                   padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)]),
                   child: Text(riderDistText != null && riderEtaText != null ? 'You → Lender  •  ETA: $riderEtaText  •  $riderDistText' : 'You → Lender  •  Locating…', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                ),
+              ),
+            ),
+          // Walang destination na maidodrowing: address lang ang naka-record
+          // (walang naka-save na coordinates at hindi na-resolve ang address).
+          if (liveActive && _displayPos != null && _destPos == null && (_destUnresolved || _geocoding))
+            Positioned(
+              top: 240,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)]),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(_geocoding ? Icons.gps_fixed : Icons.location_off, size: 14, color: _geocoding ? AppColors.riderGreen : AppColors.warning),
+                    SizedBox(width: 6),
+                    Text(_geocoding ? 'Locating lender address…' : 'No saved map pin for this task', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+                  ]),
                 ),
               ),
             ),

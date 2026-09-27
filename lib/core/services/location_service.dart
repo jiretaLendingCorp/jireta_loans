@@ -1,5 +1,6 @@
 // lib/core/services/location_service.dart
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:geolocator/geolocator.dart';
 import '../utils/logger.dart';
 
@@ -18,17 +19,44 @@ class LocationService {
   /// Stream that emits immediately when the system location toggle is switched.
   /// Rider code can listen to detect GPS on/off without waiting for the next
   /// periodic fix (up to 30s delay before).
-  Stream<ServiceStatus> get serviceStatusStream =>
-      Geolocator.getServiceStatusStream();
+  ///
+  /// WEB: geolocator_web does not implement `getServiceStatusStream()` (it
+  /// throws `UnsupportedError` synchronously, which used to crash every
+  /// caller), and a browser has no system location toggle to observe — the
+  /// permission is per-origin. We therefore hand back an empty stream there;
+  /// GPS/permission problems still surface via `getCurrentPosition()` and the
+  /// periodic timer.
+  Stream<ServiceStatus> get serviceStatusStream => kIsWeb
+      ? const Stream<ServiceStatus>.empty()
+      : Geolocator.getServiceStatusStream();
 
   /// Current location-service enabled flag without requesting permission.
+  /// Always `true` on web (the platform has no separate location service).
   Future<bool> isServiceEnabled() => Geolocator.isLocationServiceEnabled();
 
   /// Opens system location settings (Android) / privacy settings (iOS).
-  Future<bool> openLocationSettings() => Geolocator.openLocationSettings();
+  /// Web has neither: returns `false` instead of throwing `UnsupportedError`.
+  Future<bool> openLocationSettings() async {
+    if (kIsWeb) return false;
+    try {
+      return await Geolocator.openLocationSettings();
+    } catch (e) {
+      AppLogger.error('[Location] openLocationSettings failed: $e');
+      return false;
+    }
+  }
 
   /// Opens app-specific permission settings (when deniedForever).
-  Future<bool> openAppSettings() => Geolocator.openAppSettings();
+  /// Web has no such screen: returns `false` instead of throwing.
+  Future<bool> openAppSettings() async {
+    if (kIsWeb) return false;
+    try {
+      return await Geolocator.openAppSettings();
+    } catch (e) {
+      AppLogger.error('[Location] openAppSettings failed: $e');
+      return false;
+    }
+  }
 
   Future<bool> requestPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -75,32 +103,38 @@ class LocationService {
     _onPermissionChanged = onPermissionChanged;
 
     // ── Immediate service-toggle detection (no polling delay) ───────
+    // WEB: getServiceStatusStream() throws `UnsupportedError` in
+    // geolocator_web — skip it there (no system location toggle to watch) and
+    // rely on the position stream + periodic timer instead.
     _serviceStatusSub?.cancel();
-    _serviceStatusSub =
-        Geolocator.getServiceStatusStream().listen((status) async {
-      AppLogger.debug('[Location] Service status changed: $status');
-      _onServiceStatusChanged?.call(status);
-      if (status == ServiceStatus.enabled) {
-        // GPS just turned back on — fetch a fix immediately instead of waiting
-        // for the next timer tick, so the live map dot jumps back on.
-        final pos = await getCurrentPosition();
-        if (pos != null) {
-          _onLocationUpdate?.call(pos.latitude, pos.longitude);
+    _serviceStatusSub = null;
+    if (!kIsWeb) {
+      _serviceStatusSub =
+          Geolocator.getServiceStatusStream().listen((status) async {
+        AppLogger.debug('[Location] Service status changed: $status');
+        _onServiceStatusChanged?.call(status);
+        if (status == ServiceStatus.enabled) {
+          // GPS just turned back on — fetch a fix immediately instead of
+          // waiting for the next timer tick, so the live map dot jumps back on.
+          final pos = await getCurrentPosition();
+          if (pos != null) {
+            _onLocationUpdate?.call(pos.latitude, pos.longitude);
+          }
+          // (Re)start the continuous position stream for sub-second movement.
+          _startPositionStream();
+        } else {
+          // GPS off — stop the position stream to avoid error spam; timer
+          // will keep trying and surface the GPS-off error in the provider.
+          await _positionStreamSub?.cancel();
+          _positionStreamSub = null;
         }
-        // (Re)start the continuous position stream for sub-second movement.
-        _startPositionStream();
-      } else {
-        // GPS off — stop the position stream to avoid error spam; timer
-        // will keep trying and surface the GPS-off error in the provider.
-        await _positionStreamSub?.cancel();
-        _positionStreamSub = null;
-      }
-      // Also surface permission changes that may accompany the toggle.
-      try {
-        final perm = await Geolocator.checkPermission();
-        _onPermissionChanged?.call(perm);
-      } catch (_) {}
-    });
+        // Also surface permission changes that may accompany the toggle.
+        try {
+          final perm = await Geolocator.checkPermission();
+          _onPermissionChanged?.call(perm);
+        } catch (_) {}
+      });
+    }
 
     // ── Continuous high-accuracy position stream for smooth map anim ─
     _startPositionStream();

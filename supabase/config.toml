@@ -168,10 +168,6 @@ additional_redirect_urls = [
   "http://127.0.0.1:3000/reset-password",
   "http://localhost:3000/reset-password",
   "https://127.0.0.1:3000",
-  # Legacy vercel — keep for old links
-  "https://lending-jet-five.vercel.app/reset-password",
-  "https://lending-jet-five.vercel.app",
-  "https://lending-jet-five.vercel.app/login",
   # NEW primary web origin (jireta.vercel.app) — fixes "No Internet" false flag
   # caused by missing CORS/redirect allow-list after domain migration.
   "https://jireta.vercel.app/reset-password",
@@ -180,8 +176,6 @@ additional_redirect_urls = [
   "https://jireta.vercel.app/terms",
   "https://www.jireta.vercel.app/reset-password",
   "https://www.jireta.vercel.app",
-  "https://app.jiretaloanscorp.com/reset-password",
-  "https://app.jiretaloanscorp.com",
   "https://jiretaloanscorp.com/reset-password",
   "com.jireta.loans://login-callback"
 ]
@@ -404,6 +398,12 @@ allow_dynamic_registration = false
 # AuthInterceptor / AuthStateNotifier catch the 401, try refresh, and on
 # definitive refresh failure auto-logout and allow re-login.
 
+[functions.address-geocode]
+# verify_jwt = true: staff/rider JWT ang normal na caller. Ang one-off
+# maintenance (backfill ng `addresses.latitude/longitude`) ay may
+# `x-backfill-secret` header din, pero kailangan pa ring may anon key sa
+# Authorization header dahil gateway-level ang JWT check.
+verify_jwt = true
 [functions.audit-get-logs]
 verify_jwt = true
 [functions.auth-google]
@@ -532,7 +532,7 @@ deno_version = 2
 #                         which Resend only delivers to the account owner's own inbox — every other recipient gets
 #                         403 "testing domain restriction", and no OTP/reset mail arrives to real employees.
 #   RESEND_FROM_NAME    — display name for the sender (default: "Jireta Loans").
-#   APP_URL             — web app origin used for redirect (e.g. https://app.jiretaloanscorp.com). Defaults to https://app.jiretaloanscorp.com.
+#   APP_URL             — web app origin used for redirect (e.g. https://www.jireta.com). Defaults to https://www.jireta.com.
 #   SITE_URL            — alias for APP_URL.
 
 

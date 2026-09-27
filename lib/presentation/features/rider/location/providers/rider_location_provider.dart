@@ -56,6 +56,12 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
   StreamSubscription<ServiceStatus>? _serviceStatusSub;
   StreamSubscription<Position>? _positionSub;
   final List<double> _speedHistory = [];
+  DateTime? _lastPostAt;
+  bool _postInFlight = false;
+
+  /// Minimum gap between backend syncs. The 30s timer always exceeds this, so
+  /// it only collapses overlapping triggers (timer + app-resume + GPS-on).
+  static const Duration _minPostInterval = Duration(seconds: 20);
 
   RiderLocationNotifier(this._ds) : super(const RiderLocationState());
 
@@ -67,27 +73,40 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
     // Geolocator.getServiceStatusStream() fires the moment the user flips
     // the system location switch, so we surface the GPS-off / GPS-on state
     // immediately instead of waiting up to 30s for the next timer tick.
+    //
+    // WEB: geolocator_web does NOT implement getServiceStatusStream() — it
+    // throws `UnsupportedError: getServiceStatusStream is not supported on the
+    // web platform`, which used to kill startTracking() on every visit to the
+    // rider dashboard (the map card never started). A browser has no separate
+    // location toggle to watch (it is a per-origin permission), so we simply
+    // skip the subscription there: `_refreshServiceError()` + the 30s timer
+    // still surface GPS/permission problems.
     _serviceStatusSub?.cancel();
-    _serviceStatusSub =
-        Geolocator.getServiceStatusStream().listen((status) async {
-      final enabled = status == ServiceStatus.enabled;
-      if (!mounted) return;
-      if (!enabled) {
-        state = state.copyWith(
-            error: 'GPS is off. Please turn on location services.');
-        if (kDebugMode) debugPrint('[RiderLocation] Service disabled');
-        // Stop the position stream while GPS is off to avoid error spam.
-        await _positionSub?.cancel();
-        _positionSub = null;
-      } else {
-        // GPS just turned back on — clear error and fetch a fix immediately
-        // so the live map dot reappears without delay.
-        state = state.copyWith(error: null);
-        if (kDebugMode) debugPrint('[RiderLocation] Service enabled — re-acquiring');
-        _startPositionStream();
-        await _postLocation();
-      }
-    });
+    _serviceStatusSub = null;
+    if (!kIsWeb) {
+      _serviceStatusSub =
+          Geolocator.getServiceStatusStream().listen((status) async {
+        final enabled = status == ServiceStatus.enabled;
+        if (!mounted) return;
+        if (!enabled) {
+          state = state.copyWith(
+              error: 'GPS is off. Please turn on location services.');
+          if (kDebugMode) debugPrint('[RiderLocation] Service disabled');
+          // Stop the position stream while GPS is off to avoid error spam.
+          await _positionSub?.cancel();
+          _positionSub = null;
+        } else {
+          // GPS just turned back on — clear error and fetch a fix immediately
+          // so the live map dot reappears without delay.
+          state = state.copyWith(error: null);
+          if (kDebugMode) {
+            debugPrint('[RiderLocation] Service enabled — re-acquiring');
+          }
+          _startPositionStream();
+          await _postLocation();
+        }
+      });
+    }
 
     // ── Continuous position stream for smooth bearing / speed ──────
     _startPositionStream();
@@ -96,7 +115,7 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
     _timer?.cancel();
     _timer =
         Timer.periodic(const Duration(seconds: 30), (_) => _postLocation());
-    _postLocation();
+    _postLocation(force: true);
     // Prime the service-status error so the banner shows instantly if GPS
     // is already off when the rider opens the tracking screen.
     _refreshServiceError();
@@ -122,20 +141,14 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
     }
   }
 
-  Future<void> _handleStreamPosition(Position pos) async {
+  void _handleStreamPosition(Position pos) {
     if (!mounted) return;
-    // Validate permission/role before posting
-    try {
-      final role = await SecureStorage.getUserRole();
-      if (role != AppConstants.roleRider) {
-        stopTracking();
-        return;
-      }
-    } catch (_) {
-      stopTracking();
-      return;
-    }
-    await _processAndPostPosition(pos);
+    // Local-only: the high-frequency GPS stream drives the on-device map and
+    // bearing UI. It must NOT POST — the stream emits on every ~5m of
+    // movement (many times per minute), which blew through the per-rider rate
+    // limit and produced the 429s that then blocked the real 30s updates.
+    // The backend sync is owned solely by `_postLocation`.
+    _applyLocalPosition(pos);
   }
 
   Future<void> _refreshServiceError() async {
@@ -206,64 +219,57 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
     if (mounted) state = state.copyWith(isTracking: false);
   }
 
-  Future<void> _processAndPostPosition(Position pos) async {
-    try {
-      // Validate and convert GPS speed: m/s -> km/h (3.6).
-      double? rawSpeedKmh;
-      final rawSpeedMs = pos.speed;
-      final speedAcc = pos.speedAccuracy;
-      final isSpeedValid = rawSpeedMs.isFinite &&
-          rawSpeedMs >= 0 &&
-          rawSpeedMs < 70 &&
-          speedAcc.isFinite &&
-          speedAcc >= 0 &&
-          speedAcc < 20;
-      if (isSpeedValid) {
-        rawSpeedKmh = rawSpeedMs * 3.6;
-        if (rawSpeedKmh > 120) rawSpeedKmh = null;
-      }
-      double? smoothedKmh;
-      if (rawSpeedKmh != null) {
-        _speedHistory.add(rawSpeedKmh);
-        if (_speedHistory.length > 5) _speedHistory.removeAt(0);
-        final sum = _speedHistory.reduce((a, b) => a + b);
-        smoothedKmh = sum / _speedHistory.length;
-      } else {
-        if (_speedHistory.isNotEmpty) {
-          final sum = _speedHistory.reduce((a, b) => a + b);
-          smoothedKmh = sum / _speedHistory.length;
-          if (_speedHistory.length > 3) _speedHistory.removeAt(0);
-        } else {
-          smoothedKmh = null;
-        }
-        if (rawSpeedMs == 0 && smoothedKmh != null && smoothedKmh < 2) {
-          smoothedKmh = 0;
-        }
-      }
-      try {
-        await _ds.updateRiderLocation(
-          lat: pos.latitude,
-          lng: pos.longitude,
-          speedKmh: smoothedKmh,
-          accuracy: pos.accuracy,
-        );
-      } catch (_) {
-        await _ds.updateRiderLocation(lat: pos.latitude, lng: pos.longitude);
-      }
-      state = state.copyWith(
-        lastLat: pos.latitude,
-        lastLng: pos.longitude,
-        lastSpeedKmh: smoothedKmh,
-        lastUpdated: DateTime.now(),
-        error: null,
-      );
-    } catch (e) {
-      if (kDebugMode) debugPrint('Location stream post failed: $e');
-      state = state.copyWith(error: ErrorHandler.handle(e).message);
-    }
+  /// Updates the on-device map / status UI from a raw GPS fix. Does **not**
+  /// touch the network — the backend sync lives in `_postLocation`.
+  void _applyLocalPosition(Position pos) {
+    if (!mounted) return;
+    state = state.copyWith(
+      lastLat: pos.latitude,
+      lastLng: pos.longitude,
+      lastSpeedKmh: _smoothedSpeedKmh(pos),
+      lastUpdated: DateTime.now(),
+      error: null,
+    );
   }
 
-  Future<void> _postLocation() async {
+  /// Converts a raw position into a smoothed km/h value (m/s → km/h ×3.6),
+  /// rejecting unreliable fixes and clamping absurd jumps.
+  double? _smoothedSpeedKmh(Position pos) {
+    double? rawSpeedKmh;
+    final rawSpeedMs = pos.speed;
+    final speedAcc = pos.speedAccuracy;
+    final isSpeedValid = rawSpeedMs.isFinite &&
+        rawSpeedMs >= 0 &&
+        rawSpeedMs < 70 && // ~252 km/h max sanity
+        speedAcc.isFinite &&
+        speedAcc >= 0 &&
+        speedAcc < 20; // high inaccuracy -> unreliable
+    if (isSpeedValid) {
+      rawSpeedKmh = rawSpeedMs * 3.6;
+      // Clamp absurd jumps; moving average will smooth.
+      if (rawSpeedKmh > 120) rawSpeedKmh = null;
+    }
+    if (rawSpeedKmh != null) {
+      _speedHistory.add(rawSpeedKmh);
+      if (_speedHistory.length > 5) _speedHistory.removeAt(0);
+      final sum = _speedHistory.reduce((a, b) => a + b);
+      return sum / _speedHistory.length;
+    }
+    // No valid speed fix: keep decay but don't feed bad value. If we have
+    // history, reuse last smoothed; else null -> UI shows --.
+    if (_speedHistory.isNotEmpty) {
+      final sum = _speedHistory.reduce((a, b) => a + b);
+      final smoothed = sum / _speedHistory.length;
+      // Decay slowly if GPS keeps failing: drop oldest after 3 fails.
+      if (_speedHistory.length > 3) _speedHistory.removeAt(0);
+      // If speed shows 0 while moving below threshold, treat as stopped.
+      if (rawSpeedMs == 0 && smoothed < 2) return 0;
+      return smoothed;
+    }
+    return null;
+  }
+
+  Future<void> _postLocation({bool force = false}) async {
     // The backend rejects `update-rider` with a 403 unless the caller is a
     // rider. Guard against the tracking timer firing after logout / a role
     // switch on the same device (the provider outlives the session), so a
@@ -279,6 +285,18 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
       return;
     }
 
+    // Collapse overlapping triggers (timer + app-resume + GPS-on) and never
+    // post faster than the server cadence expects, so a burst of callbacks
+    // cannot trip the per-rider rate limit. `force` is used for the first fix
+    // when tracking starts, when a fresh position is genuinely wanted.
+    if (_postInFlight) return;
+    if (!force &&
+        _lastPostAt != null &&
+        DateTime.now().difference(_lastPostAt!) < _minPostInterval) {
+      return;
+    }
+
+    _postInFlight = true;
     try {
       final pos = await LocationService.instance.getCurrentPosition();
       if (pos == null) {
@@ -303,56 +321,17 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
         if (kDebugMode) debugPrint('[RiderLocation] $msg');
         return;
       }
-      // Validate and convert GPS speed: m/s -> km/h (3.6).
-      // Handle invalid: speed <0, speedAccuracy unavailable/high, or NaN.
-      double? rawSpeedKmh;
-      final rawSpeedMs = pos.speed;
-      final speedAcc = pos.speedAccuracy;
-      final isSpeedValid = rawSpeedMs.isFinite &&
-          rawSpeedMs >= 0 &&
-          rawSpeedMs < 70 && // ~252 km/h max sanity
-          speedAcc.isFinite &&
-          speedAcc >= 0 &&
-          speedAcc < 20; // high inaccuracy -> unreliable
-      if (isSpeedValid) {
-        rawSpeedKmh = rawSpeedMs * 3.6;
-        // Clamp absurd jumps; moving average will smooth.
-        if (rawSpeedKmh > 120) rawSpeedKmh = null;
-      }
-      double? smoothedKmh;
-      if (rawSpeedKmh != null) {
-        _speedHistory.add(rawSpeedKmh);
-        if (_speedHistory.length > 5) _speedHistory.removeAt(0);
-        final sum = _speedHistory.reduce((a, b) => a + b);
-        smoothedKmh = sum / _speedHistory.length;
-      } else {
-        // No valid speed fix: keep decay but don't feed bad value.
-        // If we have history, reuse last smoothed; else null -> UI shows --.
-        if (_speedHistory.isNotEmpty) {
-          final sum = _speedHistory.reduce((a, b) => a + b);
-          smoothedKmh = sum / _speedHistory.length;
-          // Decay slowly if GPS keeps failing: drop oldest after 3 fails
-          if (_speedHistory.length > 3) _speedHistory.removeAt(0);
-        } else {
-          smoothedKmh = null;
-        }
-        // If speed shows 0 while moving below threshold, treat as stopped
-        if (rawSpeedMs == 0 && smoothedKmh != null && smoothedKmh < 2) {
-          smoothedKmh = 0;
-        }
-      }
-      // Send to backend: include speed (km/h) and accuracy for lender display.
-      try {
-        await _ds.updateRiderLocation(
-          lat: pos.latitude,
-          lng: pos.longitude,
-          speedKmh: smoothedKmh,
-          accuracy: pos.accuracy,
-        );
-      } catch (_) {
-        // Still update local state even if backend fails
-        await _ds.updateRiderLocation(lat: pos.latitude, lng: pos.longitude);
-      }
+      final smoothedKmh = _smoothedSpeedKmh(pos);
+      // Single attempt: retrying immediately on a failure (e.g. a 429) only
+      // doubles the request volume and digs the rate-limit hole deeper. The
+      // edge function already retries internally when `speed_kmh` is missing.
+      await _ds.updateRiderLocation(
+        lat: pos.latitude,
+        lng: pos.longitude,
+        speedKmh: smoothedKmh,
+        accuracy: pos.accuracy,
+      );
+      _lastPostAt = DateTime.now();
       state = state.copyWith(
         lastLat: pos.latitude,
         lastLng: pos.longitude,
@@ -363,6 +342,8 @@ class RiderLocationNotifier extends StateNotifier<RiderLocationState> {
     } catch (e) {
       if (kDebugMode) debugPrint('Location update failed: $e');
       state = state.copyWith(error: ErrorHandler.handle(e).message);
+    } finally {
+      _postInFlight = false;
     }
   }
 

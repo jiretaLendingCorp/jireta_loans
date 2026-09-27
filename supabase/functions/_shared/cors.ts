@@ -9,7 +9,7 @@
 //
 // Aug 2026 — jireta.vercel.app migration:
 // Set CORS_ALLOWED_ORIGINS to include the NEW origin, e.g.:
-//   supabase secrets set CORS_ALLOWED_ORIGINS=https://jireta.vercel.app,https://lending-jet-five.vercel.app,https://app.jiretaloanscorp.com
+//   supabase secrets set CORS_ALLOWED_ORIGINS=https://jireta.vercel.app,https://www.jireta.com
 // If you forget, the browser blocks every API response with ACAO:null → Dio
 // reports DioExceptionType.unknown and the app previously showed "No Internet
 // Connection" even though the network was fine (fixed in connectivity_service.dart
@@ -29,7 +29,6 @@ const DEV_ALLOWED_ORIGIN = "*";
 const BUILT_IN_ALLOWED_ORIGINS: string[] = [
   "https://www.jireta.com",
   "https://jireta.com",
-  "https://app.jiretaloanscorp.com",
 ];
 
 /** Ang mga origin na nasa CORS_ALLOWED_ORIGINS secret (WALANG built-ins). */

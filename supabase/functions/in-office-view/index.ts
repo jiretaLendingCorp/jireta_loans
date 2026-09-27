@@ -22,6 +22,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule } from '../_shared/schedule.ts';
+import { geocodeInBackground } from '../_shared/geocode.ts';
 
 // ── [moved from in-office-submit] ───────────────────────────────────────────
 // Controlled vocabularies (00025): relationship and document_type are FKs to
@@ -534,7 +535,10 @@ async function handleSubmit(req: Request) {
             longitude: a.longitude,
             is_primary: a.address_type === 'home',
           }));
-          await db.from('addresses').insert(addressRows);
+          const { data: insertedAddrs } = await db.from('addresses').insert(addressRows).select('id');
+          // Ang walk-in wizard ay hindi laging may coordinates → i-geocode sa
+          // background para may pin ang rider maps (tingnan _shared/geocode.ts).
+          geocodeInBackground(db, (insertedAddrs ?? []).map((r) => r.id as string));
         }
       }
       if (s2.emergency_contacts.length > 0) {
@@ -888,7 +892,7 @@ async function handleSubmitAccount(req: Request) {
     if (addrRows.length > 0) {
       const { count: existingAddrCount } = await db.from('addresses').select('*', { count: 'exact', head: true }).eq('user_id', lenderId);
       if ((existingAddrCount ?? 0) === 0) {
-        await db.from('addresses').insert(
+        const { data: insertedAddrs } = await db.from('addresses').insert(
           addrRows.map((a) => ({
             user_id: lenderId,
             address_type: a.address_type,
@@ -901,7 +905,10 @@ async function handleSubmitAccount(req: Request) {
             longitude: a.longitude,
             is_primary: a.address_type === 'home',
           })),
-        );
+        ).select('id');
+        // Ang walk-in address ay pwedeng walang lat/lng (wizard na walang map
+        // picker) → i-geocode sa background para may pin ang rider maps.
+        geocodeInBackground(db, (insertedAddrs ?? []).map((r) => r.id as string));
       }
     }
 
