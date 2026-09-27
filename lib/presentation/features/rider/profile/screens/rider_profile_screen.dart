@@ -11,6 +11,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
@@ -67,9 +68,27 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
 
   Future<void> _logout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
-    // No confirmation modal. Flow: button loading → logout → success modal
-    // steady for 2s → login page. The redirect is held while the modal is up
-    // so it can't yank the stack mid-modal.
+    // (1) Confirm muna: "Are you sure to logout?" (Yes / No). Kapareho ng
+    // web logout flow — hindi na tuloy agad ang logout sa isang tap.
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Log Out',
+      message: 'Are you sure to logout?',
+      confirmLabel: 'Yes',
+      cancelLabel: 'No',
+      isDangerous: true,
+      centerText: true,
+      // Walang icon at walang divider — simpleng tanong lang, at compact na
+      // lapad (280) para hindi umabot sa buong screen sa phone.
+      showIcon: false,
+      showDivider: false,
+      width: 280,
+    );
+    if (confirmed != true) return;
+    if (!mounted || !context.mounted) return;
+    // (2) Flow: button loading → logout → success modal steady for 2s → login
+    // page. The redirect is held while the modal is up so it can't yank the
+    // stack mid-modal.
     AppConstants.suppressLogoutRedirect = true;
     try {
       await ref.read(authProvider.notifier).logout();

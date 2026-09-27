@@ -440,6 +440,9 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
                 // ipinapakita ngayon. Nasa code pa rin ang handler
                 // (`_onPay` → `/lender/pay-office`) kung ibabalik ito.
                 const SizedBox(height: 14),
+                // COMING SOON: ang GCash ay hindi pa available — hindi
+                // selectable at may "Coming Soon" chip para malinaw sa user
+                // na hindi ito bug kundi darating pang feature.
                 const _MethodCard(
                   value: 'gcash',
                   groupValue: 'rider',
@@ -447,7 +450,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
                   icon: Icons.account_balance_wallet,
                   color: Color(0xFF007DFF),
                   title: 'GCash',
-                  badge: null,
+                  badge: 'Coming Soon',
                   disabled: true,
                 ),
                 if (!_resolving && _scheduleId.isEmpty) ...[
@@ -598,10 +601,12 @@ class _MethodCard extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(title,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
-                              color: AppColors.textPrimary)),
+                              color: disabled
+                                  ? AppColors.textTertiary
+                                  : AppColors.textPrimary)),
                     ),
                     if (badge != null) ...[
                       const SizedBox(width: 8),

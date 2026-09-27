@@ -138,8 +138,11 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     await load(silent: true);
   }
 
-  Future<void> rejectLoan(String loanId, String reason) async {
-    await _ds.rejectLoan(loanId, reason);
+  /// [reapplyAllowedAt] — 00176: pinili ng staff sa reject modal kung kailan
+  /// pwedeng mag-apply ulit ang lender (null = 1-month default ng server).
+  Future<void> rejectLoan(String loanId, String reason,
+      {DateTime? reapplyAllowedAt}) async {
+    await _ds.rejectLoan(loanId, reason, reapplyAllowedAt: reapplyAllowedAt);
     await load(silent: true);
   }
 
@@ -161,9 +164,11 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
     }
   }
 
-  Future<bool> reject(String loanId, String reason) async {
+  Future<bool> reject(String loanId, String reason,
+      {DateTime? reapplyAllowedAt}) async {
     try {
-      await _ds.rejectLoan(loanId, reason);
+      await _ds.rejectLoan(loanId, reason,
+          reapplyAllowedAt: reapplyAllowedAt);
       await load(silent: true);
       return true;
     } catch (_) {

@@ -140,6 +140,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// sumilip ang "Awaiting Release"/status view sa screen na ito — deretso Home.
   bool _handedOff = false;
 
+  /// 00176: naka-aknowledge na ng lender na rejected ang huling application
+  /// niya — pagkatapos ng "Apply Again", tuloy-tuloy na sa wizard.
+  bool _rejectedAcknowledged = false;
+
   static const _employmentOptions = [
     ('employed', 'Employed'),
     ('self_employed', 'Self-Employed'),
@@ -1957,6 +1961,19 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       return _ApplicationReviewView(loan: reviewLoan);
     }
 
+    // 00176: kapag ni-reject ng HM/Employee ang huling application, dapat
+    // MAKITA ito ng lender (rejection notice + reason) imbes na deretsong
+    // bumungad ang bagong application wizard. Ang exact na re-apply date ay
+    // hindi ipinapakita — ang server ang nagbabalita ng natitirang araw kapag
+    // nag-submit siya nang naka-cooldown pa.
+    final rejectedLoan = _latestRejectedLoan(loans);
+    if (rejectedLoan != null && !_rejectedAcknowledged) {
+      return _LoanRejectedView(
+        loan: rejectedLoan,
+        onApplyAgain: () => setState(() => _rejectedAcknowledged = true),
+      );
+    }
+
     // Bago ang mismong wizard: full-screen na loan purpose selection. Dito
     // na pinipili ang purpose, kaya wala nang purpose field sa Loan Details.
     if (!_purposeChosen) {
@@ -2061,6 +2078,21 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       }
     }
     return null;
+  }
+
+  /// Pinakahuling rejected loan (pinakabago ang `updatedAt`) — ito ang
+  /// ipinapakitang rejection notice. Nasa list payload na ang
+  /// `rejection_reason` (loans-view), kaya hindi na kailangan ng extra detail
+  /// fetch para lang malaman kung rejected ang application.
+  LoanModel? _latestRejectedLoan(List<LoanModel> loans) {
+    LoanModel? latest;
+    for (final loan in loans) {
+      if (loan.status != 'rejected') continue;
+      if (latest == null || loan.updatedAt.isAfter(latest.updatedAt)) {
+        latest = loan;
+      }
+    }
+    return latest;
   }
 }
 
@@ -3249,6 +3281,124 @@ class _ApplicationReviewView extends StatelessWidget {
               RouteConstants.lenderLoanApplicationStatus
                   .replaceFirst(':id', loan.id),
             ),
+            color: AppColors.lenderBlue,
+            icon: Icons.timeline_outlined,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 00176: nakita na ng lender na REJECTED ang application niya — may maikling
+/// paliwanag, ang loan number, at ang dahilan (kung may binigay). Walang exact
+/// na re-apply date dito: ang "Apply Again" button ang nagpapatuloy sa bagong
+/// application, at ang server ang magsasabi ng natitirang araw kapag naka-set
+/// pa ang re-apply window na pinili ng staff.
+class _LoanRejectedView extends StatelessWidget {
+  final LoanModel loan;
+  final VoidCallback onApplyAgain;
+  const _LoanRejectedView({required this.loan, required this.onApplyAgain});
+
+  @override
+  Widget build(BuildContext context) {
+    final reason = (loan.rejectionReason ?? '').trim();
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppColors.error, Color(0xFFE57373)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.error.withValues(alpha: 0.3),
+                  blurRadius: 16,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  children: [
+                    Icon(Icons.cancel_rounded, color: Colors.white, size: 26),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Loan Application Rejected',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your loan application was rejected by our office. '
+                  'You may review the details below and apply again.',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.92),
+                    fontSize: 13,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.04),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              children: [
+                _SummaryRow('Loan #', loan.loanNumber),
+                _SummaryRow('Amount', loan.principalAmount.toCurrency),
+                _SummaryRow('Frequency', loan.paymentFrequency.toUpperCase()),
+                if (reason.isNotEmpty) _SummaryRow('Reason', reason),
+                const SizedBox(height: 8),
+                const StatusBadge(status: 'rejected', small: true),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          AppButton(
+            label: 'Apply Again',
+            onPressed: onApplyAgain,
+            color: AppColors.lenderBlue,
+            icon: Icons.refresh_rounded,
+          ),
+          const SizedBox(height: 10),
+          AppButton(
+            label: 'View Application Status',
+            onPressed: () => context.push(
+              RouteConstants.lenderLoanApplicationStatus
+                  .replaceFirst(':id', loan.id),
+            ),
+            variant: AppButtonVariant.secondary,
             color: AppColors.lenderBlue,
             icon: Icons.timeline_outlined,
           ),

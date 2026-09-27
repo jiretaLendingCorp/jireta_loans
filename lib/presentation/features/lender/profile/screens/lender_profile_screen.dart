@@ -17,6 +17,7 @@ import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../../shared/widgets/security/mpin_settings_card.dart';
 import '../../../../shared/providers/app_settings_provider.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
+import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../providers/lender_profile_provider.dart';
@@ -567,11 +568,28 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
 
   Future<void> _confirmLogout() async {
     if (ref.read(authStateProvider).isLoggingOut) return;
-    // No confirmation modal. Flow: button loading → logout → success modal
-    // steady for 2s → login page. The redirect is held while the modal is up
-    // so it can't yank the stack mid-modal. The button's "Logging out…"
-    // spinner shows the moment it's tapped (setLoggingOut is flipped at the
-    // start of authProvider.logout).
+    // (1) Confirm muna: "Are you sure to logout?" (Yes / No). Kapareho ng
+    // web logout flow — hindi na tuloy agad ang logout sa isang tap.
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Log Out',
+      message: 'Are you sure to logout?',
+      confirmLabel: 'Yes',
+      cancelLabel: 'No',
+      isDangerous: true,
+      centerText: true,
+      // Walang icon at walang divider — simpleng tanong lang, at compact na
+      // lapad (280) para hindi umabot sa buong screen sa phone.
+      showIcon: false,
+      showDivider: false,
+      width: 280,
+    );
+    if (confirmed != true) return;
+    if (!mounted || !context.mounted) return;
+    // (2) Flow: button loading → logout → success modal steady for 2s → login
+    // page. The redirect is held while the modal is up so it can't yank the
+    // stack mid-modal. The button's "Logging out…" spinner shows the moment
+    // it's tapped (setLoggingOut is flipped at the start of authProvider.logout).
     AppConstants.suppressLogoutRedirect = true;
     try {
       await ref.read(authProvider.notifier).logout();

@@ -162,10 +162,27 @@ class LoanRemoteDataSource {
     await _client.patch(ApiEndpoints.loansApprove, data: {'loan_id': loanId});
   }
 
-  Future<void> rejectLoan(String loanId, String reason) async {
+  /// [reapplyAllowedAt] — 00176: pinili ng staff (HM/Employee) sa reject modal
+  /// kung kailan pwedeng mag-apply ulit ang lender. Ipinapadala bilang ISO UTC
+  /// (`.toUtc().toIso8601String()`) dahil ang ISO string na walang timezone
+  /// suffix ay binabasa ng server bilang UTC — kapag local time ang naipadala,
+  /// mali ng 8 oras (PHT) ang kalalabasan ng cooldown.
+  ///
+  /// Kapag null, hindi ito ipinapadala at ang server-side na 1-month default
+  /// ang gamit — kaya walang date na makaka-override nang hindi sinasadya.
+  Future<void> rejectLoan(
+    String loanId,
+    String reason, {
+    DateTime? reapplyAllowedAt,
+  }) async {
     await _client.patch(
       ApiEndpoints.loansReject,
-      data: {'loan_id': loanId, 'rejection_reason': reason},
+      data: {
+        'loan_id': loanId,
+        'rejection_reason': reason,
+        if (reapplyAllowedAt != null)
+          'reapply_allowed_at': reapplyAllowedAt.toUtc().toIso8601String(),
+      },
     );
   }
 

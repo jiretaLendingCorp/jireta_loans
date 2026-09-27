@@ -96,7 +96,7 @@ async function handleGetList(req: Request) {
     let query = db.from('loans')
       .select(`id, loan_number, lender_id, principal_amount, interest_rate,
         payment_frequency, term_days, term_periods, installment_amount, status, purpose, created_at,
-        updated_at,
+        updated_at, rejection_reason,
         lender_profiles!inner(id, users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)),
         in_office_applications!fk_loans_in_office(created_by),
         credit_investigations(ci_id:id, status, created_at, rider:rider_profiles(users!rider_profiles_id_fkey(first_name, last_name))),
@@ -224,6 +224,9 @@ async function handleGetList(req: Request) {
         term_periods: r.term_periods,
         installment_amount: r.installment_amount,
         status: r.status,
+        // Dahilan ng rejection (00176) — ipinapakita sa lender kapag rejected
+        // ang application niya, at sa staff views.
+        rejection_reason: r.rejection_reason ?? null,
         // Null kapag hindi pa active ang loan (walang schedule bago mag-release).
         due_date: nextDueByLoan[r.id] ?? null,
         created_at: r.created_at,

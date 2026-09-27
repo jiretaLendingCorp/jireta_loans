@@ -1,10 +1,13 @@
 // ignore_for_file: prefer_const_constructors, prefer_const_literals_to_create_immutables
 // lib/presentation/features/rider/live_tracking/screens/rider_live_tracking_screen.dart
+import 'package:flutter/foundation.dart' show Factory;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/utils/formatters.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/services/route_service.dart';
@@ -27,6 +30,11 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
   bool _showRoutes = true;
   String _filter = 'All'; // All, Collections, Deliveries, CI
   int _selectedTaskIndex = 0;
+  // Togglable panels: Tracking Controls + Active Tasks (kaliwa) at ang Lender /
+  // task detail card (kanan). DEFAULT: naka-collapse LAHAT para malinis ang mapa.
+  bool _controlsExpanded = false;
+  bool _tasksExpanded = false;
+  bool _detailExpanded = false;
 
   late final AnimationController _animCtrl;
   late final AnimationController _pulseCtrl;
@@ -457,24 +465,58 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
       ],
       body: Stack(
         children: [
+          // Pinch-to-zoom, pan, double-tap, rotate at tilt — iginagarantiya ng
+          // [EagerGestureRecognizer] na ang NATIVE GoogleMap ang mananalo sa
+          // gesture arena sa loob ng mapa.
+          //
+          // KAILANGAN ito dahil may app-level na `GestureDetector`
+          // (`SessionIdleDetector`, nakabalot sa BUONG app) na may
+          // `onPanDown`/`onTap`. Kapag ang ancestor na iyon ang nanalo sa
+          // arena, hindi natatanggap ng platform view (AndroidView) ang
+          // multi-touch sequence — kaya HINDI nag-zoom ang pinch kahit
+          // naka-enable ang `zoomGesturesEnabled`. Sa eager, naka-accept agad
+          // ang mapa sa pointer down, kaya panig ang lahat ng touch sa loob
+          // ng mapa. Hindi ito nakakaapekto sa mga overlay (dock, pills,
+          // buttons) dahil nasa ITAAS nila ito sa Stack — hindi sila dumadaan
+          // sa map hit-test — at hindi rin naaapektuhan ang idle timer dahil
+          // `Listener.onPointerDown` (arena-independent) ang nagbubump.
           GoogleMap(
-            initialCameraPosition: CameraPosition(target: _displayPos ?? _phCenter, zoom: _displayPos != null ? 15 : 12),
-            onMapCreated: (c) {
-              _mapCtrl = c;
-              if (!_didInitialFit && _displayPos != null) {
-                _didInitialFit = true;
-                _fitToAll();
-              }
+            gestureRecognizers: <Factory<OneSequenceGestureRecognizer>>{
+              Factory<OneSequenceGestureRecognizer>(() => EagerGestureRecognizer()),
             },
-            markers: markers,
-            circles: circles,
-            polylines: polylines,
-            myLocationEnabled: false,
-            myLocationButtonEnabled: false,
-            zoomControlsEnabled: false,
-            compassEnabled: true,
+            // Ang floating bottom nav ay tumatakip sa IBABA ng mapa (extendBody:
+            // true ito na Scaffold), kaya sinasabi natin sa native map na
+            // "obscured" ang bahaging iyon. Dahil dito:
+            //   • nasa loob ng visible/padded region ang camera fitting — hindi
+            //     na natatakpan ng nav pill ang rider (+ destination) marker
+            //     kapag nag-`newLatLngBounds` ang `_fitToAll()`,
+            //   • naiaangat din ang compass at ang Google logo mula sa nav.
+            // GAMIT: `mobileBottomNavHeight` (hindi `mobileBottomNavInset`) —
+            // ang `context` dito ay ng SCREEN, nasa LABAS ng body ng
+            // `MobileScaffold`.
+            padding: EdgeInsets.only(bottom: mobileBottomNavHeight(context)),
+              initialCameraPosition: CameraPosition(target: _displayPos ?? _phCenter, zoom: _displayPos != null ? 15 : 12),
+              onMapCreated: (c) {
+                _mapCtrl = c;
+                if (!_didInitialFit && _displayPos != null) {
+                  _didInitialFit = true;
+                  _fitToAll();
+                }
+              },
+              markers: markers,
+              circles: circles,
+              polylines: polylines,
+              myLocationEnabled: false,
+              myLocationButtonEnabled: false,
+              zoomControlsEnabled: false,
+              zoomGesturesEnabled: true,
+              scrollGesturesEnabled: true,
+              rotateGesturesEnabled: true,
+              tiltGesturesEnabled: true,
+              compassEnabled: true,
           ),
-          // Top live badge
+          // Top live badge + ETA — magkatabi na sila sa itaas (dating nasa
+          // gitna ng mapa ang ETA pill).
           Positioned(
             top: 12,
             left: 12,
@@ -500,7 +542,28 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                   Text(!liveActive ? 'Live tracking is disabled' : (_displayPos != null ? 'You are on the move' : 'Acquiring GPS...'), style: TextStyle(fontSize: 11, color: context.cTextSecondary)),
                 ]),
               ),
-              const Spacer(),
+              // ETA — tabi na ng Live badge. `Expanded` + ellipsis para hindi
+              // umapaw sa makitid na screen. Hindi na kasama ang static na
+              // "You → Lender" prefix dahil nasa mapa at sa task detail card
+              // naman ang lender pin; ang dynamic na ETA + distansya ang
+              // importante rito.
+              Expanded(
+                child: liveActive && _displayPos != null && _destPos != null
+                    ? Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(20), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 6)]),
+                          child: Text(
+                            riderDistText != null && riderEtaText != null ? 'ETA: $riderEtaText  •  $riderDistText' : 'ETA: Locating…',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
               if (_geocoding)
                 Container(
                   padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -559,16 +622,38 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                 ),
               ),
             ),
-          // Tracking controls (top-left)
+          // Left dock (top-left): magkatabi na ngayon ang Tracking Controls at
+          // ang Active Tasks sa isang column — parehong togglable.
           Positioned(
             top: 56,
             left: 12,
-            child: Container(
-              width: 160,
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Tracking Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800)),
+            child: SizedBox(
+              width: 200,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                // ─── Tracking Controls ───
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                GestureDetector(
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => setState(() => _controlsExpanded = !_controlsExpanded),
+                  child: Row(children: [
+                    Expanded(child: Text('Tracking Controls', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+                    AnimatedRotation(
+                      turns: _controlsExpanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 200),
+                      child: Icon(Icons.expand_more, size: 16, color: context.cTextSecondary),
+                    ),
+                  ]),
+                ),
+                AnimatedSize(
+                  duration: const Duration(milliseconds: 200),
+                  curve: Curves.easeInOut,
+                  alignment: Alignment.topCenter,
+                  child: !_controlsExpanded
+                      ? const SizedBox(width: double.infinity)
+                      : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SizedBox(height: 8),
                 _FilterChip(label: 'All', count: allTasks.length, selected: _filter == 'All', enabled: liveActive, onTap: () { setState(() { _filter = 'All'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
                 _FilterChip(label: 'Collections', count: dash.todayCollections.length, selected: _filter == 'Collections', enabled: liveActive, onTap: () { setState(() { _filter = 'Collections'; _selectedTaskIndex = 0; }); _resolveSelectedDestination(); }),
@@ -593,37 +678,163 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                     style: OutlinedButton.styleFrom(padding: EdgeInsets.symmetric(vertical: 8), side: BorderSide(color: context.cBorder)),
                   ),
                 ),
-              ]),
-            ),
-          ),
-          // Task detail overlay (top-right)
-          if (selectedTask != null)
-            Positioned(
-              top: 56,
-              right: 12,
-              child: Container(
-                width: 200,
-                padding: EdgeInsets.all(12),
-                decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [
-                    CircleAvatar(radius: 18, backgroundColor: AppColors.riderGreen.withValues(alpha: 0.1), child: Icon(selectedTask['type'] == 'Collection' ? Icons.payments_outlined : selectedTask['type'] == 'Delivery' ? Icons.delivery_dining : Icons.search, size: 18, color: AppColors.riderGreen)),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Builder(builder: (context) {
-                          final raw = selectedTask['label'] as String;
-                          final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
-                          return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800));
-                        }),
-                        Container(
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                          child: Text(selectedTask['status'] as String, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
-                        ),
                       ]),
                     ),
                   ]),
+                ),
+                SizedBox(height: 8),
+                // ─── Active Tasks — dating nasa ilalim, naka-dock na sa tabi ng
+                // Tracking Controls. Vertical na listahan na ito dahil makitid
+                // ang dock (hindi kasya ang dating horizontal na carousel).
+                Container(
+                  padding: EdgeInsets.all(12),
+                  decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 8)]),
+                  child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => setState(() => _tasksExpanded = !_tasksExpanded),
+                      child: Row(children: [
+                        Expanded(child: Text('Active Tasks (${allTasks.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800))),
+                        AnimatedRotation(
+                          turns: _tasksExpanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 200),
+                          child: Icon(Icons.expand_more, size: 16, color: context.cTextSecondary),
+                        ),
+                      ]),
+                    ),
+                    AnimatedSize(
+                      duration: const Duration(milliseconds: 200),
+                      curve: Curves.easeInOut,
+                      alignment: Alignment.topCenter,
+                      child: !_tasksExpanded
+                          ? const SizedBox(width: double.infinity)
+                          : allTasks.isEmpty
+                              ? Padding(
+                                  padding: EdgeInsets.only(top: 8),
+                                  child: Text('No active tasks', style: TextStyle(fontSize: 11, color: context.cTextSecondary)),
+                                )
+                              : ConstrainedBox(
+                                  constraints: const BoxConstraints(maxHeight: 216),
+                                  child: ListView.separated(
+                                    shrinkWrap: true,
+                                    padding: EdgeInsets.only(top: 8),
+                                    itemCount: allTasks.length,
+                                    separatorBuilder: (_, __) => SizedBox(height: 6),
+                                    itemBuilder: (ctx, i) {
+                                      final t = allTasks[i];
+                                      final isSel = i == _selectedTaskIndex;
+                                      return GestureDetector(
+                                        onTap: () {
+                                          setState(() => _selectedTaskIndex = i);
+                                          _resolveSelectedDestination();
+                                        },
+                                        child: Container(
+                                          width: double.infinity,
+                                          padding: EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: context.cSurface,
+                                            borderRadius: BorderRadius.circular(10),
+                                            border: Border.all(color: isSel ? AppColors.riderGreen : context.cBorder, width: isSel ? 1.5 : 1),
+                                            boxShadow: isSel ? [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.15), blurRadius: 8)] : null,
+                                          ),
+                                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                            Row(children: [
+                                              Icon(t['type'] == 'Collection' ? Icons.payments : t['type'] == 'Delivery' ? Icons.delivery_dining : Icons.search, size: 13, color: AppColors.riderGreen),
+                                              SizedBox(width: 4),
+                                              Expanded(child: Builder(builder: (context) {
+                                                final raw = t['label'] as String;
+                                                final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
+                                                return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700));
+                                              })),
+                                            ]),
+                                            SizedBox(height: 2),
+                                            Text(t['subtitle'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: context.cTextSecondary)),
+                                            SizedBox(height: 4),
+                                            Container(
+                                              padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
+                                              child: Text(t['status'] as String, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.success)),
+                                            ),
+                                          ]),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                    ),
+                    // System status (dating nasa ilalim ng carousel) — compact na
+                    // tatlong linya dahil makitid ang dock.
+                    if (_tasksExpanded) ...[
+                      SizedBox(height: 8),
+                      Row(children: [
+                        Container(
+                            width: 6,
+                            height: 6,
+                            decoration: BoxDecoration(
+                                color: loc.error != null ? AppColors.error : (loc.isTracking ? AppColors.success : context.cTextTertiary),
+                                shape: BoxShape.circle)),
+                        SizedBox(width: 4),
+                        Expanded(
+                          child: Text(loc.error != null ? 'GPS Off' : (loc.isTracking ? 'GPS Online' : 'GPS Off'),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: loc.error != null ? AppColors.error : (loc.isTracking ? AppColors.success : context.cTextSecondary))),
+                        ),
+                      ]),
+                      SizedBox(height: 2),
+                      Text(loc.error != null ? 'GPS Signal Lost' : 'All Systems Operational', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: loc.error != null ? AppColors.error : context.cTextSecondary)),
+                      SizedBox(height: 2),
+                      Text(loc.lastUpdated != null ? 'Updated: ${_relative(loc.lastUpdated)}' : 'No fix yet', maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: context.cTextTertiary)),
+                    ],
+                  ]),
+                ),
+                SizedBox(height: 8),
+                // ─── Lender / task detail card — dating nasa kanang gilid,
+                // nakadock na ngayon sa ilalim ng Active Tasks.
+                if (selectedTask != null)
+                  Container(
+                    padding: EdgeInsets.all(12),
+                    decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(12), boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)]),
+                child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Header — laging kita. Tap para i-collapse/expand ang detalye.
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => setState(() => _detailExpanded = !_detailExpanded),
+                    child: Row(children: [
+                      CircleAvatar(radius: 18, backgroundColor: AppColors.riderGreen.withValues(alpha: 0.1), child: Icon(selectedTask['type'] == 'Collection' ? Icons.payments_outlined : selectedTask['type'] == 'Delivery' ? Icons.delivery_dining : Icons.search, size: 18, color: AppColors.riderGreen)),
+                      SizedBox(width: 8),
+                      Expanded(
+                        child: Builder(builder: (context) {
+                          final raw = selectedTask['label'] as String;
+                          final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
+                          // maxLines: 3 — huwag putulin ang pangalan ng lender.
+                          return Text(displayLabel, maxLines: 3, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, height: 1.2));
+                        }),
+                      ),
+                      SizedBox(width: 4),
+                      AnimatedRotation(
+                        turns: _detailExpanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(Icons.expand_more, size: 16, color: context.cTextSecondary),
+                      ),
+                    ]),
+                  ),
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeInOut,
+                    alignment: Alignment.topCenter,
+                    child: !_detailExpanded
+                        ? const SizedBox(width: double.infinity)
+                        : Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  // Status badge (dati nasa ilalim ng label).
+                  Container(
+                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
+                    child: Text(selectedTask['status'] as String, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.success)),
+                  ),
                   SizedBox(height: 8),
                   Text(selectedTask['subtitle'] as String, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.cTextPrimary)),
                   SizedBox(height: 2),
@@ -656,23 +867,13 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                       ),
                     ]),
                   ],
+                        ]),
+                  ),
                 ]),
-              ),
+                  ),
+              ]),
             ),
-          // ETA tooltip center
-          if (liveActive && _displayPos != null && _destPos != null)
-            Positioned(
-              top: 240,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(color: context.cSurface, borderRadius: BorderRadius.circular(10), boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 6)]),
-                  child: Text(riderDistText != null && riderEtaText != null ? 'You → Lender  •  ETA: $riderEtaText  •  $riderDistText' : 'You → Lender  •  Locating…', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
-                ),
-              ),
-            ),
+          ),
           // Walang destination na maidodrowing: address lang ang naka-record
           // (walang naka-save na coordinates at hindi na-resolve ang address).
           if (liveActive && _displayPos != null && _destPos == null && (_destUnresolved || _geocoding))
@@ -692,118 +893,11 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
                 ),
               ),
             ),
-          // Bottom carousel
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: EdgeInsets.fromLTRB(12, 12, 12, 12),
-              decoration: BoxDecoration(color: context.cSurface, boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 8)]),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [
-                  Text('Active Tasks (${allTasks.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800)),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: () {},
-                    child: Row(children: [Text('View All', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.riderGreen)), SizedBox(width: 4), Icon(Icons.arrow_forward, size: 14, color: AppColors.riderGreen)]),
-                  ),
-                ]),
-                SizedBox(height: 10),
-                SizedBox(
-                  height: 92,
-                  child: allTasks.isEmpty
-                      ? Center(
-                          child: Text('No active tasks',
-                              style: TextStyle(
-                                  fontSize: 12, color: context.cTextSecondary)))
-                      : ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: allTasks.length,
-                          separatorBuilder: (_, __) => SizedBox(width: 8),
-                          itemBuilder: (ctx, i) {
-                            final t = allTasks[i];
-                            final isSel = i == _selectedTaskIndex;
-                            return GestureDetector(
-                              onTap: () {
-                                setState(() => _selectedTaskIndex = i);
-                                _resolveSelectedDestination();
-                              },
-                              child: Container(
-                                width: 150,
-                                padding: EdgeInsets.all(10),
-                                decoration: BoxDecoration(
-                                  color: context.cSurface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: isSel ? AppColors.riderGreen : context.cBorder, width: isSel ? 1.5 : 1),
-                                  boxShadow: isSel ? [BoxShadow(color: AppColors.riderGreen.withValues(alpha: 0.15), blurRadius: 8)] : null,
-                                ),
-                                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Row(children: [
-                                    Icon(t['type'] == 'Collection' ? Icons.payments : t['type'] == 'Delivery' ? Icons.delivery_dining : Icons.search, size: 14, color: AppColors.riderGreen),
-                                    SizedBox(width: 4),
-                                    Expanded(child: Builder(builder: (context) {
-                                      final raw = t['label'] as String;
-                                      final displayLabel = raw.toUpperCase().startsWith('LENDER:') ? raw : 'LENDER: $raw';
-                                      return Text(displayLabel, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700));
-                                    })),
-                                  ]),
-                                  SizedBox(height: 4),
-                                  Text(t['subtitle'] as String, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 10, color: context.cTextSecondary)),
-                                  const Spacer(),
-                                  Container(
-                                    padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                    decoration: BoxDecoration(color: AppColors.successLight, borderRadius: BorderRadius.circular(20)),
-                                    child: Text(t['status'] as String, style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: AppColors.success)),
-                                  ),
-                                ]),
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                SizedBox(height: 8),
-                Row(children: [
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : AppColors.successLight,
-                        borderRadius: BorderRadius.circular(20)),
-                    child: Text(loc.error != null ? 'GPS Signal Lost' : 'All Systems Operational',
-                        style: TextStyle(
-                            fontSize: 10, fontWeight: FontWeight.w700, color: loc.error != null ? AppColors.error : AppColors.success)),
-                  ),
-                  SizedBox(width: 8),
-                  Container(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                        color: loc.error != null ? AppColors.error.withValues(alpha: 0.12) : context.cSurfaceVariant,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: loc.error != null ? AppColors.error.withValues(alpha: 0.3) : context.cBorder)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                              color: loc.error != null ? AppColors.error : AppColors.success, shape: BoxShape.circle)),
-                      SizedBox(width: 4),
-                      Text(loc.error != null ? 'GPS Off' : (loc.isTracking ? 'GPS Online' : 'GPS Off'),
-                          style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w700,
-                              color: loc.error != null ? AppColors.error : (loc.isTracking ? AppColors.success : context.cTextSecondary))),
-                    ]),
-                  ),
-                  const Spacer(),
-                  Text(loc.lastUpdated != null ? 'Updated: ${_relative(loc.lastUpdated)}' : 'No fix yet', style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
-                ]),
-              ]),
-            ),
-          ),
-          // Map controls
+          // Map controls — nakaposisyon sa ibabaw ng floating bottom nav
+          // (hindi na kailangan ng dating hardcoded 140px para sa bottom panel).
           Positioned(
             right: 12,
-            bottom: 140,
+            bottom: mobileBottomNavHeight(context) + 12,
             child: Column(children: [
               _MapBtn(icon: Icons.add, onTap: () => _mapCtrl?.animateCamera(CameraUpdate.zoomIn())),
               SizedBox(height: 8),
@@ -822,7 +916,9 @@ class _RiderLiveTrackingScreenState extends ConsumerState<RiderLiveTrackingScree
     final d = nowManila().difference(dt);
     if (d.inSeconds < 60) return 'Just now';
     if (d.inMinutes < 60) return '${d.inMinutes}m ago';
-    return '${dt.hour}:${dt.minute.toString().padLeft(2, '0')}';
+    // 12-hour format (hal. 2:26 PM), hindi 24-hour (14:26). Pareho ito ng
+    // ginagamit ng ibang screens (`AppFormatters.time` → DateFormat('h:mm a')).
+    return AppFormatters.time(dt);
   }
 }
 

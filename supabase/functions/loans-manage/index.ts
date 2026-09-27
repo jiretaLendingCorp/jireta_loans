@@ -161,13 +161,37 @@ async function handleReject(req: Request) {
     const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
     if (roleCheck) return roleCheck;
 
-    const { loan_id, rejection_reason } = await req.json();
+    const { loan_id, rejection_reason, reapply_allowed_at } = await req.json();
     if (!loan_id) return errorResponse('loan_id is required', 400, 'VALIDATION_ERROR');
     // The reject confirmation no longer collects a free-text reason (plain
     // Yes/No modal), so fall back to a generic label when none is supplied.
     const reason = (typeof rejection_reason === 'string' && rejection_reason.trim())
       ? sanitizeString(rejection_reason)
       : 'Rejected by staff';
+
+    // 00176: ang STAFF (HM/Employee) ang nagde-decide kung kailan pwedeng
+    // mag-apply ulit ang lender — pinipili ito sa reject modal at ipinapadala
+    // bilang ISO timestamp (UTC). Kapag wala ito (lumang app build),
+    // mananatili ang dating 1-month default na nasa `loans-apply`.
+    let reapplyAllowedAt: string | null = null;
+    if (
+      reapply_allowed_at !== undefined &&
+      reapply_allowed_at !== null &&
+      String(reapply_allowed_at).trim() !== ''
+    ) {
+      const parsed = new Date(String(reapply_allowed_at));
+      if (Number.isNaN(parsed.getTime())) {
+        return errorResponse('Invalid reapply_allowed_at', 400, 'VALIDATION_ERROR');
+      }
+      // Guard rail: hanggang 2 taon lang — ang mas mahaba pa ay malamang typo
+      // (hal. maling taon sa date picker) at magba-block sa lender nang wala sa
+      // negosyo.
+      const maxMs = Date.now() + 2 * 365 * 24 * 60 * 60 * 1000;
+      if (parsed.getTime() > maxMs) {
+        return errorResponse('Re-apply date cannot be more than 2 years from now', 400, 'VALIDATION_ERROR');
+      }
+      reapplyAllowedAt = parsed.toISOString();
+    }
 
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
@@ -178,12 +202,27 @@ async function handleReject(req: Request) {
       return errorResponse(`Cannot reject loan in ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
-    await db.from('loans').update({ status: 'rejected', rejected_by: user.id, rejection_reason: reason }).eq('id', loan_id);
+    const baseUpdate = { status: 'rejected', rejected_by: user.id, rejection_reason: reason };
+    let { error: rejectErr } = await db
+      .from('loans')
+      .update(reapplyAllowedAt ? { ...baseUpdate, reapply_allowed_at: reapplyAllowedAt } : baseUpdate)
+      .eq('id', loan_id);
+    // Deploy-order guard: kung hindi pa naka-migrate ang 00176 column, huwag
+    // hayaang mabigo ang mismong rejection — balik sa dating update.
+    if (rejectErr && reapplyAllowedAt && /reapply_allowed_at/i.test(rejectErr.message ?? '')) {
+      const retry = await db.from('loans').update(baseUpdate).eq('id', loan_id);
+      rejectErr = retry.error;
+      reapplyAllowedAt = null;
+    }
+    if (rejectErr) {
+      console.error('loans-reject update error:', rejectErr);
+      return errorResponse('Failed to reject loan', 500, 'SERVER_ERROR');
+    }
 
-    await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason: reason }, ipAddress: ip });
+    await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason: reason, reapply_allowed_at: reapplyAllowedAt }, ipAddress: ip });
     await sendPushNotification({ userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${reason}`, type: 'loan_rejected', referenceId: loan_id });
 
-    return jsonResponse({ message: 'Loan rejected' });
+    return jsonResponse({ message: 'Loan rejected', reapply_allowed_at: reapplyAllowedAt });
 }
 
 // ── [moved from functions/loans-cancel/index.ts] ────────────────────────────

@@ -1253,7 +1253,7 @@ class _HmLoanApplicationsListScreenState
       builder: (_) => ApproveRejectModal(
         loanId: loan.id,
         isApprove: true,
-        onConfirm: (_, __) async {
+        onConfirm: (_, __, ___) async {
           final ok =
               await ref.read(hmLoanProvider.notifier).approveLoan(loan.id);
           if (!mounted) return;
@@ -1277,10 +1277,12 @@ class _HmLoanApplicationsListScreenState
       builder: (_) => ApproveRejectModal(
         loanId: loan.id,
         isApprove: false,
-        onConfirm: (_, reason) async {
-          final ok = await ref
-              .read(hmLoanProvider.notifier)
-              .rejectLoan(loan.id, reason ?? '');
+        onConfirm: (_, reason, reapplyAllowedAt) async {
+          final ok = await ref.read(hmLoanProvider.notifier).rejectLoan(
+                loan.id,
+                reason ?? '',
+                reapplyAllowedAt: reapplyAllowedAt,
+              );
           if (!mounted) return;
           Navigator.of(context).pop();
           context.showSnackBarAsToast(

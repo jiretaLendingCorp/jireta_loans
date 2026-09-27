@@ -13,6 +13,7 @@ import '../../../../../data/datasources/remote/disbursement_remote_datasource.da
 import '../../../../../data/models/disbursement_model.dart';
 import '../../../../shared/widgets/details/collection_proof_viewer.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
+import '../../../head_manager/loans/widgets/loan_reapply_picker.dart';
 import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -1241,59 +1242,82 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
 
   Future<void> _showRejectDialog(Map<String, dynamic> loan) async {
     _reasonCtrl.clear();
+    // 00176: kailan pwedeng mag-apply ulit ang lender — desisyon ito ng staff
+    // dito sa reject dialog. WALANG default: habang wala pang pinili, naka-
+    // disable ang Reject (hindi ito basta nag-1 month sa likod ng user).
+    DateTime? reapplyAllowedAt;
     final reason = await showDialog<String>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        title: const Text('Reject Loan',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Rejecting ${loan['loan_number'] ?? 'this loan'}. '
-                'Please provide a reason:',
-                style: const TextStyle(
-                    fontSize: 13, color: AppColors.textSecondary)),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _reasonCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                hintText: 'Enter rejection reason...',
-                filled: true,
-                fillColor: AppColors.surfaceVariant,
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.zero,
-                    borderSide: BorderSide(color: AppColors.border)),
-                enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.zero,
-                    borderSide: BorderSide(color: AppColors.border)),
-              ),
+      // StatefulBuilder: para mag-rebuild ang Reject button kada may mapiling
+      // petsa (ang showDialog builder ay isang beses lang tumatakbo).
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape:
+              const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          title: const Text('Reject Loan',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Rejecting ${loan['loan_number'] ?? 'this loan'}. '
+                    'Please provide a reason:',
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary)),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _reasonCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    hintText: 'Enter rejection reason...',
+                    filled: true,
+                    fillColor: AppColors.surfaceVariant,
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.zero,
+                        borderSide: BorderSide(color: AppColors.border)),
+                    enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.zero,
+                        borderSide: BorderSide(color: AppColors.border)),
+                  ),
+                ),
+                // 00176: kailan pwedeng mag-apply ulit ang lender.
+                const Divider(height: 26),
+                LoanReapplyPicker(
+                  onChanged: (date) {
+                    reapplyAllowedAt = date;
+                    setDialogState(() {});
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+                shape: const RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero)),
+              onPressed: reapplyAllowedAt == null
+                  ? null
+                  : () => Navigator.pop(ctx, _reasonCtrl.text.trim()),
+              child: const Text('Reject'),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.error,
-              foregroundColor: Colors.white,
-              shape: const RoundedRectangleBorder(
-                  borderRadius: BorderRadius.zero)),
-            onPressed: () => Navigator.pop(ctx, _reasonCtrl.text.trim()),
-            child: const Text('Reject'),
-          ),
-        ],
       ));
     if (reason == null || reason.isEmpty || !mounted) return;
     setState(() => _isActing = true);
     try {
-      await ref
-          .read(empLoanProvider.notifier)
-          .rejectLoan(widget.loanId, reason);
+      await ref.read(empLoanProvider.notifier).rejectLoan(
+            widget.loanId,
+            reason,
+            reapplyAllowedAt: reapplyAllowedAt,
+          );
       if (!mounted) return;
       _toast('Loan rejected', AppColors.error);
       _refreshAfterAction();

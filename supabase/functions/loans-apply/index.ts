@@ -8,7 +8,6 @@ import { validateLoanAmount, validateFrequency } from '../_shared/validators.ts'
 import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
-import { nowManila } from '../_shared/timezone.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 
 // ── 00128: per-loan financial + emergency snapshot ─────────────────────────
@@ -224,27 +223,58 @@ serve(async (req) => {
       return errorResponse('You already have an active loan application', 409, 'ACTIVE_LOAN_EXISTS');
     }
 
-    // 1-month cooldown after rejection: lender cannot re-apply within 1 month of a rejected loan.
-    const oneMonthAgo = nowManila();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const { data: recentRejected } = await db
+    // 00176: Cooldown pagkatapos ng rejection — ANG STAFF ANG NAGDEDESISYON
+    // kung kailan pwedeng mag-apply ulit (loans.reapply_allowed_at, pinili sa
+    // reject modal ng HM/Employee).
+    //
+    //   * reapply_allowed_at sa FUTURE → naka-block pa (COOLDOWN_ACTIVE)
+    //   * reapply_allowed_at sa NAKARAAN/ngayon → pwede nang mag-apply
+    //   * NULL (lumang rejection o lumang app build) → dating 1-month default
+    //     mula sa updated_at ng pinakahuling rejected loan
+    let lastRejected: { updated_at?: string | null; reapply_allowed_at?: string | null } | null = null;
+    const rejectedQuery = await db
       .from('loans')
-      .select('updated_at')
+      .select('updated_at, reapply_allowed_at')
       .eq('lender_id', lenderId)
       .eq('status', 'rejected')
-      .gte('updated_at', oneMonthAgo.toISOString())
       .order('updated_at', { ascending: false })
       .limit(1)
       .maybeSingle();
-    if (recentRejected) {
-      const rejectedAt = new Date(recentRejected.updated_at);
-      const cooldownEnd = new Date(rejectedAt);
-      cooldownEnd.setMonth(cooldownEnd.getMonth() + 1);
-      const remainingDays = Math.ceil((cooldownEnd.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
-      return errorResponse(
-        `Your previous loan application was rejected. You can re-apply after ${cooldownEnd.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })} (${remainingDays} days remaining).`,
-        403, 'COOLDOWN_ACTIVE'
-      );
+    if (!rejectedQuery.error) {
+      lastRejected = rejectedQuery.data;
+    } else {
+      // Deploy-order guard (wala pa ang 00176 column): balik sa dating
+      // pagtingin — pinakahuling rejected loan, 1-buwang cooldown.
+      const legacyQuery = await db
+        .from('loans')
+        .select('updated_at')
+        .eq('lender_id', lenderId)
+        .eq('status', 'rejected')
+        .order('updated_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      lastRejected = legacyQuery.data;
+    }
+    if (lastRejected) {
+      const rejectedAt = lastRejected.updated_at
+        ? new Date(lastRejected.updated_at)
+        : new Date();
+      const defaultCooldownEnd = new Date(rejectedAt);
+      defaultCooldownEnd.setMonth(defaultCooldownEnd.getMonth() + 1);
+      const allowedAt = lastRejected.reapply_allowed_at
+        ? new Date(lastRejected.reapply_allowed_at)
+        : defaultCooldownEnd;
+      if (Date.now() < allowedAt.getTime()) {
+        const remainingDays = Math.max(
+          1,
+          Math.ceil((allowedAt.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+        );
+        return errorResponse(
+          `Your previous loan application was rejected. Please wait ${remainingDays} day(s) before applying again.`,
+          403,
+          'COOLDOWN_ACTIVE',
+        );
+      }
     }
 
     const sched = computeSchedule(Number(principal), frequency, new Date(), periods);

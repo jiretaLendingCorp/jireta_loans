@@ -394,7 +394,7 @@ class _LoanApplicationDetailsModalState
       builder: (_) => ApproveRejectModal(
         loanId: loanId,
         isApprove: true,
-        onConfirm: (_, __) async {
+        onConfirm: (_, __, ___) async {
           final ok =
               await ref.read(hmLoanProvider.notifier).approveLoan(loanId);
           if (!mounted) return;
@@ -414,10 +414,12 @@ class _LoanApplicationDetailsModalState
       builder: (_) => ApproveRejectModal(
         loanId: loanId,
         isApprove: false,
-        onConfirm: (_, reason) async {
-          final ok = await ref
-              .read(hmLoanProvider.notifier)
-              .rejectLoan(loanId, reason ?? '');
+        onConfirm: (_, reason, reapplyAllowedAt) async {
+          final ok = await ref.read(hmLoanProvider.notifier).rejectLoan(
+                loanId,
+                reason ?? '',
+                reapplyAllowedAt: reapplyAllowedAt,
+              );
           if (!mounted) return;
           Navigator.of(context).pop();
           _toast(ok ? 'Loan rejected' : 'Reject failed',

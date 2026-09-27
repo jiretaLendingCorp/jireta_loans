@@ -1,11 +1,17 @@
 // lib/presentation/features/head_manager/loans/widgets/approve_reject_modal.dart
 import 'package:flutter/material.dart';
 import '../../../../../core/theme/app_colors.dart';
+import 'loan_reapply_picker.dart';
 
 class ApproveRejectModal extends StatefulWidget {
   final String loanId;
   final bool isApprove;
-  final void Function(String loanId, String? reason) onConfirm;
+
+  /// [reapplyAllowedAt] — 00176: kailan pwedeng mag-apply ulit ang lender
+  /// (pinili sa [LoanReapplyPicker]). Kapag `isApprove` ito ay null —
+  /// rejection lang ang may re-apply window.
+  final void Function(String loanId, String? reason, DateTime? reapplyAllowedAt)
+      onConfirm;
 
   const ApproveRejectModal({
     super.key,
@@ -20,6 +26,16 @@ class ApproveRejectModal extends StatefulWidget {
 
 class _ApproveRejectModalState extends State<ApproveRejectModal> {
   bool _loading = false;
+
+  /// Napiling re-apply date para sa rejection. WALANG default: mananatili
+  /// itong null hangga't hindi pumili ang staff, at habang null ay
+  /// naka-disable ang Reject (para hindi ito tahimik na mag-fallback sa
+  /// 1-month default).
+  DateTime? _reapplyAllowedAt;
+
+  /// True kapag may pinili nang re-apply date ang staff (kasama ang
+  /// "Immediately", na `DateTime.now()`).
+  bool get _reapplyChosen => _reapplyAllowedAt != null;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +68,16 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
               style:
                   const TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
+            // 00176: kapag rejection, ang staff ang nagde-decide kung kailan
+            // pwedeng mag-apply ulit ang lender (walang approve-side chooser).
+            if (!widget.isApprove) ...[
+              const Divider(height: 26),
+              LoanReapplyPicker(
+                onChanged: (date) {
+                  if (mounted) setState(() => _reapplyAllowedAt = date);
+                },
+              ),
+            ],
           ],
         ),
       ),
@@ -61,7 +87,11 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          onPressed: _loading ? null : _confirm,
+          // Pag-reject, kailangan munang pumili ng re-apply date — walang
+          // default na 1 month, desisyon ito ng staff.
+          onPressed: (_loading || (!widget.isApprove && !_reapplyChosen))
+              ? null
+              : _confirm,
           style: ElevatedButton.styleFrom(
               backgroundColor: color, foregroundColor: Colors.white),
           child: _loading
@@ -79,6 +109,11 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
   Future<void> _confirm() async {
     setState(() => _loading = true);
     // No reason collected — a plain Yes/No confirmation (reason stays null).
-    widget.onConfirm(widget.loanId, null);
+    // Ang re-apply date naman ay pinipili ng staff (null kapag approve).
+    widget.onConfirm(
+      widget.loanId,
+      null,
+      widget.isApprove ? null : _reapplyAllowedAt,
+    );
   }
 }
