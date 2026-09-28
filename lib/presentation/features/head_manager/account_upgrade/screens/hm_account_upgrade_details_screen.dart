@@ -1,6 +1,9 @@
 // lib/presentation/features/head_manager/account_upgrade/screens/hm_account_upgrade_details_screen.dart
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -30,6 +33,11 @@ class _HmAccountUpgradeDetailsScreenState
   String? _error;
   bool _submitting = false;
   List _allDocs = [];
+  final _picker = ImagePicker();
+
+  /// Id ng dokumentong kasalukuyang pinapalitan — nagpapakita ito ng spinner sa
+  /// "Replace" button habang umaakyat ang bagong file.
+  String? _replacingDocId;
 
   @override
   void initState() {
@@ -178,6 +186,114 @@ class _HmAccountUpgradeDetailsScreenState
     }
   }
 
+  /// HM-only: palitan ang isang na-submit na dokumento ng bagong piniling file.
+  ///
+  /// Isang POST lang (base64) — nasa server ang storage swap, at ang row sa
+  /// `account_upgrade_documents` ay nananatili (pareho ang id/document_type).
+  /// Bumabalik sa `pending` ang status nito sa server kaya kailangan itong
+  /// muling i-verify ng staff.
+  Future<void> _replaceDocument(Map<String, dynamic> doc) async {
+    final docId = (doc['id'] ?? '').toString();
+    if (docId.isEmpty || _replacingDocId != null) return;
+    final label = _docLabel(doc['document_type']?.toString() ?? '');
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text('Replace $label?'),
+        content: const Text(
+          'Papalitan ang kasalukuyang file ng bago. Bumabalik ito sa "pending" status kaya kailangan itong i-verify muli, at hindi na maibabalik ang lumang file.',
+          style: TextStyle(fontSize: 13, height: 1.5),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style:
+                ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy),
+            child: const Text('Choose file',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 12),
+          Text('Replace $label with',
+              style:
+                  const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+          const SizedBox(height: 8),
+          ListTile(
+            leading: const Icon(Icons.camera_alt_rounded,
+                color: AppColors.riderGreen),
+            title: const Text('Camera'),
+            onTap: () => Navigator.pop(ctx, ImageSource.camera),
+          ),
+          ListTile(
+            leading: const Icon(Icons.photo_library_outlined,
+                color: AppColors.info),
+            title: const Text('Gallery'),
+            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+          ),
+          const SizedBox(height: 8),
+        ]),
+      ),
+    );
+    if (source == null || !mounted) return;
+
+    final XFile? picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1920,
+    );
+    if (picked == null || !mounted) return;
+
+    setState(() => _replacingDocId = docId);
+    try {
+      final bytes = await picked.readAsBytes();
+      await _ds.replaceAccountUpgradeDocument(
+        accountUpgradeDocId: docId,
+        fileName: picked.name,
+        mimeType: _mimeTypeFor(picked.name),
+        contentBase64: base64Encode(bytes),
+      );
+      if (!mounted) return;
+      showSuccessSnackBar(
+          context, '$label replaced. Please verify it again.');
+      await _load();
+    } catch (e) {
+      if (mounted) {
+        showErrorSnackBar(
+            context, 'Replace failed: ${ErrorHandler.handle(e).message}');
+      }
+    } finally {
+      if (mounted) setState(() => _replacingDocId = null);
+    }
+  }
+
+  static String _mimeTypeFor(String fileName) {
+    final ext = fileName.split('.').last.toLowerCase();
+    switch (ext) {
+      case 'png':
+        return 'image/png';
+      case 'webp':
+        return 'image/webp';
+      case 'pdf':
+        return 'application/pdf';
+      default:
+        return 'image/jpeg';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return WebScaffold(
@@ -255,6 +371,13 @@ class _HmAccountUpgradeDetailsScreenState
                               final hasFile = d != null &&
                                   [d['file_url'], d['signed_url']].any((v) =>
                                       v != null && v.toString().trim().isNotEmpty);
+                              final docId = (d?['id'] ?? '').toString();
+                              // Walk-in documents (`walkin_<id>`) ay nakatira sa
+                              // `application_documents` / loan-documents bucket —
+                              // hindi saklaw ng per-document na palitan dito.
+                              final canReplace = hasFile &&
+                                  docId.isNotEmpty &&
+                                  !docId.startsWith('walkin_');
                               // Symmetric na padding (dati ay bottom-only) para may
                               // hangin sa itaas at ibaba ng bawat dokumento.
                               // Tile na may border (dati'y plain row na may
@@ -337,6 +460,55 @@ class _HmAccountUpgradeDetailsScreenState
                                           ),
                                         ),
                                       ),
+                                      // HEAD MANAGER lang (naka-guard din sa
+                                      // backend) — itama ang mali/blurred na
+                                      // na-submit na dokumento nang hindi na
+                                      // ipapa-resubmit ang buong Account
+                                      // Upgrade. Outlined para hindi ito
+                                      // malito sa filled na View.
+                                      if (canReplace) ...[
+                                        const SizedBox(width: 8),
+                                        OutlinedButton(
+                                          onPressed: _replacingDocId != null
+                                              ? null
+                                              : () => _replaceDocument(d),
+                                          style: OutlinedButton.styleFrom(
+                                            foregroundColor: AppColors.deepNavy,
+                                            side: const BorderSide(
+                                                color: AppColors.deepNavy),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 12, vertical: 8),
+                                            shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(8)),
+                                            minimumSize: const Size(0, 0),
+                                            tapTargetSize:
+                                                MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (_replacingDocId == docId)
+                                                  const SizedBox(
+                                                      width: 14,
+                                                      height: 14,
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                              strokeWidth: 2))
+                                                else
+                                                  const Icon(
+                                                      Icons
+                                                          .autorenew_rounded,
+                                                      size: 15),
+                                                const SizedBox(width: 6),
+                                                const Text('Replace',
+                                                    style: TextStyle(
+                                                        fontSize: 12,
+                                                        fontWeight:
+                                                            FontWeight.w700)),
+                                              ]),
+                                        ),
+                                      ],
                                       const SizedBox(width: 10),
                                       // Ipakitang malinaw sa tabi ng View kung may laman
                                       // (na-upload) o walang laman ang dokumento.
@@ -385,7 +557,6 @@ class _HmAccountUpgradeDetailsScreenState
                       child: Builder(builder: (_) {
                         final s = accountUpgradeStatus.toLowerCase();
                         final isRejected = s == 'rejected';
-                        final isVerified = s == 'verified';
                         // Rejected: Verify must NOT appear. No further action.
                         if (isRejected) {
                           final resubmitAfter =
@@ -406,7 +577,11 @@ class _HmAccountUpgradeDetailsScreenState
                                     color: AppColors.textSecondary)),
                           );
                         }
-                        if (isVerified || pendingDocs.isEmpty) {
+                        // `pendingDocs.isEmpty` na lang (dating kasama ang
+                        // `isVerified`): kapag nagpalit ng dokumento ang HM,
+                        // bumabalik ito sa `pending` kaya dapat lumabas muli ang
+                        // Verify/Reject para ma-verify ang bagong file.
+                        if (pendingDocs.isEmpty) {
                           return const Padding(
                             padding: EdgeInsets.all(4),
                             child: Text('All documents reviewed.', style: TextStyle(color: AppColors.riderGreen, fontWeight: FontWeight.w700, fontSize: 13)),

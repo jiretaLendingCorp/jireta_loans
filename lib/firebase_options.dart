@@ -39,12 +39,13 @@ class DefaultFirebaseOptions {
     projectId: 'lmsnotif',
     storageBucket: 'lmsnotif.firebasestorage.app',
   );
+
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'YOUR_IOS_API_KEY',
-    appId: 'YOUR_IOS_APP_ID',
-    messagingSenderId: 'YOUR_SENDER_ID',
-    projectId: 'YOUR_PROJECT_ID',
-    storageBucket: 'YOUR_PROJECT_ID.appspot.com',
+    apiKey: 'AIzaSyA6vecanJ3gKGMW0L4bnXychOJWvS-_B-Q',
+    appId: '1:263204697735:ios:d5933f81e60c15f1fb6a22',
+    messagingSenderId: '263204697735',
+    projectId: 'lmsnotif',
+    storageBucket: 'lmsnotif.firebasestorage.app',
     iosBundleId: 'com.example.jiretaLoans',
   );
 }

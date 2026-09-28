@@ -151,4 +151,24 @@ class AccountUpgradeRemoteDataSource {
       if (info != null) ...info,
     });
   }
+
+  /// HM-only: palitan ang isang na-submit na document (nananatili ang row at
+  /// ang `document_type`; ang file lang ang nagbabago). Bumabalik sa `pending`
+  /// ang status ng dokumento sa server kaya kailangan itong muling i-verify.
+  Future<void> replaceAccountUpgradeDocument({
+    required String accountUpgradeDocId,
+    required String fileName,
+    required String mimeType,
+    required String contentBase64,
+  }) async {
+    await _client.post(
+      ApiEndpoints.accountUpgradeReplaceDocument,
+      data: {
+        'account_upgrade_doc_id': accountUpgradeDocId,
+        'file_name': fileName,
+        'mime_type': mimeType,
+        'content_base64': contentBase64,
+      },
+    );
+  }
 }

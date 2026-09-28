@@ -7,6 +7,7 @@
 //   kyc-get-list     →  ?fn=get-list
 //   kyc-get-status   →  ?fn=get-status
 //   kyc-get-details  →  ?fn=get-details
+//   kyc-replace-document → ?fn=replace-document  (HEAD MANAGER only)
 //
 // The original per-action logic is preserved verbatim below; each handler is
 // only wrapped so it can live in a single `serve()`.
@@ -16,13 +17,42 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validatePagination } from '../_shared/validators.ts';
+import { validatePagination, validateUUID } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financials.ts';
 import { NO_MATCH_ID } from '../_shared/search.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule } from '../_shared/schedule.ts';
+
+// Bucket kung saan nakaimbak ang Account Upgrade documents (pareho ng kyc-submit).
+const ACCOUNT_UPGRADE_BUCKET = 'account-upgrade-documents';
+
+function mimeFromExt(ext: string): string {
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+// Decode a base64 string into a Uint8Array without relying on atob. Kailangan
+// ng whitespace strip — ang Flutter client ay maaaring magpadala ng multiline/
+// padded base64 na tinatanggihan ng atob (pareho ng kyc-submit).
+function base64ToBytes(base64: string): Uint8Array {
+  const bin = atob(base64.replace(/\s+/g, ''));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'verify';
@@ -46,6 +76,8 @@ serve(async (req) => {
       case 'get-details':
         // ── [moved from functions/kyc-get-details/index.ts] ──────────────
         return await handleGetDetails(req);
+      case 'replace-document':
+        return await handleReplaceDocument(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -672,7 +704,6 @@ async function handleGetDetails(req: Request) {
     // with their own JWT, so a client-side signed URL lookup would be blocked
     // by RLS and fail with "object not found". Resolve signed URLs here with
     // the service-role client so reviewers can open lender documents.
-    const ACCOUNT_UPGRADE_BUCKET = 'account-upgrade-documents';
     // Documents uploaded through the in-office (walk-in) wizard live in the
     // 'loan-documents' bucket. Some of those rows were also copied into
     // account_upgrade_documents (migration 00133 backfill) carrying their
@@ -840,4 +871,120 @@ async function handleGetDetails(req: Request) {
       rejected_at: rejectedAt,
       resubmit_after: resubmitAfter,
     });
+}
+
+// ── Account Upgrade document replacement (HEAD MANAGER only) ────────────────
+// Pinapalitan ang isang na-submit na dokumento ng bagong file. Kapag mali,
+// blurred, o hindi tugma ang na-upload ng lender, hindi na kailangang ipa-
+// resubmit ang buong Account Upgrade — itatama na lang ito ng reviewer.
+//
+// Ang `account_upgrade_documents` row ay HINDI pinapalitan (iisa pa rin ang id
+// at `document_type`); ang file path/name/size lang ang ina-update. Dahil BAGO
+// ang nilalaman, bumabalik ang status ng dokumeto sa `pending` at nabubura ang
+// nakaraang review — kailangan itong muling i-verify (ang Verify/Reject sa
+// Review Actions ay lalabas muli kapag may pending na dokumeto).
+//
+// HINDI ginalaw ang `lender_profiles.account_upgrade_status` dito: kontrolado
+// nito ang loan eligibility, kaya ang muling pag-verify ng staff (kyc-verify)
+// ang tanging dapat magpalit nito.
+async function handleReplaceDocument(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const body = await req.json();
+  const { account_upgrade_doc_id, file_name, mime_type, content_base64 } = body;
+  if (!account_upgrade_doc_id) {
+    return errorResponse('account_upgrade_doc_id is required', 400, 'VALIDATION_ERROR');
+  }
+  if (!validateUUID(account_upgrade_doc_id)) {
+    return errorResponse('Invalid document id format', 400, 'VALIDATION_ERROR');
+  }
+  if (!content_base64) {
+    return errorResponse('content_base64 is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: doc } = await db
+    .from('account_upgrade_documents')
+    .select('id, lender_id, document_type, file_path, file_name, status')
+    .eq('id', account_upgrade_doc_id)
+    .maybeSingle();
+  if (!doc) return errorResponse('Document not found', 404, 'NOT_FOUND');
+
+  const ext = (file_name ?? 'document').split('.').pop()?.toLowerCase() ?? 'jpg';
+  const safeExt = ['jpg', 'jpeg', 'png', 'webp', 'pdf'].includes(ext) ? ext : 'jpg';
+  // Kaparehong prefix ng kyc-submit (`account-upgrade/<lender_id>/...`) para
+  // hindi na kailangang mag-imbento ng bagong storage layout.
+  const objectPath = `account-upgrade/${doc.lender_id}/${crypto.randomUUID()}.${safeExt}`;
+  const bytes = base64ToBytes(content_base64);
+
+  const { error: uploadErr } = await db.storage
+    .from(ACCOUNT_UPGRADE_BUCKET)
+    .upload(objectPath, bytes, {
+      contentType: mime_type ?? mimeFromExt(safeExt),
+      upsert: false,
+    });
+  if (uploadErr) {
+    return errorResponse(
+      `Failed to upload replacement file: ${uploadErr.message}`,
+      500,
+      'STORAGE_ERROR',
+    );
+  }
+
+  const { error: updErr } = await db
+    .from('account_upgrade_documents')
+    .update({
+      file_path: objectPath,
+      file_name: file_name ?? 'document',
+      // CHECK (file_size > 0) ang column — hindi ito pwedeng 0.
+      file_size: Math.max(1, bytes.length),
+      mime_type: mime_type ?? mimeFromExt(safeExt),
+      status: 'pending',
+      rejection_notes: null,
+      reviewed_by: null,
+      reviewed_at: null,
+      uploaded_at: new Date().toISOString(),
+    })
+    .eq('id', account_upgrade_doc_id);
+  if (updErr) {
+    // Huwag iwanan ang bagong file bilang orphan kapag nabigo ang DB update.
+    try { await db.storage.from(ACCOUNT_UPGRADE_BUCKET).remove([objectPath]); } catch (_) {}
+    return errorResponse(`Failed to update document: ${updErr.message}`, 500, 'DB_ERROR');
+  }
+
+  // Best-effort na paglilinis ng LUMANG object. Tanging ang mga file na galing
+  // sa sariling bucket ang tinatanggal — ang na-backfill na walk-in paths ay
+  // nakatira sa `loan-documents` at hindi dapat galawin dito.
+  const oldPath = doc.file_path as string | null;
+  if (
+    oldPath &&
+    oldPath !== objectPath &&
+    oldPath.startsWith('account-upgrade/')
+  ) {
+    try { await db.storage.from(ACCOUNT_UPGRADE_BUCKET).remove([oldPath]); } catch (_) {}
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'account_upgrade_replace_document',
+    tableName: 'account_upgrade_documents',
+    recordId: account_upgrade_doc_id,
+    oldValues: { file_path: oldPath, file_name: doc.file_name, status: doc.status },
+    newValues: { file_path: objectPath, file_name: file_name ?? 'document', status: 'pending' },
+    ipAddress: ip,
+  });
+
+  return jsonResponse({
+    message: 'Document replaced',
+    id: account_upgrade_doc_id,
+    file_url: objectPath,
+    status: 'pending',
+  });
 }

@@ -6,6 +6,9 @@
 //   ci-assign    →  ?fn=assign
 //   ci-accept    →  ?fn=accept
 //   ci-decline   →  ?fn=decline
+//   ci-approve-report → ?fn=approve-report
+//   ci-reject-report  → ?fn=reject-report
+//   ci-replace-document → ?fn=replace-document
 //
 // The original per-action logic is preserved verbatim below; each handler is
 // only wrapped so it can live in a single `serve()`.
@@ -19,6 +22,33 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID, sanitizeString } from '../_shared/validators.ts';
 import { MANILA_TZ, nowManilaISO, normalizeManilaInput } from '../_shared/timezone.ts';
+
+// Bucket kung saan nakaimbak ang CI evidence photos (pareho ng ci-submit).
+const BUCKET = 'ci-documents';
+
+// Decode a base64 string into a Uint8Array without relying on atob.
+function base64ToBytes(base64: string): Uint8Array {
+  const bin = atob(base64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+
+function mimeFromExt(ext: string): string {
+  switch (ext) {
+    case 'jpg':
+    case 'jpeg':
+      return 'image/jpeg';
+    case 'png':
+      return 'image/png';
+    case 'webp':
+      return 'image/webp';
+    case 'pdf':
+      return 'application/pdf';
+    default:
+      return 'application/octet-stream';
+  }
+}
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'assign';
@@ -45,6 +75,8 @@ serve(async (req) => {
       case 'reject-report':
       case 'reject':
         return await handleCiRejectReport(req);
+      case 'replace-document':
+        return await handleCiReplaceDocument(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -386,4 +418,99 @@ async function handleCiRejectReport(req: Request) {
   const { data: loan } = await db.from('loans').select('lender_id').eq('id', ci.loan_id).single();
   if (loan?.lender_id) await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Update', body: 'Your loan application needs additional review. Our team will contact you shortly with the next steps.', type: 'ci_rejected', referenceId: ci.loan_id });
   return jsonResponse({ message: 'CI report rejected. Loan has been rejected.' });
+}
+
+// ── CI Evidence Photo replacement (HEAD MANAGER only) ───────────────────
+// Pinapalitan ang isang umiiral na evidence photo ng bagong upload. Ginagamit
+// ito kapos na naka-submit na ang report (completed) pero kailangang itama ang
+// maling/blurred na litrato bago ang approval. Ang row sa `ci_documents` ay
+// HINDI pinalitan — iisa lang ang id (at document_type) at ang file path /
+// pangalan ang ina-update, kaya nananatili ang pagkakasunod-sunod ng ebidensya.
+async function handleCiReplaceDocument(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const { ci_id, document_id, file_name, mime_type, content_base64 } = await req.json();
+  if (!ci_id || !document_id) return errorResponse('ci_id and document_id are required', 400, 'VALIDATION_ERROR');
+  if (!validateUUID(ci_id) || !validateUUID(document_id)) return errorResponse('Invalid id format', 400, 'VALIDATION_ERROR');
+  if (!content_base64) return errorResponse('content_base64 is required', 400, 'VALIDATION_ERROR');
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  // Siguraduhing ang dokumentong ipinapalit ay kabilang talaga sa CI na ito
+  // (hindi puwedeng gamitin ang ?ci_id ng ibang assignment).
+  const { data: doc } = await db
+    .from('ci_documents')
+    .select('id, ci_id, file_path, file_name, document_type')
+    .eq('id', document_id)
+    .eq('ci_id', ci_id)
+    .maybeSingle();
+  if (!doc) return errorResponse('Evidence photo not found', 404, 'NOT_FOUND');
+
+  const { data: ci } = await db
+    .from('credit_investigations')
+    .select('id, status')
+    .eq('id', ci_id)
+    .single();
+  if (!ci) return errorResponse('CI not found', 404, 'NOT_FOUND');
+  // Bago pa ang field visit walang ebidensyang nakikita ang staff — huwag
+  // hayaang magbago ang report na hindi pa naka-submit.
+  if (!['completed', 'approved', 'rejected'].includes(ci.status)) {
+    return errorResponse('Evidence photos can only be edited after the rider submits the report', 409, 'INVALID_STATUS');
+  }
+
+  const ext = (file_name ?? 'photo').split('.').pop()?.toLowerCase() ?? 'jpg';
+  const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
+  const objectPath = `ci/${ci_id}/${crypto.randomUUID()}.${safeExt}`;
+
+  const { error: uploadErr } = await db.storage
+    .from(BUCKET)
+    .upload(objectPath, base64ToBytes(content_base64), {
+      contentType: mime_type ?? mimeFromExt(safeExt),
+      upsert: false,
+    });
+  if (uploadErr) {
+    return errorResponse(`Failed to upload replacement photo: ${uploadErr.message}`, 500, 'STORAGE_ERROR');
+  }
+
+  const { error: updErr } = await db
+    .from('ci_documents')
+    .update({
+      file_path: objectPath,
+      file_name: file_name ?? 'ci_photo',
+      mime_type: mime_type ?? mimeFromExt(safeExt),
+      // True-UTC ang column (DEFAULT NOW()), kaya huwag gamitin ang
+      // nowManilaISO() dito — Manila wall-time iyon at mag-dodoble ang shift.
+      uploaded_at: new Date().toISOString(),
+    })
+    .eq('id', document_id)
+    .eq('ci_id', ci_id);
+  if (updErr) {
+    // Huwag iwanan ang bagong file bilang orphan kapag nabigo ang DB update.
+    try { await db.storage.from(BUCKET).remove([objectPath]); } catch (_) {}
+    return errorResponse('Failed to update evidence photo', 500, 'SERVER_ERROR');
+  }
+
+  // Best-effort: alisin ang LUMANG object sa storage. Nasa row pa rin ito
+  // (audit) bago ang update, kaya hindi na ito naibabalik pagkatapos.
+  const oldPath = doc.file_path;
+  if (oldPath && oldPath !== objectPath) {
+    try { await db.storage.from(BUCKET).remove([oldPath]); } catch (_) {}
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'ci_replace_document',
+    tableName: 'ci_documents',
+    recordId: document_id,
+    oldValues: { file_path: oldPath, file_name: doc.file_name },
+    newValues: { file_path: objectPath, file_name: file_name ?? 'ci_photo' },
+    ipAddress: ip,
+  });
+
+  return jsonResponse({ message: 'Evidence photo replaced', id: document_id });
 }

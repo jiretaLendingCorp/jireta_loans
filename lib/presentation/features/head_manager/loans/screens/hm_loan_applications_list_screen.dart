@@ -1348,10 +1348,9 @@ class _HmLoanApplicationsListScreenState
     final done = await showAsyncConfirmationDialog(
       context,
       title: 'Disburse in Office?',
-      message: 'Ibibigay na ang ${loan.principalAmount.toCurrency} cash kay $lender '
-          '(${loan.loanNumber}) sa opisina.\n\nKapag na-disburse: magiging '
-          'Active na ang loan at magsisimula ang payment schedule — kaya '
-          'siguraduhing natanggap na ng lender ang pera bago i-confirm.',
+      message:
+          '${loan.principalAmount.toCurrency} in cash will be handed to $lender '
+          '(${loan.loanNumber}) at the office.',
       confirmLabel: 'Disburse',
       confirmColor: AppColors.success,
       onConfirm: () async {

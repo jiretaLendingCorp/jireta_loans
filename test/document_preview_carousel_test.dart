@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jireta_loans/presentation/shared/widgets/document_preview_dialog.dart';
 
-Future<void> _open(WidgetTester tester, List<DocumentPreviewPage> pages) async {
+Future<void> _open(
+  WidgetTester tester,
+  List<DocumentPreviewPage> pages, {
+  int initialIndex = 0,
+}) async {
   await tester.pumpWidget(MaterialApp(
     home: Builder(
       builder: (ctx) => Scaffold(
@@ -15,6 +19,7 @@ Future<void> _open(WidgetTester tester, List<DocumentPreviewPage> pages) async {
               ctx,
               title: 'Valid Government ID',
               pages: pages,
+              initialIndex: initialIndex,
             ),
             child: const Text('open'),
           ),
@@ -101,5 +106,25 @@ void main() {
     expect(find.byIcon(Icons.chevron_right_rounded), findsNothing);
     expect(find.byIcon(Icons.chevron_left_rounded), findsNothing);
     expect(find.text('1 / 1'), findsNothing);
+  });
+
+  testWidgets('nagbubukas agad sa pinindot na pahina (initialIndex)',
+      (tester) async {
+    // Ito ang gawi ng grid ng evidence photos: ang AGAD na pinindot na
+    // thumbnail ang nakikita, hindi laging ang una.
+    await _open(tester, _pages, initialIndex: 1);
+
+    expect(find.text('Back Side'), findsOneWidget);
+    expect(find.text('2 / 2'), findsOneWidget);
+    expect(find.text('Front Side'), findsNothing);
+  });
+
+  testWidgets('clamped ang initialIndex na lampas sa range', (tester) async {
+    await _open(tester, _pages, initialIndex: 99);
+
+    // Dapat nasa huling pahina lang, walang crash.
+    expect(find.text('Back Side'), findsOneWidget);
+    expect(find.text('2 / 2'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

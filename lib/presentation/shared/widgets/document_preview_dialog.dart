@@ -34,30 +34,45 @@ class DocumentPreviewPage {
 ///
 /// Bawat dokumento ay pwedeng **i-rotate 90°** (⟳) at i-zoom (+/−) — galing sa
 /// `DocumentViewer`.
+///
+/// Ang `initialIndex` ay ang page na bubuksan agad — kapag pinindot ng user ang
+/// isang thumbnail sa grid ng evidence photos, dapat AGAD na iyon ang nakikita
+/// (hindi laging ang unang litrato).
 Future<void> showDocumentPreviewDialog(
   BuildContext context, {
   required String title,
   required List<DocumentPreviewPage> pages,
+  int initialIndex = 0,
 }) {
   return showDialog<void>(
     context: context,
-    builder: (_) => _DocumentPreviewDialog(title: title, pages: pages),
+    builder: (_) =>
+        _DocumentPreviewDialog(title: title, pages: pages, initialIndex: initialIndex),
   );
 }
 
 class _DocumentPreviewDialog extends StatefulWidget {
-  const _DocumentPreviewDialog({required this.title, required this.pages});
+  const _DocumentPreviewDialog({
+    required this.title,
+    required this.pages,
+    this.initialIndex = 0,
+  });
 
   final String title;
   final List<DocumentPreviewPage> pages;
+  final int initialIndex;
 
   @override
   State<_DocumentPreviewDialog> createState() => _DocumentPreviewDialogState();
 }
 
 class _DocumentPreviewDialogState extends State<_DocumentPreviewDialog> {
-  final PageController _controller = PageController();
-  int _index = 0;
+  /// Naka-clamp sa valid na page range — ligtas kahit lumang index ang ipasa.
+  late int _index = widget.pages.isEmpty
+      ? 0
+      : widget.initialIndex.clamp(0, widget.pages.length - 1);
+  late final PageController _controller =
+      PageController(initialPage: _index);
 
   /// Kanya-kanyang manual rotation ang bawat pahina (0–3 quarter turns).
   final Map<int, int> _rotations = {};

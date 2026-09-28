@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Kailangan ng APNs (Firebase Cloud Messaging) sa iOS. Kung wala ito,
+	     hindi nagbibigay ang Apple ng APNs device token — kaya hindi gumagawa
+	     ng FCM token ang firebase_messaging at "apns-token-not-set" ang error
+	     mula sa getToken().
+
+	     `development` ang tamang value sa entitlements file: awtomatikong
+	     pinapalitan ito ng Xcode ng `production` kapag App Store / Ad Hoc
+	     distribution build. Kailangan ding naka-enable ang Push Notifications
+	     capability sa App ID (Apple Developer portal) at may APNs
+	     authentication key (.p8) na naka-upload sa Firebase Console →
+	     Project Settings → Cloud Messaging. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

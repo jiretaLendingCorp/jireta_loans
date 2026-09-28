@@ -61,6 +61,13 @@
 	<string>Photo library access is used to upload your ID and supporting documents for account verification.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Your location is shared with lenders so they can track you live during collections, credit investigations, and loan deliveries.</string>
+	<!-- Kailangan ng FCM/APNs: dito nakikilala ng iOS na maaaring gisingin ang
+	     app para sa push notifications (hal. background/terminated delivery na
+	     dumadaan sa firebaseMessagingBackgroundHandler). -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

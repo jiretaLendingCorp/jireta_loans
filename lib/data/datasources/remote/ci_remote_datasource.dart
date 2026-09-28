@@ -163,4 +163,25 @@ class CiRemoteDataSource {
       data: {'ci_id': ciId, 'documents': docs},
     );
   }
+
+  /// HM-only: palitan ang isang umiiral na evidence photo (nananatili ang
+  /// `ci_documents` row at ang `document_type`; ang file lang ang nagbabago).
+  Future<void> replaceCiDocument({
+    required String ciId,
+    required String documentId,
+    required String fileName,
+    required String mimeType,
+    required String contentBase64,
+  }) async {
+    await _client.post(
+      ApiEndpoints.ciReplaceDocument,
+      data: {
+        'ci_id': ciId,
+        'document_id': documentId,
+        'file_name': fileName,
+        'mime_type': mimeType,
+        'content_base64': contentBase64,
+      },
+    );
+  }
 }

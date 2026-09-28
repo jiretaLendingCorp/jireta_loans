@@ -65,6 +65,10 @@ class ApiEndpoints {
   static const String accountUpgradeGetList = 'kyc-view?fn=get-list';
   static const String accountUpgradeGetStatus = 'kyc-view?fn=get-status';
   static const String accountUpgradeGetDetails = 'kyc-view?fn=get-details';
+  // HM-only: palitan ang isang na-submit na Account Upgrade document (hindi
+  // na kailangang ipa-resubmit ng lender ang buong submission).
+  static const String accountUpgradeReplaceDocument =
+      'kyc-view?fn=replace-document';
 
   // Loans
   static const String loansApply = 'loans-apply?fn=apply';
@@ -89,6 +93,9 @@ class ApiEndpoints {
   static const String ciRejectReport = 'ci-manage?fn=reject-report';
   static const String ciUploadDocuments = 'ci-submit?fn=upload-documents';
   static const String ciSubmitReport = 'ci-submit?fn=submit-report';
+  // HM-only: palitan ang isang evidence photo ng bagong upload (hindi
+  // naisasama ang rider — pag-aari pa rin ito ng CI assignment).
+  static const String ciReplaceDocument = 'ci-manage?fn=replace-document';
   static const String ciGetList = 'ci-view?fn=get-list';
 
   // Collections

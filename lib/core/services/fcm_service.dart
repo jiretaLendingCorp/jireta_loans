@@ -8,8 +8,11 @@
 //   - requests notification permissions,
 //   - retrieves the device FCM token (+ refresh) and registers it with the
 //     device-tokens edge function (multi-device support),
-//   - displays a local notification for FOREGROUND FCM messages (FCM does
-//     not display them itself while the app is open),
+//   - displays a local notification for FOREGROUND FCM messages sa ANDROID
+//     (FCM does not display them itself while the app is open). Sa iOS,
+//     ipinapakita ito ng system mismo sa pamamagitan ng
+//     `setForegroundNotificationPresentationOptions` — iwas doble at iwas
+//     komplikasyon sa UNUserNotificationCenter delegate,
 //   - deep-links to the appropriate existing screen when a push is tapped
 //     (background / terminated / foreground tap).
 //
@@ -152,6 +155,19 @@ class FcmService {
         }
       }
 
+      // ── Foreground display (iOS) ───────────────────────────────────────
+      // Sa iOS, ang system mismo ang nagpapakita ng banner/alert gamit ang mga
+      // presentation option na ito. Naka-persist ang mga value sa iOS, kaya
+      // hayagan nating itinatakda sa bawat pagbukas ng app. (Sa Android, local
+      // notification ang ginagamit — tingnan ang _handleForegroundMessage.)
+      if (defaultTargetPlatform == TargetPlatform.iOS) {
+        await _messaging.setForegroundNotificationPresentationOptions(
+          alert: true,
+          badge: true,
+          sound: true,
+        );
+      }
+
       // ── Permission ─────────────────────────────────────────────────────
       // HINDI dito hinihiling ang permission. Dapat nakabukas at nakikita na
       // ang app (RESUMED ang Activity) bago lumabas ang "Allow notifications"
@@ -212,6 +228,12 @@ class FcmService {
         return;
       }
 
+      // iOS: hintayin muna ang APNs token bago tumawag ng getToken(). Kung
+      // wala pa ito, "apns-token-not-set" ang error at tuluyang walang
+      // naka-register na device token. (Kung mahuli pa ito, sasaluhin naman ng
+      // onTokenRefresh listener sa itaas ang token kapag dumating na ito.)
+      await _waitForApnsToken();
+
       _token = await _messaging.getToken();
       if (_token != null) {
         AppLogger.debug('[FCM] Token acquired');
@@ -220,6 +242,26 @@ class FcmService {
     } catch (e) {
       AppLogger.error('[FCM] Init failed: $e');
     }
+  }
+
+  /// iOS lamang: ang APNs device token ay dumarating nang ASYNCHRONOUSLY mula
+  /// sa Apple pagkatapos ng registerForRemoteNotifications() (ginagawa ito ng
+  /// firebase_messaging sa plugin registration at pagkatapos ma-configure ang
+  /// Firebase). Kapag tinawag ang getToken() bago dumating ang APNs token,
+  /// nag-e-throw ito ng "apns-token-not-set". Hihintayin natin sandali
+  /// (max ~6s) — walang epekto sa Android.
+  Future<void> _waitForApnsToken() async {
+    if (defaultTargetPlatform != TargetPlatform.iOS) return;
+    for (var attempt = 0; attempt < 12; attempt++) {
+      try {
+        if (await _messaging.getAPNSToken() != null) return;
+      } catch (_) {
+        // Wala pang APNs token / hindi pa handa ang plugin — subukan muli.
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    }
+    AppLogger.debug(
+        '[FCM] APNs token hindi pa dumarating — susubukan pa rin ang getToken()');
   }
 
   /// Hinihiling ang OS notification permission — ang "Allow notifications"
@@ -290,6 +332,13 @@ class FcmService {
   void _handleForegroundMessage(RemoteMessage message) {
     final notification = message.notification;
     if (notification == null || notification.title == null) return;
+
+    // iOS: ang system mismo ang nagpapakita ng notification sa foreground
+    // (setForegroundNotificationPresentationOptions sa initialize()). Kapag
+    // nagpakita pa rin tayo ng local notification dito, DOBLE ang lalabas.
+    // Ang pag-tap sa banner ay dadaan sa `onMessageOpenedApp`
+    // (_handleOpenedMessage) — pareho ng deep-link behavior.
+    if (defaultTargetPlatform == TargetPlatform.iOS) return;
 
     final data = message.data;
     final notifId = (data['notification_id'] as String?) ?? '';

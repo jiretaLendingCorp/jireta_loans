@@ -699,24 +699,8 @@ class LandingDevicesSection extends StatelessWidget {
       ],
     );
 
-    final mockups = isDesktop
-        ? const Column(
-            children: [
-              JiretaWebMockup(),
-              SizedBox(height: 22),
-              Align(
-                alignment: Alignment.centerRight,
-                child: JiretaPhoneMockup(width: 186),
-              ),
-            ],
-          )
-        : Column(
-            children: [
-              Center(child: JiretaPhoneMockup(width: width < 420 ? 190 : 220)),
-              const SizedBox(height: 24),
-              const JiretaWebMockup(),
-            ],
-          );
+    // Laptop wearing the public site, with the mobile app resting on top of it.
+    const mockups = JiretaLaptopMockup();
 
     return Container(
       color: const Color(0xFFF1F4FA),
@@ -732,7 +716,7 @@ class LandingDevicesSection extends StatelessWidget {
                   children: [
                     Expanded(flex: 5, child: copy),
                     const SizedBox(width: 48),
-                    Expanded(flex: 6, child: mockups),
+                    const Expanded(flex: 6, child: mockups),
                   ],
                 )
               else ...[
@@ -1937,23 +1921,23 @@ class _LandingFaqSectionState extends State<LandingFaqSection> {
   static const List<(String, String)> _faqs = [
     (
       'What are the eligibility requirements for a loan?',
-      'Borrowers must be at least 21 years old, Filipino citizens with valid government-issued IDs, proof of billing, and proof of steady income or legitimate business operation.',
+      'Applicants must be at least 18 years old and complete account verification: a valid government-issued ID and selfie verification. All documents are subject to verification, and verified borrowers can apply for loans from ₱3,000 up to ₱500,000.',
     ),
     (
       'How fast are loan applications processed and released?',
-      'Initial credit evaluation is usually completed within 24 hours. Once your documents are confirmed and credit investigation is completed, funds are disbursed promptly.',
+      'Digital applications are reviewed and released within 24 to 48 hours. Once your documents and credit investigation are cleared, the approved amount is disbursed through your chosen method.',
     ),
     (
       'What payment methods are supported for loan amortization?',
-      'You can settle repayments directly through GCash with automated receipt tracking, in person at any Jireta branch, or via scheduled field collection with our authorized riders.',
+      'Payments can be made through GCash, office cash payment, or rider cash collection. A receipt is issued for every payment, and each transaction is recorded against your loan.',
     ),
     (
       'What are the interest rates and repayment terms?',
-      'Jireta offers transparent lending with standard terms from 3 to 12 months with a 20% interest rate per loan term. No surprise maintenance or hidden service fees.',
+      'Jireta charges a transparent flat 20% interest per loan term with no hidden charges. You can repay daily, weekly (up to 26 weeks), or monthly (up to 6 months) — choose the schedule that fits your budget.',
     ),
     (
       'Can I track my balance and payment schedule online?',
-      'Yes! Registered borrowers have access to their live borrower dashboard where every installment, remaining balance, and historical receipt is updated in real time.',
+      'Yes. Registered borrowers get a live borrower dashboard where every installment, remaining balance, and receipt is updated in real time, with due-date reminders sent before each payment.',
     ),
   ];
 
@@ -2177,7 +2161,7 @@ class LandingFinalCta extends StatelessWidget {
                     runSpacing: 12,
                     children: [
                       LandingPrimaryButton(
-                        label: 'Get Started',
+                        label: 'Sign Up',
                         trailingIcon: Icons.arrow_forward_rounded,
                         onTap: onGetStarted,
                       ),

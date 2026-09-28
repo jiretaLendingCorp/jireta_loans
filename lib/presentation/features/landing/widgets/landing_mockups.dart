@@ -706,50 +706,137 @@ class _PhoneNavItem extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Web mockup — the PUBLIC landing page, as it looks in a desktop browser
+// Laptop mockup — the PUBLIC landing page on a laptop, with the mobile app
+// resting on its bottom-right corner
 // ─────────────────────────────────────────────────────────────────────────────
 //
-// The visitor is not signed in, so the browser frame shows the same public
-// marketing page they are reading — never the authenticated workspace.
+// The visitor is not signed in, so the screen shows the same public marketing
+// page they are reading — never the authenticated workspace.
 
-/// Design canvas of the browser window. Rendered once and scaled, so the page
-/// keeps its proportions whatever space it is given.
+/// Design canvas of the site *inside* the lid. Rendered once and scaled, so the
+/// page keeps its proportions whatever space it is given.
 const double _kWebCanvasWidth = 820;
-const double _kWebCanvasHeight = 440;
-const double _kWebAspect = _kWebCanvasWidth / _kWebCanvasHeight;
 
-class JiretaWebMockup extends StatelessWidget {
-  const JiretaWebMockup({super.key});
+/// Lid screen ratio (16:10) and the canvas that fills it — the same silhouette
+/// as the hero laptop, so both device shots read as one machine.
+const double _kLidAspect = 16 / 10;
+const double _kWebCanvasHeight = _kWebCanvasWidth / _kLidAspect;
+
+/// Lid bezel thickness and base-deck height.
+const double _kBezel = 9;
+const double _kDeck = 14;
+
+/// The public site in a laptop shell, with the mobile app mockup straddling the
+/// lid's right edge — half over the machine, half beside it.
+class JiretaLaptopMockup extends StatelessWidget {
+  const JiretaLaptopMockup({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: LandingPalette.line),
-        boxShadow: [
-          BoxShadow(
-            color: LandingPalette.navy.withValues(alpha: 0.10),
-            blurRadius: 34,
-            offset: const Offset(0, 18),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final avail = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : LandingBreakpoints.contentMaxWidth;
+        // The phone leans on the lid's right edge with half of its body hanging
+        // outside the machine, standing just under the lid's height. Solving the
+        // phone and the lid together from the width available keeps the pair —
+        // phone included — inside the section's content box.
+        const frame = (_kBezel + 1) * 2;
+        const phoneRatio = _kPhoneCanvasHeight / _kPhoneCanvasWidth;
+        const phoneHeightShare = 0.80; // phone height ÷ lid height
+        // How much lid width the phone's overhanging half eats up.
+        const phoneHalfShare = phoneHeightShare / (2 * phoneRatio);
+        final laptopH =
+            (avail + frame * (_kLidAspect - 1) + _kLidAspect * _kDeck) /
+                (_kLidAspect + phoneHalfShare);
+        final phoneW = phoneHeightShare * laptopH / phoneRatio;
+        final laptopW = avail - phoneW / 2;
+
+        return SizedBox(
+          width: avail,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // The laptop itself. The phone below paints over its right edge,
+              // so the lid keeps the tighter of the two widths.
+              SizedBox(
+                width: laptopW,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Lid.
+                    Container(
+                      padding: const EdgeInsets.all(_kBezel),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF15171D),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.09),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: LandingPalette.navy.withValues(alpha: 0.20),
+                            blurRadius: 44,
+                            offset: const Offset(0, 24),
+                          ),
+                        ],
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: const AspectRatio(
+                          aspectRatio: _kLidAspect,
+                          child: FittedBox(
+                            fit: BoxFit.fill,
+                            child: SizedBox(
+                              width: _kWebCanvasWidth,
+                              height: _kWebCanvasHeight,
+                              child: _WebWindow(),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Base deck.
+                    Container(
+                      height: _kDeck,
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [Color(0xFF2B2E36), Color(0xFF121419)],
+                        ),
+                        borderRadius: BorderRadius.vertical(
+                          bottom: Radius.circular(10),
+                        ),
+                      ),
+                      child: Center(
+                        child: Container(
+                          width: laptopW * 0.10,
+                          height: 3,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.07),
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Painted last, so the phone sits on top of the laptop. Its
+              // centre rides the lid's right edge — half over the machine, half
+              // beside it — and its base rests level with the laptop's keyboard
+              // deck, the way the two devices would stand on one desk.
+              Positioned(
+                left: laptopW - phoneW / 2,
+                bottom: 0,
+                child: JiretaPhoneMockup(width: phoneW),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: AspectRatio(
-        aspectRatio: _kWebAspect,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(15),
-          child: const FittedBox(
-            fit: BoxFit.fill,
-            child: SizedBox(
-              width: _kWebCanvasWidth,
-              height: _kWebCanvasHeight,
-              child: _WebWindow(),
-            ),
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 }

@@ -411,7 +411,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
             const SizedBox(height: 8),
             Center(
               child: Text(
-                'Sign in to continue to your workspace.',
+                'Login to continue to your workspace.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                     fontSize: 13.5,

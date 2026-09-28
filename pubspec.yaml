@@ -22,8 +22,15 @@ dependencies:
   gotrue: ^2.26.0
 
   # Firebase
-  firebase_core: ^3.15.2
-  firebase_messaging: ^15.2.10
+  # v16.x ng firebase_messaging ang may iOS UIScene support (pumasok sa 16.1.0
+  # ang scene delegate, sa 16.5.0 ang configureNotificationCenterDelegate, at
+  # sa 16.7.0 ang APNs registration kapag na-miss ng plugin ang launch
+  # callbacks). Sa 15.x, hindi tumatakbo ang native FCM setup kapag
+  # naka-UIScene ang app (default na sa Flutter 3.41+) — kaya walang APNs/FCM
+  # token at walang push sa iOS. Kailangan nito ang Firebase Apple SDK 12, kaya
+  # iOS 15.0 na ang minimum (tingnan ang ios/Podfile).
+  firebase_core: ^4.15.0
+  firebase_messaging: ^16.7.0
 
   # State Management
   flutter_riverpod: ^2.5.1

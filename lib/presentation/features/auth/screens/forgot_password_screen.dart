@@ -141,30 +141,21 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Center(
-                child: Text(
-                  'Forgot Password?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'PlayfairDisplay',
-                    fontSize: 30,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy,
-                    height: 1.1,
-                    letterSpacing: -0.3,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: Text(
-                  "Enter the email linked to your account and we'll send you a 6-digit verification code.",
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13.5,
-                    height: 1.6,
-                    color: AppColors.textSecondary.withValues(alpha: 0.9),
-                    fontWeight: FontWeight.w400,
+              // Title lang ang itinaas — hindi kasama ang form sa ibaba.
+              Transform.translate(
+                offset: const Offset(0, -44),
+                child: const Center(
+                  child: Text(
+                    'Forgot Password?',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontFamily: 'PlayfairDisplay',
+                      fontSize: 30,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.deepNavy,
+                      height: 1.1,
+                      letterSpacing: -0.3,
+                    ),
                   ),
                 ),
               ),
@@ -211,31 +202,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
               if (_lockSecondsLeft > 0) ...[
                 const SizedBox(height: 16),
                 _LockBanner(secondsLeft: _lockSecondsLeft),
-              ] else
-                const SizedBox(height: 12),
-              // The OTP is short-lived — tell the user up front so the resend
-              // step on the next screen is not a surprise.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Padding(
-                    padding: EdgeInsets.only(top: 1),
-                    child: Icon(Icons.schedule_rounded,
-                        size: 15, color: AppColors.textTertiary),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'The code expires in 1 minute. You can resend a new code from the next screen.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        height: 1.5,
-                        color: AppColors.textSecondary.withValues(alpha: 0.9),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+              ],
               const SizedBox(height: 24),
               _PrimaryButton(
                 label: 'Send Code',

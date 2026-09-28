@@ -164,11 +164,7 @@ class _LandingScreenState extends State<LandingScreen> {
                   // Keyed so the "Home" link resolves to the top of the page.
                   KeyedSubtree(
                     key: _sectionKeys[0],
-                    child: LandingLaptopHero(
-                      nav: _buildNav(),
-                      onGetStarted: _goGetStarted,
-                      onSignIn: _goSignIn,
-                    ),
+                    child: LandingLaptopHero(nav: _buildNav()),
                   ),
 
                   // ── Light content region ──
@@ -218,7 +214,7 @@ class _LandingScreenState extends State<LandingScreen> {
               ),
           ],
           showSignInAction: true,
-          registerLabel: 'Get Started',
+          registerLabel: 'Sign Up',
           onCompactMenuTap: () => setState(() => _menuOpen = !_menuOpen),
           compactMenuOpen: _menuOpen,
         ),

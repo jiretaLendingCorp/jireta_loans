@@ -30,14 +30,9 @@ class LandingLaptopHero extends StatelessWidget {
   /// the frame is dropped on smaller screens.
   final Widget nav;
 
-  final VoidCallback onGetStarted;
-  final VoidCallback onSignIn;
-
   const LandingLaptopHero({
     super.key,
     required this.nav,
-    required this.onGetStarted,
-    required this.onSignIn,
   });
 
   @override
@@ -51,11 +46,7 @@ class LandingLaptopHero extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         nav,
-        _HeroCopy(
-          onDark: !framed,
-          onGetStarted: onGetStarted,
-          onSignIn: onSignIn,
-        ),
+        _HeroCopy(onDark: !framed),
         _DevicePanel(framed: framed),
       ],
     );
@@ -243,14 +234,8 @@ class _LaptopDeck extends StatelessWidget {
 
 class _HeroCopy extends StatelessWidget {
   final bool onDark;
-  final VoidCallback onGetStarted;
-  final VoidCallback onSignIn;
 
-  const _HeroCopy({
-    required this.onDark,
-    required this.onGetStarted,
-    required this.onSignIn,
-  });
+  const _HeroCopy({required this.onDark});
 
   @override
   Widget build(BuildContext context) {
@@ -268,45 +253,6 @@ class _HeroCopy extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Trust tag pill
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(
-              color: onDark
-                  ? Colors.white.withValues(alpha: 0.08)
-                  : LandingPalette.navy.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(999),
-              border: Border.all(
-                color: onDark
-                    ? Colors.white.withValues(alpha: 0.16)
-                    : LandingPalette.line,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 7,
-                  height: 7,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF10B981),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'NEXT-GEN MICROFINANCE PLATFORM',
-                  style: TextStyle(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.1,
-                    color: onDark ? LandingPalette.goldSoft : LandingPalette.navy,
-                  ),
-                ),
-              ],
-            ),
-          ),
           Text(
             'Lending Management System',
             textAlign: TextAlign.center,
@@ -334,66 +280,7 @@ class _HeroCopy extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 22),
-          _CtaCluster(onGetStarted: onGetStarted, onSignIn: onSignIn),
-          const SizedBox(height: 13),
-          Text(
-            '*Register online in a few minutes — sign in any time to manage '
-            'an existing account.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 11.5,
-              height: 1.5,
-              color: onDark
-                  ? Colors.white.withValues(alpha: 0.46)
-                  : LandingPalette.faint,
-            ),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-/// White CTA card echoing the reference's form row — holds the two real CTAs.
-class _CtaCluster extends StatelessWidget {
-  final VoidCallback onGetStarted;
-  final VoidCallback onSignIn;
-
-  const _CtaCluster({required this.onGetStarted, required this.onSignIn});
-
-  @override
-  Widget build(BuildContext context) {
-    final getStarted = LandingPrimaryButton(
-      label: 'Get Started',
-      trailingIcon: Icons.arrow_forward_rounded,
-      onTap: onGetStarted,
-    );
-    final signIn = LandingGhostButton(label: 'Sign In', onTap: onSignIn);
-
-    // The buttons keep their natural width — the card only hugs them. `Wrap`
-    // then puts them on one row while both fit and drops the second one to its
-    // own line on the narrowest phones, never stretching either one.
-    return Container(
-      key: const ValueKey<String>('landing-hero-cta'),
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: LandingPalette.line),
-        boxShadow: [
-          BoxShadow(
-            color: LandingPalette.navy.withValues(alpha: 0.10),
-            blurRadius: 30,
-            offset: const Offset(0, 16),
-          ),
-        ],
-      ),
-      child: Wrap(
-        alignment: WrapAlignment.center,
-        spacing: 8,
-        runSpacing: 8,
-        children: [getStarted, signIn],
       ),
     );
   }
@@ -443,12 +330,15 @@ class LandingDeviceStage extends StatelessWidget {
         final w = constraints.maxWidth.isFinite ? constraints.maxWidth : 900.0;
         final framed = w >= 1000;
 
-        final phoneW = framed ? 236.0 : (w * 0.54).clamp(146.0, 214.0);
+        // Framed size has to clear the lid's bottom crop: the stage starts ~261
+        // design px down the 725px canvas, so phone height + topMargin has to
+        // stay above that line or the device gets sliced in half.
+        final phoneW = framed ? 200.0 : (w * 0.54).clamp(146.0, 214.0);
         final phoneH = phoneW * _phoneRatio;
         const cardH = 88.0;
         // The green accent card carries three lines, so it gets extra height.
         const accentCardH = 96.0;
-        final topMargin = framed ? 54.0 : 80.0;
+        final topMargin = framed ? 30.0 : 80.0;
         final boxH = phoneH + topMargin * 2;
         final phoneLeft = (w - phoneW) / 2;
 
@@ -460,15 +350,18 @@ class LandingDeviceStage extends StatelessWidget {
         }
 
         double sideX({required bool left, required double childW}) {
-          final overlap = framed ? 22.0 : 14.0;
+          // Clear space between the device edge and the cards beside it, so no
+          // card ever clips the phone's frame.
+          final gap = framed ? 12.0 : 14.0;
           final x = left
-              ? phoneLeft + overlap - childW
-              : phoneLeft + phoneW - overlap;
+              ? phoneLeft - gap - childW
+              : phoneLeft + phoneW + gap;
           return alignOf(x, w - childW);
         }
 
-        double sideY(double fraction, double childH) =>
-            alignOf(topMargin + fraction * phoneH, boxH - childH);
+        /// Absolute y ↓ Stack [Alignment] for a card of [childH] height.
+        double yOf(double pos, double childH) =>
+            alignOf(pos, boxH - childH);
 
         final cards = <Widget>[];
 
@@ -514,7 +407,11 @@ class LandingDeviceStage extends StatelessWidget {
             phase: 3,
           );
         } else {
-          const cardW = 186.0;
+          // Wide enough for the copy inside them, stacked from their real
+          // heights plus a fixed gap, so the columns never crowd or overlap
+          // each other however tall the phone ends up.
+          const cardW = 204.0;
+          const columnGap = 18.0;
           final leftX = sideX(left: true, childW: cardW);
           final rightX = sideX(left: false, childW: cardW);
 
@@ -526,7 +423,7 @@ class LandingDeviceStage extends StatelessWidget {
               height: 92,
               build: _riderCardBody,
             ),
-            alignment: Alignment(leftX, sideY(0.0, 92)),
+            alignment: Alignment(leftX, yOf(topMargin, 92)),
           );
           add(
             const FloatCardSpec(
@@ -535,7 +432,8 @@ class LandingDeviceStage extends StatelessWidget {
               height: cardH,
               build: _progressCardBody,
             ),
-            alignment: Alignment(leftX, sideY(0.21, cardH)),
+            alignment:
+                Alignment(leftX, yOf(topMargin + 92 + columnGap, cardH)),
             phase: 2,
           );
           add(
@@ -545,7 +443,10 @@ class LandingDeviceStage extends StatelessWidget {
               height: cardH,
               build: _applicationCardBody,
             ),
-            alignment: Alignment(leftX, sideY(0.42, cardH)),
+            alignment: Alignment(
+              leftX,
+              yOf(topMargin + 92 + columnGap + cardH + columnGap, cardH),
+            ),
             phase: 4,
           );
 
@@ -559,7 +460,7 @@ class LandingDeviceStage extends StatelessWidget {
               borderColor: LandingPalette.green,
               build: _approvedCardBody,
             ),
-            alignment: Alignment(rightX, sideY(0.03, accentCardH)),
+            alignment: Alignment(rightX, yOf(topMargin, accentCardH)),
             phase: 1,
           );
           add(
@@ -569,7 +470,8 @@ class LandingDeviceStage extends StatelessWidget {
               height: cardH,
               build: _paymentCardBody,
             ),
-            alignment: Alignment(rightX, sideY(0.25, cardH)),
+            alignment:
+                Alignment(rightX, yOf(topMargin + accentCardH + columnGap, cardH)),
             phase: 3,
           );
           add(
@@ -579,7 +481,13 @@ class LandingDeviceStage extends StatelessWidget {
               height: 100,
               build: _chartCardBody,
             ),
-            alignment: Alignment(rightX, sideY(0.47, 100)),
+            alignment: Alignment(
+              rightX,
+              yOf(
+                topMargin + accentCardH + columnGap + cardH + columnGap,
+                100,
+              ),
+            ),
             phase: 5,
           );
         }
@@ -638,12 +546,13 @@ Widget _approvedCardBody() => const _GreenCard(
 
 Widget _progressCardBody() => const FloatProgressBody();
 
+// The amount rides on the subtitle line instead of its own value column: that
+// column is what forced the cards wider than the device they flank.
 Widget _paymentCardBody() => const FloatCardRow(
       icon: Icons.south_west_rounded,
       color: LandingPalette.accent,
       title: 'Payment Received',
-      subtitle: 'GCash · Demo data',
-      value: '₱2,500',
+      subtitle: 'GCash · ₱2,500',
     );
 
 Widget _applicationCardBody() => const FloatCardRow(
@@ -787,7 +696,8 @@ class _RiderCard extends StatelessWidget {
               ),
             ),
           ],
-        ),          Positioned(
+        ),
+        Positioned(
             right: -6,
             top: -6,
             child: Container(

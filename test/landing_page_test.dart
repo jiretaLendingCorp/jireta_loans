@@ -75,23 +75,6 @@ void main() {
         expect(frameSurface, findsNothing);
       }
 
-      // The two hero CTAs must sit side by side, never stacked (a full-width
-      // ghost button used to force the Wrap to break to a second row).
-      if (entry.value.width >= 390) {
-        final cta = find.byKey(const ValueKey<String>('landing-hero-cta'));
-        final heroGetStarted = find.descendant(
-          of: cta,
-          matching: find.text('Get Started'),
-        );
-        final heroSignIn = find.descendant(of: cta, matching: find.text('Sign In'));
-        expect(heroGetStarted, findsOneWidget);
-        expect(heroSignIn, findsOneWidget);
-        expect(
-          tester.getCenter(heroGetStarted).dy,
-          moreOrLessEquals(tester.getCenter(heroSignIn).dy, epsilon: 1),
-        );
-      }
-
       // Scroll through the whole page: every section must lay out cleanly.
       final scrollable = find.byType(Scrollable).first;
       final position =
