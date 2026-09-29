@@ -11,14 +11,16 @@
 //   collections-approve        →  ?fn=approve   (HM/Employee)
 //   collections-reject         →  ?fn=reject    (HM/Employee)
 //
-// APPROVAL WORKFLOW (business rule):
-//   Ang rider submission (record/upload-proof) ay nagre-record ng `verified`
-//   payment PERO hindi pa ito binibilang sa loan balance habang
-//   `pending_approval` ang assignment (tingnan ang balance gate sa
-//   `_shared/loan_financials.ts` + `v_loan_schedules`). Sa `?fn=approve` lang
-//   (assignment → `completed`) bumababa ang balanse / nagiging `completed` ang
-//   loan; ang `?fn=reject` ay `rejected` ang payment at assignment
-//   (i-reassign ang rider).
+// COLLECTION FLOW (business rule — BINAGO):
+//   Kapag na-collect na ng rider ang pera (record/upload-proof), `completed` NA
+//   AGAD ang assignment — WALANG approval step ng Head Manager/Employee. Ang
+//   `verified` payment ay binibilang agad sa loan balance (ang balance gate sa
+//   `_shared/loan_financials.ts` / 00159 ay para lang sa lumang
+//   `pending_approval`/`rejected` na rows), at dito na rin nagiging `completed`
+//   ang loan kapag fully paid na.
+//
+//   Legacy pa rin ang `?fn=approve` / `?fn=reject` para sa mga lumang
+//   `pending_approval` na row (00180 ang nag-auto-complete sa kanila).
 //
 // The original per-action logic is preserved verbatim below; each handler is
 // only wrapped so it can live in a single `serve()`.
@@ -926,27 +928,50 @@ async function recordRiderCollectionPayment(opts: {
     return { ok: false, message: 'Failed to record payment', status: 500, code: 'SERVER_ERROR' };
   }
 
-  // HINDI pa kinukumpleto ang loan at hindi pa binabawasan ang balance dito —
-  // mangyayari iyon sa approval ng HM/Employee. Ang `completed_at` ay para
-  // LANG sa tunay na natapos na (approved) koleksyon.
+  // Business rule (BINAGO): kapag na-collect na ng rider ang pera at nai-submit
+  // ang amount, `completed` NA agad ang koleksyon — WALANG approval step ng
+  // Head Manager/Employee. `verified` ang payment at `completed` ang assignment,
+  // kaya hindi na ito nahaharang ng balance gate (00159) — DITO na mismo bumaba
+  // ang outstanding balance ng loan.
   await db
     .from('collection_assignments')
-    .update({ status: 'pending_approval', amount_collected: amount })
+    .update({
+      status: 'completed',
+      amount_collected: amount,
+      completed_at: nowManilaISO(),
+    })
     .eq('id', assignmentId);
+
+  // Fully paid na ang loan → `completed` na rin ito (dating sa `fn=approve`).
+  if (newBalance <= 0) {
+    await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
+  }
 
   await writeAuditLog({
     performedBy: riderUserId,
     action: 'collection_submit',
     tableName: 'payments',
     recordId: payments[0].id,
-    newValues: { amount, method: 'rider_collection', status: 'verified', pending_approval: true },
+    newValues: { amount, method: 'rider_collection', status: 'verified', collection_status: 'completed' },
     ipAddress: ip,
   });
-  // Ang staff notification ("Collection Awaiting Approval") ay ipinapadala ng
-  // caller na `fn=upload-proof`/`fn=record` pagkatapos ng buong submission —
-  // dito sa shared core ay hindi, para hindi madoble kapag self-heal ang
-  // upload-proof (na tumatawag din ng core na ito). Ang lender naman ay
-  // binibigyan ng "Payment Received" push sa approval (`fn=approve`), hindi dito.
+
+  // Push sa lender — dating nasa approval step ito; ngayon sa mismong
+  // pag-collect ng rider ipinapaalam na natanggap na ang bayad.
+  if (loanData?.lender_id) {
+    await sendPushNotification({
+      userId: loanData.lender_id,
+      title: 'Payment Received',
+      body: `Hello! Your payment of ₱${amount.toLocaleString()} has been received. Your remaining balance is ₱${newBalance.toLocaleString()}. Thank you!`,
+      type: 'payment_collected',
+      referenceId: payments[0].id,
+    });
+  }
+  // Ang staff notification ("Rider Collection Collected") ay ipinapadala ng
+  // caller na `fn=upload-proof` pagkatapos ng buong submission — dito sa shared
+  // core ay hindi, para hindi madoble kapag self-heal ang upload-proof (na
+  // tumatawag din ng core na ito). Ang lender push ay nasa itaas na (`completed`
+  // na agad ang koleksyon, kaya dito na ito ipinapadala — wala nang `fn=approve`).
 
   // `newBalance` ay projection lang — hindi pa ito ang aktwal na balance
   // hanggang ma-approve. Hindi na natin ito ipinapakita sa rider.
@@ -1067,7 +1092,42 @@ async function handleCollectionUploadProof(req: Request) {
       paymentId: recorded.paymentId ?? null,
       newBalance: recorded.newBalance ?? null,
     });
-    recordedPayment = { id: recorded.paymentId ?? '', status: 'pending' };
+    recordedPayment = { id: recorded.paymentId ?? '', status: 'verified' };
+  } else if (recordedPayment.status !== 'verified') {
+    // ── "Completed pero hindi nabawasan ang utang" na sintomas ─────────────
+    // Ang `findRecordedPayment` ay tumatanggap ng `pending` (para sa
+    // idempotency), PERO ang `pending` na bayad ay HINDI binibilang sa loan
+    // balance — `verified` lang ang binibilang (`_shared/loan_financials.ts` +
+    // `v_loan_schedules` gate). Kung hindi ito i-verify bago i-`completed` ang
+    // koleksyon, may koleksyong completed na walang nabawas sa utang.
+    //
+    // Sa koleksyong ito, hawak na ng rider ang cash at Isinusumite na ang proof
+    // — kaya `verified` na ito (walang approval step ng HM/Employee ngayon).
+    const { error: verifyErr } = await db
+      .from('payments')
+      .update({ status: 'verified' })
+      .eq('id', recordedPayment.id)
+      .eq('status', 'pending');
+    if (verifyErr) {
+      console.error('[collections] hindi ma-verify ang pending payment', {
+        assignmentId: assignment_id,
+        paymentId: recordedPayment.id,
+        error: verifyErr.message,
+      });
+      return errorResponse('Failed to verify the collected payment', 500, 'SERVER_ERROR');
+    }
+    // Ang mga report/dashboard ay naka-base sa `paid_at` — bigyan ito ng petsa
+    // kapag blangko (hal. lumang `pending` na row).
+    await db
+      .from('payments')
+      .update({ paid_at: nowManilaISO() })
+      .eq('id', recordedPayment.id)
+      .is('paid_at', null);
+    console.log('[collections] ni-verify ang pending payment para mabilang sa balance', {
+      assignmentId: assignment_id,
+      paymentId: recordedPayment.id,
+    });
+    recordedPayment = { id: recordedPayment.id, status: 'verified' };
   }
 
   const updates: Record<string, string> = {};
@@ -1117,17 +1177,19 @@ async function handleCollectionUploadProof(req: Request) {
   const recordedSum = (await sumAssignmentPayments(db, assignment_id)).sum;
   const submissionPatch: Record<string, unknown> = {
     ...updates,
-    // Business rule: pagkatapos ng rider submit, `pending_approval` muna — ang
-    // HM/Employee ang mag-a-approve (`fn=approve`) bago maging `completed` at
-    // bago bumaba ang balance ng loan.
-    status: 'pending_approval',
+    // Business rule (BINAGO): `completed` na agad pagkatapos ng rider submit —
+    // walang approval step ng HM/Employee. `completed` ang assignment kaya ang
+    // `verified` payment ay binibilang agad sa loan balance (ang gate sa 00159
+    // ay para lang sa `pending_approval`/`rejected`).
+    status: 'completed',
+    completed_at: nowManilaISO(),
   };
   if (recordedSum > 0) submissionPatch.amount_collected = recordedSum;
 
   const { error: updErr } = await db.from('collection_assignments').update(submissionPatch).eq('id', assignment_id);
   if (updErr) {
     console.error('assignment submission update failed:', updErr);
-    return errorResponse('Failed to submit collection for approval', 500, 'SERVER_ERROR');
+    return errorResponse('Failed to submit collection', 500, 'SERVER_ERROR');
   }
 
   await writeAuditLog({
@@ -1135,14 +1197,16 @@ async function handleCollectionUploadProof(req: Request) {
     action: 'collection_upload_proof',
     tableName: 'collection_assignments',
     recordId: assignment_id,
-    newValues: { status: 'pending_approval', amount_collected: recordedSum || null, failed_proofs: failed },
+    newValues: { status: 'completed', amount_collected: recordedSum || null, failed_proofs: failed },
     ipAddress: ip,
   });
 
+  // Informational na lang ito (walang approval na kailangan) — para alam ng
+  // staff na may naiuwing cash / naitalang bayad ang rider.
   await notifyStaff({
-    title: 'Collection Awaiting Approval',
-    body: `A rider submitted a collection of ₱${(recordedSum || 0).toLocaleString()}. Please verify that the cash was received.`,
-    type: 'collection_pending_approval',
+    title: 'Rider Collection Collected',
+    body: `A rider collected ₱${(recordedSum || 0).toLocaleString()}. It was posted to the loan balance immediately — no approval needed.`,
+    type: 'collection_collected',
     referenceId: assignment_id,
     sentBy: user.id,
   });
@@ -1152,9 +1216,9 @@ async function handleCollectionUploadProof(req: Request) {
   // submission — pinapabilis nito nang malaki ang Submit sa Step 3.
   return jsonResponse({
     message: failed.length > 0
-      ? 'Collection submitted for approval, but some proofs failed to upload'
-      : 'Proof uploaded, awaiting Head Manager/Employee approval',
-    status: 'pending_approval',
+      ? 'Collection submitted, but some proofs failed to upload'
+      : 'Collection submitted — collected and posted to the loan balance',
+    status: 'completed',
     amount_collected: recordedSum || null,
     failed_proofs: failed,
   });

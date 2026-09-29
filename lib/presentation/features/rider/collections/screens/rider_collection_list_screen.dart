@@ -33,8 +33,9 @@ class _RiderCollectionListScreenState
     'assigned',
     'accepted',
     'in_progress',
-    // Na-submit na — naghihintay ng approval ng HM/Employee.
-    'pending_approval',
+    // Wala nang 'pending_approval' tab: agad na `completed` ang koleksyon
+    // pagka-submit ng rider (walang approval ng HM/Employee) — tingnan ang
+    // migration 00182 (DB trigger).
     'completed',
     'rejected',
     'declined',
@@ -43,7 +44,6 @@ class _RiderCollectionListScreenState
     'Assigned',
     'Accepted',
     'In Progress',
-    'Pending',
     'Completed',
     'Rejected',
     'Declined',

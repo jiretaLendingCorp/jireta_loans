@@ -374,29 +374,29 @@ class _RiderCollectionDetailsScreenState
       if (!mounted) return;
 
       // ── Verification bago mag-claim ng success ─────────────────────────
-      // Ang `fn=upload-proof` ay nagbabalik na ng `status: 'pending_approval'`
-      // (dating `completed`) — hindi na kailangan ng hiwalay na `get` (mabigat
-      // ito: may kasamang pag-sign ng 3 proof URL) para kumpirmahin ang
-      // submission. Ang fallback na verification ay para lang sa LUMANG
-      // deployment na hindi pa nagbabalik ng `status`.
+      // Ang `fn=upload-proof` ay nagbabalik na ng `status: 'completed'` —
+      // hindi na kailangan ng hiwalay na `get` (mabigat ito: may kasamang
+      // pag-sign ng 3 proof URL) para kumpirmahin ang submission. Ang fallback
+      // na verification ay para lang sa LUMANG deployment na hindi pa
+      // nagbabalik ng `status`.
       if (proofStatus == null &&
           ref.read(riderCollectionProvider).error == null) {
         final submitted = await _verifyCompletedOnServer();
         if (!mounted) return;
-        if (submitted) proofStatus = 'pending_approval';
+        if (submitted) proofStatus = 'completed';
       }
 
-      // Business rule: ang rider submit ay `pending_approval`, HINDI pa
-      // `completed` — ang HM/Employee ang mag-a-approve at doon lang bumababa
-      // ang loan balance. Tanggapin ang pareho dahil ang lumang deployment ay
-      // `completed` pa rin ang isinasauli.
+      // Business rule (BINAGO): `completed` NA AGAD ang koleksyon pagkatapos
+      // mag-submit ng rider — walang approval ng HM/Employee, at agad na ring
+      // bumaba ang loan balance. Tinatanggap pa rin ang `pending_approval` para
+      // sa lumang data/deployment.
       if (proofStatus == 'completed' || proofStatus == 'pending_approval') {
         // Success: 2-segundong confirmation modal, tapos deretso na sa Home
         // (rider dashboard) — hindi na bumabalik sa listahan o wizard.
         await SuccessDialog.showAutoDismiss(
           context,
-          title: 'Collection Submitted',
-          message: 'Submitted for approval. The Head Manager or Employee will verify that the cash was received.',
+          title: 'Collection Recorded',
+          message: 'The collection was recorded and posted to the lender\'s loan balance.',
           buttonText: 'Done',
           duration: const Duration(seconds: 2),
         );

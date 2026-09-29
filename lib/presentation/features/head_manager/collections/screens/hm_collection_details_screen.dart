@@ -10,7 +10,6 @@ import '../../../../../data/datasources/remote/collection_remote_datasource.dart
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/details/collection_proof_viewer.dart';
-import '../providers/hm_collection_provider.dart';
 import '../widgets/assign_rider_collection_modal.dart';
 
 final _collectionDetailProvider = FutureProvider.family<CollectionAssignmentModel?, String>((ref, id) async {
@@ -125,15 +124,11 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
-                  child: Row(children: [
-                    const SizedBox(width: 8),
-                    const Expanded(
+                  child: const Row(children: [
+                    SizedBox(width: 8),
+                    Expanded(
                       child: Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
                     ),
-                    // Approve/Reject — 3-dots menu sa KANANG bahagi ng header
-                    // (pending_approval lang, kapag kailangan ng desisyon).
-                    if (col.status.toLowerCase() == 'pending_approval')
-                      _buildReviewMenu(context, ref, col),
                   ]),
                 ),
                 Padding(
@@ -247,7 +242,9 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       (label: 'Submitted', done: s == 'pending_approval' || s == 'completed', icon: Icons.rate_review_rounded),
       // Business rule: `completed` lang kapag na-approve ng HM/Employee — dito
       // lang bumaba ang loan balance.
-      (label: 'Approved', done: s == 'completed', icon: Icons.verified_rounded),
+      // `completed` na agad pagkatapos mag-submit ang rider (walang approval
+      // step), kaya "Completed" ang huling stage — dating "Approved".
+      (label: 'Completed', done: s == 'completed', icon: Icons.verified_rounded),
       // Hindi nakuha ang pera — pulang huling stage (hindi "tapos").
       if (isRejected)
         (label: 'Rejected', done: false, icon: Icons.close_rounded),
@@ -427,36 +424,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     return const SizedBox.shrink();
   }
 
-  Future<void> _approveCollection(
-      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
-    final fmt = NumberFormat('#,##0.00', 'en_PH');
-    final amount = col.amountCollected ?? 0;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Approve Collection'),
-        content: Text(
-            'Confirm that ₱${fmt.format(amount)} was actually received from the lender. This will reduce the loan balance.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.success),
-            child: const Text('Approve'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    final ok = await ref.read(hmCollectionProvider.notifier).approveCollection(col.id);
-    if (!context.mounted) return;
-    ref.invalidate(_collectionDetailProvider(col.id));
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Collection approved — loan balance updated' : 'Failed to approve collection'),
-      backgroundColor: ok ? AppColors.success : AppColors.error,
-    ));
-  }
-
   Future<void> _reassignCollection(
       BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
     final loanId = (col.loanSchedule?['loan']?['id'] as String?) ??
@@ -475,110 +442,6 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       content: Text('Rider assigned successfully'),
       backgroundColor: AppColors.success,
     ));
-  }
-
-  Future<void> _rejectCollection(
-      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
-    final reasonCtrl = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Reject Collection'),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const Text(
-            'The cash was not received. The loan balance will NOT be reduced and a rider must be reassigned.',
-            style: TextStyle(fontSize: 13),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: reasonCtrl,
-            maxLines: 3,
-            decoration: const InputDecoration(hintText: 'Reason (required)', border: OutlineInputBorder()),
-          ),
-        ]),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-            child: const Text('Reject'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-    final reason = reasonCtrl.text.trim();
-    if (reason.length < 3) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('Please provide a rejection reason'),
-          backgroundColor: AppColors.error,
-        ));
-      }
-      return;
-    }
-    final ok = await ref.read(hmCollectionProvider.notifier).rejectCollection(col.id, reason);
-    if (!context.mounted) return;
-    ref.invalidate(_collectionDetailProvider(col.id));
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Collection rejected — reassign a rider' : 'Failed to reject collection'),
-      backgroundColor: ok ? AppColors.success : AppColors.error,
-    ));
-  }
-
-  /// Approve / Reject — 3-dots (PopupMenuButton) na nasa KANANG bahagi ng
-  /// "Collection Status" header. Lumalabas lang habang `pending_approval`.
-  Widget _buildReviewMenu(
-      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) {
-    return PopupMenuButton<String>(
-      tooltip: 'Actions',
-      color: Colors.white,
-      elevation: 4,
-      padding: EdgeInsets.zero,
-      // Orange na indicator — may kailangang i-approve (pending_approval).
-      icon: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
-          Positioned(
-            right: -1,
-            top: -2,
-            child: Container(
-              width: 9,
-              height: 9,
-              decoration: BoxDecoration(
-                color: AppColors.warning,
-                shape: BoxShape.circle,
-                border: Border.all(color: const Color(0xFF5C6370), width: 1),
-              ),
-            ),
-          ),
-        ],
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      onSelected: (value) {
-        if (value == 'approve') _approveCollection(context, ref, col);
-        if (value == 'reject') _rejectCollection(context, ref, col);
-      },
-      itemBuilder: (_) => const [
-        PopupMenuItem(
-          value: 'approve',
-          child: Row(children: [
-            Icon(Icons.check_rounded, size: 16, color: AppColors.success),
-            SizedBox(width: 8),
-            Text('Approve'),
-          ]),
-        ),
-        PopupMenuItem(
-          value: 'reject',
-          child: Row(children: [
-            Icon(Icons.close_rounded, size: 16, color: AppColors.error),
-            SizedBox(width: 8),
-            Text('Reject'),
-          ]),
-        ),
-      ],
-    );
   }
 
 }

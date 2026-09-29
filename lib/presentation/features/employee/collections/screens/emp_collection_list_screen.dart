@@ -142,10 +142,6 @@ class EmpCollectionListScreen extends ConsumerStatefulWidget {
 
 class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScreen> {
   final _searchCtrl = TextEditingController();
-  /// Assignment na kasalukuyang ini-approve/re-reject — para makita ang
-  /// spinner sa mismong button habang tumatakbo ang request (dating walang
-  /// loading state, kaya parang "bigla na lang" lumalabas ang toast).
-  String? _reviewingId;
   final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
   String _activeTab = 'all'; // all, payments, requested, assigned, in_progress, completed
@@ -155,8 +151,6 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     FilterTabDef('requested', 'Requested', Icons.hourglass_top_rounded),
     FilterTabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
     FilterTabDef('in_progress', 'In Progress', Icons.sync_rounded),
-    // Rider submitted — kailangan ng approval bago bumaba ang loan balance.
-    FilterTabDef('pending_approval', 'Pending Approval', Icons.hourglass_top_rounded),
     FilterTabDef('completed', 'Completed', Icons.check_circle_rounded),
     FilterTabDef('rejected', 'Rejected', Icons.cancel_outlined),
   ];
@@ -632,9 +626,6 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
     // Rejected = hindi nakuha ang pera. Kailangang mag-assign ng rider na
     // mangolekta muli (bagong assignment para sa parehong schedule).
     final canReassign = status == 'rejected' && !isOffice;
-    // Nag-submit na si rider ng proof — kailangang i-approve (baba ang loan
-    // balance) o i-reject (hindi nakuha ang pera) ng HM/Employee.
-    final canReview = status == 'pending_approval';
     return ResponsiveRow(
       cells: [
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -684,91 +675,7 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             child: Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7), decoration: BoxDecoration(color: AppColors.deepNavy, borderRadius: BorderRadius.circular(9)), child: const Text('Reassign', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.white))),
           ),
         ],
-        // Approve / Reject direktang sa action column kapag na-submit na ni
-        // rider ang collection. Silent ang refresh ng provider kaya HINDI
-        // nag-reloading nang buo ang table (realtime din ang listahan).
-        if (canReview) ...[
-          const SizedBox(width: 6),
-          _CollectionActionButton(
-            label: 'Approve',
-            color: AppColors.success,
-            busy: _reviewingId == col.id,
-            onTap: () => _reviewCollection(col, approve: true),
-          ),
-          const SizedBox(width: 6),
-          _CollectionActionButton(
-            label: 'Reject',
-            color: AppColors.error,
-            busy: _reviewingId == col.id,
-            onTap: () => _reviewCollection(col, approve: false),
-          ),
-        ],
       ]),
-    );
-  }
-
-  /// Approve o Reject ang rider-submitted collection. Hindi ito nag-shishimmer
-  /// ng buong table — `approveCollection`/`rejectCollection` ay silent refresh.
-  Future<void> _reviewCollection(dynamic col, {required bool approve}) async {
-    final assignmentId = col.id as String? ?? '';
-    if (assignmentId.isEmpty) return;
-
-    var reason = '';
-    if (!approve) {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (_) => AlertDialog(
-          title: const Text('Reject Collection'),
-          content: TextField(
-            autofocus: true,
-            maxLines: 3,
-            decoration: const InputDecoration(
-              hintText: 'Reason for rejection (required)',
-            ),
-            onChanged: (v) => reason = v,
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                if (reason.trim().isEmpty) return;
-                Navigator.pop(context, true);
-              },
-              child: const Text('Reject',
-                  style: TextStyle(color: AppColors.error)),
-            ),
-          ],
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    }
-
-    final notifier = ref.read(hmCollectionProvider.notifier);
-    setState(() => _reviewingId = assignmentId);
-    bool ok;
-    try {
-      ok = approve
-          ? await notifier.approveCollection(assignmentId)
-          : await notifier.rejectCollection(assignmentId, reason.trim());
-    } finally {
-      if (mounted) setState(() => _reviewingId = null);
-    }
-    if (!mounted) return;
-    context.showSnackBarAsToast(
-      SnackBar(
-        content: Text(ok
-            ? (approve
-                ? 'Collection approved — loan balance updated'
-                : 'Collection rejected — rider can be reassigned')
-            : (ref.read(hmCollectionProvider).error ??
-                (approve
-                    ? 'Failed to approve collection'
-                    : 'Failed to reject collection'))),
-        backgroundColor: ok ? AppColors.success : AppColors.error,
-      ),
     );
   }
 
@@ -1062,51 +969,6 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
 
 // ── Supporting widgets (mirrors loan records style) ──
 
-
-/// Maliit na pill-style button para sa Approve / Reject sa actions column.
-class _CollectionActionButton extends StatelessWidget {
-  final String label;
-  final Color color;
-  final VoidCallback onTap;
-  /// True habang tumatakbo ang request — spinner sa halip na label, at
-  /// naka-disable ang tap para hindi ma-double submit.
-  final bool busy;
-  const _CollectionActionButton({
-    required this.label,
-    required this.color,
-    required this.onTap,
-    this.busy = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: busy ? null : onTap,
-      borderRadius: BorderRadius.circular(9),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-        decoration: BoxDecoration(
-          color: busy ? color.withValues(alpha: 0.7) : color,
-          borderRadius: BorderRadius.circular(9),
-        ),
-        child: busy
-            ? const SizedBox(
-                width: 14,
-                height: 14,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-            : Text(
-                label,
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white),
-              ),
-      ),
-    );
-  }
-}
 
 class _PaymentMethodInline extends StatelessWidget {
   final String method;

@@ -28,11 +28,14 @@ String _readNormalized(String path) => File(path)
     .replaceAll('\r\n', '\n')
     .replaceAll('\r', '\n');
 
-/// Ang `_buildStatusCard` hanggang sa dulo ng `_pipelineDot` — normalize sa
-/// isang linya para hindi dipende sa formatting ang mga assertion.
+/// Ang `_buildStatusCard` hanggang sa dulo ng `_pipelineDot` +
+/// `_buildReviewActions` — normalize sa isang linya para hindi dipende sa
+/// formatting ang mga assertion. (`_reassignCollection` ang huling method ng
+/// block; tinanggal na ang `_approveCollection` dahil auto-completed na ang
+/// koleksyon kapag naka-submit ang rider.)
 String _pipelineBlock(String source) {
   final start = source.indexOf('Widget _buildStatusCard(');
-  final end = source.indexOf('Future<void> _approveCollection(');
+  final end = source.indexOf('Future<void> _reassignCollection(');
   expect(start, greaterThanOrEqualTo(0), reason: 'walang _buildStatusCard');
   expect(end, greaterThan(start), reason: 'hindi mahanap ang dulo ng block');
   return source
