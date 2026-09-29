@@ -17,6 +17,7 @@ import '../../../features/lender/profile/providers/lender_profile_provider.dart'
 import '../../../../core/security/secure_storage.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../providers/auth_provider.dart';
+import 'verify_email_screen.dart';
 
 class TermsConditionsScreen extends ConsumerStatefulWidget {
   const TermsConditionsScreen({super.key});
@@ -82,7 +83,10 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     }
   }
 
-  Future<void> _saveNameAndGoHome() async {
+  /// Isinasave ang "Fill In Information" (pangalan + email) at pagkatapos ay
+  /// dinadala ang lender sa Verify Your Email screen — hindi deretso sa Home:
+  /// kailangang kumpirmahin muna ang email sa link na ipinadala dito.
+  Future<void> _saveNameAndVerifyEmail() async {
     if (!_nameFormKey.currentState!.validate()) return;
     // Dismiss the keyboard right away so the loading state / next screen is
     // not covered by it.
@@ -126,8 +130,8 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     // and validated. Both the personal info (profile) and the one-time terms
     // acceptance are recorded server-side. These are AWAITED so the data is
     // guaranteed to be saved to the database BEFORE the lender lands on the
-    // home screen. updateProfile also refetches the profile, so the dashboard
-    // shows the new name immediately (no stale name).
+    // Verify Your Email screen. updateProfile also refetches the profile, so
+    // the dashboard shows the new name immediately (no stale name).
     final platform = kIsWeb
         ? 'web'
         : defaultTargetPlatform == TargetPlatform.iOS
@@ -161,12 +165,23 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
           platform: platform,
           appVersion: AppConstants.appVersion,
         );
+    // ── Verification ng email: LINK ang ipinapadala (hindi OTP code) ────
+    // Habang "Continuing..." pa ang button ay ipinapadala na ang mail, para
+    // abot na ito pagdating sa Verify Your Email screen. Kapag nabigo, dinadala
+    // pa rin ang mensahe ng server papunta sa screen (hindi ito tahimik na
+    // nilalamon) — doon na lang ipapakita nang malinaw at mapipindot ang
+    // "Resend Email".
+    final sendError =
+        await ref.read(authProvider.notifier).sendEmailVerification(
+              email: email,
+            );
     if (!mounted) return;
-    // Deretso sa Home ng lender: pansamantalang hindi na ipinapakita ang Verify
-    // Your Email step ("muna"). Naka-save pa rin sa database ang lahat ng
-    // na-fill in na impormasyon (pangalan at email) bago ang paglipat —
-    // AWAITED ang mga save sa itaas kaya siguradong naka-record na ito.
-    context.go(RouteConstants.lenderDashboard);
+    // Hindi deretso sa home: kailangang kumpirmahin muna ang email sa
+    // pamamagitan ng link na ipinadala doon.
+    context.go(
+      RouteConstants.verifyEmail,
+      extra: VerifyEmailArgs(email: email, sendError: sendError),
+    );
   }
 
   /// Backing out of the "Fill In Information" modal (system back or the close
@@ -589,7 +604,7 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _savingName ? null : _saveNameAndGoHome,
+              onPressed: _savingName ? null : _saveNameAndVerifyEmail,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.gold,
                 foregroundColor: AppColors.deepNavy,

@@ -532,7 +532,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       color: Colors.white,
       elevation: 16,
       shadowColor: AppColors.deepNavy.withValues(alpha: 0.15),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      // Rounded corners — kapareho ng ibang popup menu sa app.
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: const Icon(Icons.more_horiz_rounded,
           color: AppColors.deepNavy, size: 24),
       onSelected: (action) {

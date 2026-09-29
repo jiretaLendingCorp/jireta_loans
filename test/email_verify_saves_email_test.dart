@@ -33,7 +33,8 @@ void main() {
 
     test('isinusulat ang users.email kasabay ng email_verified_at', () {
       expect(
-        src.contains('update({ email: row.email, email_verified_at: nowIso })'),
+        src.contains(
+            'update({ email: verifiedEmail, email_verified_at: nowIso })'),
         isTrue,
         reason: 'Ang confirm ay dapat mag-save ng VERIFIED email sa public.users, '
             'hindi lang email_verified_at — kung hindi ay "hindi nag-save ang '
