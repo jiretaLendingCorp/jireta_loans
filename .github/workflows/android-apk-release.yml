@@ -52,6 +52,45 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Preflight: ipakita agad kung alin ang kulang na repo secret, bago pa
+      # mag-inat ng ~1 minuto sa JDK/Flutter/NDK setup. Walang saysay ang build
+      # kapag blangko ang required na secret — hihinto na dito.
+      - name: Check required secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          EDGE_FUNCTIONS_URL: ${{ secrets.EDGE_FUNCTIONS_URL }}
+          GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+          XENDIT_PUBLIC_KEY: ${{ secrets.XENDIT_PUBLIC_KEY }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          missing=""
+          # Placeholder pa rin ang itinuturing na kulang (galing sa .env.example).
+          if [ -z "${SUPABASE_URL:-}" ] || [[ "${SUPABASE_URL:-}" == *"your-project.supabase.co"* ]]; then
+            missing="$missing SUPABASE_URL"
+          fi
+          for name in SUPABASE_ANON_KEY ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS; do
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required repo secret(s):$missing"
+            echo "Add them in Settings -> Secrets and variables -> Actions."
+            echo "Pareho ang pangalan sa Vercel env vars; ang keystore setup ay nasa web/downloads/README.md."
+            exit 1
+          fi
+          # Optional lang — hindi nakakabali ng build kapag blangko.
+          optional=""
+          for name in EDGE_FUNCTIONS_URL GOOGLE_MAPS_API_KEY XENDIT_PUBLIC_KEY; do
+            if [ -z "${!name:-}" ]; then optional="$optional $name"; fi
+          done
+          if [ -n "$optional" ]; then
+            echo "::warning::Optional secret(s) not set:$optional"
+          fi
+          echo "All required secrets present."
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:

@@ -16,6 +16,28 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Preflight: dati, "Link project" lang ang nakikitang sabog na walang
+      # paliwanag (2s lang) kapag kulang ang secret. Dito, agad na ipakita kung
+      # alin ang kulang bago pa magsimula ang tunay na deploy.
+      - name: Check required secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          missing=""
+          for name in SUPABASE_ACCESS_TOKEN SUPABASE_PROJECT_REF; do
+            if [ -z "${!name:-}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::error::Missing required repo secret(s):$missing"
+            echo "SUPABASE_ACCESS_TOKEN: gumawa sa https://supabase.com/dashboard/account/tokens (nag-e-expire ito — palitan kapag revoked)."
+            echo "SUPABASE_PROJECT_REF: ang ref sa dashboard URL, https://supabase.com/dashboard/project/<REF>"
+            echo "Add them in Settings -> Secrets and variables -> Actions."
+            exit 1
+          fi
+          echo "All required secrets present."
+
       - uses: supabase/setup-cli@v1
         with:
           version: latest
