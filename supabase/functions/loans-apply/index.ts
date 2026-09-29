@@ -223,6 +223,30 @@ serve(async (req) => {
       return errorResponse('You already have an active loan application', 409, 'ACTIVE_LOAN_EXISTS');
     }
 
+    // 00179: PERMANENTENG rejection — hindi na makakapag-apply muli ang lender
+    // kahit anong tagal pa ang lumipas. Hiwalay ito sa cooldown sa ibaba: ang
+    // flag mismo (`loans.permanently_rejected`) ang hadlang at hindi ito
+    // nag-e-expire.
+    //
+    // Deploy-order guard: kapag wala pa ang 00179 column, may error dito at
+    // dumadaan lang tayo sa dating cooldown check — hindi dapat mabara ang
+    // pag-apply dahil sa kulang na migration.
+    const permanentQuery = await db
+      .from('loans')
+      .select('id')
+      .eq('lender_id', lenderId)
+      .eq('status', 'rejected')
+      .eq('permanently_rejected', true)
+      .limit(1)
+      .maybeSingle();
+    if (!permanentQuery.error && permanentQuery.data) {
+      return errorResponse(
+        'Your loan applications have been permanently rejected. Please contact our office for assistance.',
+        403,
+        'PERMANENTLY_REJECTED',
+      );
+    }
+
     // 00176: Cooldown pagkatapos ng rejection — ANG STAFF ANG NAGDEDESISYON
     // kung kailan pwedeng mag-apply ulit (loans.reapply_allowed_at, pinili sa
     // reject modal ng HM/Employee).

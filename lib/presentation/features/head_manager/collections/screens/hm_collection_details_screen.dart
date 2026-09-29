@@ -125,17 +125,24 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
-                  child: const Row(children: [
-                    SizedBox(width: 8),
-                    Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                  child: Row(children: [
+                    const SizedBox(width: 8),
+                    const Expanded(
+                      child: Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
+                    ),
+                    // Approve/Reject — 3-dots menu sa KANANG bahagi ng header
+                    // (pending_approval lang, kapag kailangan ng desisyon).
+                    if (col.status.toLowerCase() == 'pending_approval')
+                      _buildReviewMenu(context, ref, col),
                   ]),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     _buildStatusCard(col),
-                    // Hindi na naka-stretch sa buong lapad ng page ang
-                    // Approve/Reject ngayong nasa itaas na ang card.
+                    // Hindi na naka-stretch sa buong lapad ng page — dito
+                    // lang ang Reassign Rider button kapag rejected; ang
+                    // Approve/Reject ay nasa 3-dots menu ng header.
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 420),
                       child: _buildReviewActions(context, ref, col),
@@ -391,12 +398,13 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
     );
   }
 
-  /// Approve/Reject actions — lumalabas LANG habang `pending_approval`.
-  /// Sa approve bumababa ang loan balance; sa reject, hindi.
+  /// Reassign Rider action para sa `rejected` (hindi nakuha ang pera). Ang
+  /// Approve/Reject mismo ay nasa 3-dots menu ng "Collection Status" header
+  /// (`_buildReviewMenu`) — kaya walang notice/button dito.
   Widget _buildReviewActions(
       BuildContext context, WidgetRef ref, CollectionAssignmentModel col) {
     final s = col.status.toLowerCase();
-    // Rejected = hindi nakuha ang pera → kailangang mag-assign muli ng rider.
+    // Rejected lang ang may natitirang action dito.
     if (s == 'rejected') {
       return Padding(
         padding: const EdgeInsets.only(top: 16),
@@ -416,62 +424,7 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
         ),
       );
     }
-    if (s != 'pending_approval') {
-      return const SizedBox.shrink();
-    }
-    return Padding(
-      padding: const EdgeInsets.only(top: 16),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: AppColors.warning.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
-          ),
-          child: const Row(children: [
-            Icon(Icons.verified_user_outlined, size: 18, color: AppColors.warning),
-            SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                'Confirm that the rider actually received the cash before approving.',
-                style: TextStyle(fontSize: 11.5, color: AppColors.textSecondary, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ]),
-        ),
-        const SizedBox(height: 12),
-        Row(children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: () => _rejectCollection(context, ref, col),
-              icon: const Icon(Icons.close_rounded, size: 16),
-              label: const Text('Reject'),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.error,
-                side: const BorderSide(color: AppColors.error),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: () => _approveCollection(context, ref, col),
-              icon: const Icon(Icons.check_rounded, size: 16),
-              label: const Text('Approve'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.success,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ),
-        ]),
-      ]),
-    );
+    return const SizedBox.shrink();
   }
 
   Future<void> _approveCollection(
@@ -571,6 +524,61 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
       content: Text(ok ? 'Collection rejected — reassign a rider' : 'Failed to reject collection'),
       backgroundColor: ok ? AppColors.success : AppColors.error,
     ));
+  }
+
+  /// Approve / Reject — 3-dots (PopupMenuButton) na nasa KANANG bahagi ng
+  /// "Collection Status" header. Lumalabas lang habang `pending_approval`.
+  Widget _buildReviewMenu(
+      BuildContext context, WidgetRef ref, CollectionAssignmentModel col) {
+    return PopupMenuButton<String>(
+      tooltip: 'Actions',
+      color: Colors.white,
+      elevation: 4,
+      padding: EdgeInsets.zero,
+      // Orange na indicator — may kailangang i-approve (pending_approval).
+      icon: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          const Icon(Icons.more_horiz_rounded, color: Colors.white, size: 20),
+          Positioned(
+            right: -1,
+            top: -2,
+            child: Container(
+              width: 9,
+              height: 9,
+              decoration: BoxDecoration(
+                color: AppColors.warning,
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFF5C6370), width: 1),
+              ),
+            ),
+          ),
+        ],
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (value) {
+        if (value == 'approve') _approveCollection(context, ref, col);
+        if (value == 'reject') _rejectCollection(context, ref, col);
+      },
+      itemBuilder: (_) => const [
+        PopupMenuItem(
+          value: 'approve',
+          child: Row(children: [
+            Icon(Icons.check_rounded, size: 16, color: AppColors.success),
+            SizedBox(width: 8),
+            Text('Approve'),
+          ]),
+        ),
+        PopupMenuItem(
+          value: 'reject',
+          child: Row(children: [
+            Icon(Icons.close_rounded, size: 16, color: AppColors.error),
+            SizedBox(width: 8),
+            Text('Reject'),
+          ]),
+        ),
+      ],
+    );
   }
 
 }

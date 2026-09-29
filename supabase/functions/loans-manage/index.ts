@@ -161,7 +161,7 @@ async function handleReject(req: Request) {
     const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
     if (roleCheck) return roleCheck;
 
-    const { loan_id, rejection_reason, reapply_allowed_at } = await req.json();
+    const { loan_id, rejection_reason, reapply_allowed_at, permanent } = await req.json();
     if (!loan_id) return errorResponse('loan_id is required', 400, 'VALIDATION_ERROR');
     // The reject confirmation no longer collects a free-text reason (plain
     // Yes/No modal), so fall back to a generic label when none is supplied.
@@ -169,12 +169,19 @@ async function handleReject(req: Request) {
       ? sanitizeString(rejection_reason)
       : 'Rejected by staff';
 
+    // 00179: PERMANENTENG rejection — kapag ito ang pinili sa reject modal,
+    // hindi na makakapag-apply muli ang lender kahit kailan. Ang flag
+    // (`loans.permanently_rejected`) ang hadlang, kaya hindi na kailangan ang
+    // cooldown date — at hindi na rin ito pinapansin kahit may kasamang date.
+    const isPermanent = permanent === true;
+
     // 00176: ang STAFF (HM/Employee) ang nagde-decide kung kailan pwedeng
     // mag-apply ulit ang lender — pinipili ito sa reject modal at ipinapadala
     // bilang ISO timestamp (UTC). Kapag wala ito (lumang app build),
     // mananatili ang dating 1-month default na nasa `loans-apply`.
     let reapplyAllowedAt: string | null = null;
     if (
+      !isPermanent &&
       reapply_allowed_at !== undefined &&
       reapply_allowed_at !== null &&
       String(reapply_allowed_at).trim() !== ''
@@ -202,15 +209,33 @@ async function handleReject(req: Request) {
       return errorResponse(`Cannot reject loan in ${loan.status} status`, 400, 'INVALID_STATUS');
     }
 
-    const baseUpdate = { status: 'rejected', rejected_by: user.id, rejection_reason: reason };
+    // 00179: tahasang naka-set ang flag sa bawat rejection. Kapag normal na
+    // rejection, `false` (cooldown ang basehan), kapag permanent, `true`.
+    const baseUpdate: Record<string, unknown> = {
+      status: 'rejected',
+      rejected_by: user.id,
+      rejection_reason: reason,
+      permanently_rejected: isPermanent,
+    };
+    if (reapplyAllowedAt) baseUpdate.reapply_allowed_at = reapplyAllowedAt;
+
     let { error: rejectErr } = await db
       .from('loans')
-      .update(reapplyAllowedAt ? { ...baseUpdate, reapply_allowed_at: reapplyAllowedAt } : baseUpdate)
+      .update(baseUpdate)
       .eq('id', loan_id);
-    // Deploy-order guard: kung hindi pa naka-migrate ang 00176 column, huwag
-    // hayaang mabigo ang mismong rejection — balik sa dating update.
-    if (rejectErr && reapplyAllowedAt && /reapply_allowed_at/i.test(rejectErr.message ?? '')) {
-      const retry = await db.from('loans').update(baseUpdate).eq('id', loan_id);
+    // Deploy-order guard: kung hindi pa naka-migrate ang 00176/00179 na
+    // columns, huwag hayaang mabigo ang mismong rejection — balik sa dating
+    // update (walang reapply date at walang permanent flag).
+    if (rejectErr && /reapply_allowed_at|permanently_rejected/i.test(rejectErr.message ?? '')) {
+      console.error(
+        '[loans-manage] reject: kulang ang migration (00176/00179) — balik sa bare update:',
+        rejectErr.message,
+      );
+      const retry = await db.from('loans').update({
+        status: 'rejected',
+        rejected_by: user.id,
+        rejection_reason: reason,
+      }).eq('id', loan_id);
       rejectErr = retry.error;
       reapplyAllowedAt = null;
     }
@@ -219,10 +244,14 @@ async function handleReject(req: Request) {
       return errorResponse('Failed to reject loan', 500, 'SERVER_ERROR');
     }
 
-    await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason: reason, reapply_allowed_at: reapplyAllowedAt }, ipAddress: ip });
+    await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason: reason, reapply_allowed_at: reapplyAllowedAt, permanently_rejected: isPermanent }, ipAddress: ip });
     await sendPushNotification({ userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${reason}`, type: 'loan_rejected', referenceId: loan_id });
 
-    return jsonResponse({ message: 'Loan rejected', reapply_allowed_at: reapplyAllowedAt });
+    return jsonResponse({
+      message: 'Loan rejected',
+      reapply_allowed_at: reapplyAllowedAt,
+      permanent: isPermanent,
+    });
 }
 
 // ── [moved from functions/loans-cancel/index.ts] ────────────────────────────

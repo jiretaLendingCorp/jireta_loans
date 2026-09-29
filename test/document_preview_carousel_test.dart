@@ -1,9 +1,17 @@
 // test/document_preview_carousel_test.dart
 // Ang preview ng documentation ng Account Upgrade ay CAROUSEL na ngayon
 // (isa-isa ang titignan: Front Side tapos Back Side), hindi na magkatabi.
+import 'dart:convert';
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jireta_loans/presentation/shared/widgets/document_preview_dialog.dart';
+import 'package:jireta_loans/presentation/shared/widgets/document_viewer.dart';
+
+/// 1x1 PNG — ginagamit para sa in-memory (base64) na dokumento.
+const _onePixelPng =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 Future<void> _open(
   WidgetTester tester,
@@ -117,6 +125,26 @@ void main() {
     expect(find.text('Back Side'), findsOneWidget);
     expect(find.text('2 / 2'), findsOneWidget);
     expect(find.text('Front Side'), findsNothing);
+  });
+
+  testWidgets('in-memory (base64) na pahina: hindi lumalabas ang "No document"',
+      (tester) async {
+    // Ang co-maker signature ay RAW base64 PNG sa DB — hindi URL — kaya
+    // `bytes` ang ipinapasa ng Loan Application Details screen.
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: DocumentViewer(
+          bytes: Uint8List.fromList(base64Decode(_onePixelPng)),
+          showZoomControls: false,
+          showRotateControl: false,
+          height: 300,
+        ),
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.text('No document'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('clamped ang initialIndex na lampas sa range', (tester) async {

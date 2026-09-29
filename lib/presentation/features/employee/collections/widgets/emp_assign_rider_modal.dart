@@ -6,6 +6,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../shared/widgets/app_button.dart';
+import '../../../../shared/widgets/forms/app_date_picker.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../providers/emp_collection_provider.dart';
 
@@ -42,9 +43,8 @@ class EmpAssignRiderModal extends ConsumerStatefulWidget {
 class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
   String? _selectedRiderId;
   final _notesCtrl = TextEditingController();
-  DateTime? _collectionSchedule;
-  /// Katapusan ng rider visit window ("From – To" na iskedyul).
-  DateTime? _collectionScheduleEnd;
+  /// PETSA lang ng pagpunta ni rider — walang From – To na oras.
+  DateTime? _visitDate;
   bool _loading = false;
   bool _loadingRiders = true;
   List<Map<String, dynamic>> _riders = [];
@@ -76,57 +76,13 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
     }
   }
 
-  Future<void> _pickDateTime() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (date == null || !mounted) return;
-
-    final from = await showTimePicker(
-      context: context,
-      helpText: 'Rider visit — FROM',
-      initialTime: _collectionSchedule != null
-          ? TimeOfDay.fromDateTime(_collectionSchedule!)
-          : TimeOfDay.now(),
-    );
-    if (from == null || !mounted) return;
-    final start =
-        DateTime(date.year, date.month, date.day, from.hour, from.minute);
-
-    final to = await showTimePicker(
-      context: context,
-      helpText: 'Rider visit — TO',
-      initialTime: _collectionScheduleEnd != null
-          ? TimeOfDay.fromDateTime(_collectionScheduleEnd!)
-          : TimeOfDay(hour: (from.hour + 2) % 24, minute: from.minute),
-    );
-    if (to == null || !mounted) return;
-    final end = DateTime(date.year, date.month, date.day, to.hour, to.minute);
-    if (!end.isAfter(start)) {
-      setState(() =>
-          _error = 'The "To" time must be later than the "From" time');
-      return;
-    }
-    setState(() {
-      _collectionSchedule = start;
-      _collectionScheduleEnd = end;
-      _error = null;
-    });
-  }
-
   Future<void> _submit() async {
     if (_selectedRiderId == null) {
       setState(() => _error = 'Please select a rider');
       return;
     }
-    // REQUIRED ang date + FROM/TO time — kailangang malaman ng lender kung
-    // anong ORAS (mula- hanggang) pupunta si rider sa kanya.
-    if (_collectionSchedule == null || _collectionScheduleEnd == null) {
-      setState(() =>
-          _error = 'Please select the rider visit time (from and to)');
+    if (_visitDate == null) {
+      setState(() => _error = 'Please select the rider visit date');
       return;
     }
     setState(() {
@@ -139,8 +95,7 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
             loanId: widget.loanId,
             riderId: _selectedRiderId!,
             assignmentId: widget.assignmentId,
-            collectionSchedule: _collectionSchedule,
-            collectionScheduleEnd: _collectionScheduleEnd,
+            collectionSchedule: _visitDate,
             notes: _notesCtrl.text.trim(),
           );
       if (!mounted) return;
@@ -241,30 +196,12 @@ class _EmpAssignRiderModalState extends ConsumerState<EmpAssignRiderModal> {
                     ),
                   ],
                   const SizedBox(height: 16),
-                  GestureDetector(
-                    onTap: _pickDateTime,
-                    child: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration:
-                          BoxDecoration(border: Border.all(color: AppColors.border), borderRadius: BorderRadius.zero),
-                      child: Row(
-                        children: [
-                          const Icon(Icons.calendar_today_outlined, size: 18, color: AppColors.textSecondary),
-                          const SizedBox(width: 10),
-                          Text(
-                            _collectionSchedule != null
-                                ? '${_collectionSchedule!.day}/${_collectionSchedule!.month}/${_collectionSchedule!.year}  '
-                                    '${_collectionSchedule!.hour.toString().padLeft(2, '0')}:${_collectionSchedule!.minute.toString().padLeft(2, '0')}'
-                                    '${_collectionScheduleEnd != null ? ' – ${_collectionScheduleEnd!.hour.toString().padLeft(2, '0')}:${_collectionScheduleEnd!.minute.toString().padLeft(2, '0')}' : ''}'
-                                : 'Rider Visit Time (From – To) *',
-                            style: TextStyle(
-                                color: _collectionSchedule != null ? AppColors.textPrimary : AppColors.textTertiary,
-                                fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
+                  AppDatePicker(
+                      label: 'Rider Visit Date *',
+                      value: _visitDate,
+                      onChanged: (d) => setState(() => _visitDate = d),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime.now().add(const Duration(days: 60))),
                   const SizedBox(height: 16),
                   AppTextField(
                       controller: _notesCtrl,

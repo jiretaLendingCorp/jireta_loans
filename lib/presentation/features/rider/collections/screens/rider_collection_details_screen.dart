@@ -578,6 +578,8 @@ class _RiderCollectionDetailsScreenState
                             // habang 'assigned' pa (bago i-accept).
                             if (col.status == 'assigned')
                               _buildAcceptDeclineBar(col),
+                            // Back + Next — naka-pin sa baba sa Step 1 kapag
+                            // tuloy na ang koleksyon (accepted/in_progress).
                             // Ang Back + Submit ay nasa loob ng Review tab.
                           ],
                         );
@@ -1404,8 +1406,6 @@ class _RiderCollectionDetailsScreenState
   /// Dating Step 2 (Collect) content — ngayon ay nasa loob na ng Step 1.
   /// Listahan ito ng widgets para direkta nang isingit sa `_buildDetailsTab`.
   List<Widget> _collectCards(CollectionAssignmentModel col) {
-    final schedule = col.loanSchedule;
-    final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
     final alreadyRecorded = col.amountCollected != null;
     final hasAmount = _amountCtrl.text.isNotEmpty;
 
@@ -1496,47 +1496,7 @@ class _RiderCollectionDetailsScreenState
             ),
           ),
           SizedBox(height: 16),
-          // Quick actions — hidden once recorded (backend has no re-record;
-          // editing the amount after record would be silently discarded).
-          if (!alreadyRecorded)
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _amountCtrl.text =
-                        ThousandsSeparatorInputFormatter.format(amountDue),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.riderGreen,
-                    side: BorderSide(color: AppColors.riderGreen),
-                    minimumSize: const Size(0, 44),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text('Use Due Amount',
-                      style: TextStyle(
-                          fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-              ),
-              SizedBox(width: 10),
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _amountCtrl.clear(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.cTextSecondary,
-                    side: BorderSide(color: context.cBorder),
-                    minimumSize: const Size(0, 44),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: Text('Clear',
-                      style:
-                          TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 16),
-          // Back + Next — dating nasa bottom bar; nasa ibaba na ng "Clear".
+          // Back + Next — nasa ilalim ng Collection Details card.
           Row(
             children: [
               Expanded(
@@ -1556,8 +1516,7 @@ class _RiderCollectionDetailsScreenState
               ),
               SizedBox(width: 12),
               Expanded(
-                // Pantay ang lapad ng Back at Next — gaya ng Use Due Amount
-                // at Clear row.
+                // Pantay ang lapad ng Back at Next.
                 child: ElevatedButton(
                   // Next = validation lang papuntang Proof (walang record sa
                   // server hangga't hindi pa ni-submit sa Step 3).
@@ -1766,7 +1725,8 @@ class _RiderCollectionDetailsScreenState
                   ),
                   SizedBox(height: 12),
                   SignaturePad(
-                    height: 140,
+                    // Mas mataas na canvas para sa lender signature card.
+                    height: 300,
                     // Text-only ang Clear / Confirm — walang ✕ at ✓ icons.
                     showActionIcons: false,
                     // "Signature cleared" feedback: 1 segundo lang (rider flow).
@@ -1941,7 +1901,7 @@ class _RiderCollectionDetailsScreenState
                     SizedBox(width: 8),
                     Text('Review Details',
                         style: TextStyle(
-                            fontSize: 14, fontWeight: FontWeight.w700)),
+                            fontSize: 16, fontWeight: FontWeight.w800)),
                   ],
                 ),
                 Divider(height: 20),
@@ -2019,32 +1979,32 @@ class _ReviewCheckRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 16),
       child: Row(
         children: [
           SizedBox(
-              width: 130,
+              width: 145,
               child: Text(label,
                   style: TextStyle(
-                      fontSize: 13, color: context.cTextSecondary))),
+                      fontSize: 14, color: context.cTextSecondary))),
           Expanded(
             child: present
                 ? Row(
                     children: [
                       Icon(Icons.check_circle,
-                          color: context.cBrandGreen, size: 16),
+                          color: context.cBrandGreen, size: 18),
                       SizedBox(width: 6),
                       Text(presentLabel,
                           style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700,
                               color: context.cTextPrimary)),
                     ],
                   )
                 : Text('N/A',
                     style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
                         color: context.cTextTertiary)),
           ),
         ],
@@ -2064,20 +2024,20 @@ class _ReviewRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.only(bottom: 8),
+      padding: EdgeInsets.only(bottom: 16),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
-              width: 130,
+              width: 145,
               child: Text(label,
                   style: TextStyle(
-                      fontSize: 13, color: context.cTextSecondary))),
+                      fontSize: 14, color: context.cTextSecondary))),
           Expanded(
             child: Text(value,
                 style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: valueBold ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: 16,
+                    fontWeight: valueBold ? FontWeight.w800 : FontWeight.w600,
                     color: valueColor ?? context.cTextPrimary)),
           ),
         ],

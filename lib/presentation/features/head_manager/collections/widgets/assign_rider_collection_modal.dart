@@ -5,11 +5,11 @@
 // iisa ang layout ng Assign Rider sa buong app.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
+import '../../../../shared/widgets/forms/app_date_picker.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../providers/hm_collection_provider.dart';
 
@@ -33,10 +33,8 @@ class _AssignRiderCollectionModalState
     extends ConsumerState<AssignRiderCollectionModal> {
   String? _selectedRiderId;
   final _notesCtrl = TextEditingController();
-  DateTime? _collectionSchedule;
-  /// Katapusan ng rider visit window — ipinapadala kasama ng start time para
-  /// "From – To" ang nakalagay sa assignment (hindi lang isang oras).
-  DateTime? _collectionScheduleEnd;
+  /// PETSA lang ng pagpunta ni rider — walang From – To na oras.
+  DateTime? _visitDate;
   bool _loading = false;
   bool _loadingRiders = true;
   List<Map<String, dynamic>> _riders = [];
@@ -73,61 +71,13 @@ class _AssignRiderCollectionModalState
     }
   }
 
-  Future<void> _pickDateTime() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: _collectionSchedule ?? DateTime.now().add(const Duration(days: 1)),
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 30)),
-    );
-    if (date == null || !mounted) return;
-
-    // FROM time
-    final from = await showTimePicker(
-      context: context,
-      helpText: 'Rider visit — FROM',
-      initialTime: _collectionSchedule != null
-          ? TimeOfDay.fromDateTime(_collectionSchedule!)
-          : TimeOfDay.now(),
-    );
-    if (from == null || !mounted) return;
-    final start =
-        DateTime(date.year, date.month, date.day, from.hour, from.minute);
-
-    // TO time
-    final defaultTo = TimeOfDay(hour: (from.hour + 2) % 24, minute: from.minute);
-    final to = await showTimePicker(
-      context: context,
-      helpText: 'Rider visit — TO',
-      initialTime: _collectionScheduleEnd != null
-          ? TimeOfDay.fromDateTime(_collectionScheduleEnd!)
-          : defaultTo,
-    );
-    if (to == null || !mounted) return;
-    final end = DateTime(date.year, date.month, date.day, to.hour, to.minute);
-
-    if (!end.isAfter(start)) {
-      setState(() =>
-          _error = 'The "To" time must be later than the "From" time');
-      return;
-    }
-    setState(() {
-      _collectionSchedule = start;
-      _collectionScheduleEnd = end;
-      _error = null;
-    });
-  }
-
   Future<void> _submit() async {
     if (_selectedRiderId == null) {
       setState(() => _error = 'Please select a rider');
       return;
     }
-    // REQUIRED ang date + FROM/TO time — kailangang malaman ng lender kung
-    // anong ORAS (mula- hanggang) pupunta si rider sa kanya.
-    if (_collectionSchedule == null || _collectionScheduleEnd == null) {
-      setState(() =>
-          _error = 'Please select the rider visit time (from and to)');
+    if (_visitDate == null) {
+      setState(() => _error = 'Please select the rider visit date');
       return;
     }
     setState(() {
@@ -140,8 +90,7 @@ class _AssignRiderCollectionModalState
             loanId: widget.loanId,
             riderId: _selectedRiderId!,
             assignmentId: widget.assignmentId,
-            collectionSchedule: _collectionSchedule,
-            collectionScheduleEnd: _collectionScheduleEnd,
+            collectionSchedule: _visitDate,
             notes: _notesCtrl.text.trim(),
           );
       if (!mounted) return;
@@ -209,7 +158,15 @@ class _AssignRiderCollectionModalState
                     children: [
                       _buildRiderPicker(),
                       const SizedBox(height: 16),
-                      _buildSchedulePicker(),
+                      // PETSA lang — walang From – To na time picker. Pareho ng
+                      // CI assign modal para iisa ang layout ng Assign Rider.
+                      AppDatePicker(
+                        label: 'Rider Visit Date *',
+                        value: _visitDate,
+                        onChanged: (d) => setState(() => _visitDate = d),
+                        firstDate: DateTime.now(),
+                        lastDate: DateTime.now().add(const Duration(days: 60)),
+                      ),
                       const SizedBox(height: 16),
                       AppTextField(
                         controller: _notesCtrl,
@@ -421,54 +378,6 @@ class _AssignRiderCollectionModalState
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildSchedulePicker() {
-    String label = '';
-    if (_collectionSchedule != null) {
-      final dateFmt = DateFormat('MMM d, y', 'en_PH');
-      final timeFmt = DateFormat('h:mm a', 'en_PH');
-      final from = timeFmt.format(_collectionSchedule!);
-      label = _collectionScheduleEnd != null
-          ? '${dateFmt.format(_collectionSchedule!)} · $from – ${timeFmt.format(_collectionScheduleEnd!)}'
-          : '${dateFmt.format(_collectionSchedule!)} · $from';
-    }
-    return GestureDetector(
-      onTap: _pickDateTime,
-      child: AbsorbPointer(
-        child: TextFormField(
-          readOnly: true,
-          controller: TextEditingController(text: label),
-          decoration: const InputDecoration(
-            labelText: 'Rider Visit Time (From – To) *',
-            suffixIcon: Icon(
-              Icons.event_outlined,
-              size: 18,
-              color: AppColors.textSecondary,
-            ),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: AppColors.border),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.zero,
-              borderSide: BorderSide(color: AppColors.border),
-            ),
-            filled: true,
-            fillColor: Colors.white,
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
-            labelStyle: TextStyle(
-              fontSize: 13,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
-        ),
-      ),
     );
   }
 

@@ -10,12 +10,20 @@ import 'pdf_zoom_viewer.dart';
 class DocumentPreviewPage {
   const DocumentPreviewPage({
     required this.label,
-    required this.url,
+    this.url,
+    this.bytes,
     this.autoLandscape = false,
-  });
+  }) : assert(url != null || bytes != null,
+            'Kailangan ng `url` o `bytes` para may maipakitang dokumento.');
 
   final String label;
-  final String url;
+
+  /// URL (o storage path) ng dokumento. `null` kapag `bytes` ang ipinasa.
+  final String? url;
+
+  /// Dokumentong nasa MEMORY — hal. ang co-maker signature na naka-base64 sa
+  /// DB (hindi ito URL kaya hindi maipapasa sa viewer bilang `url`).
+  final Uint8List? bytes;
 
   /// Para sa mga ID: awtomatikong i-rotate sa landscape kapag portrait ang
   /// litrato (tingnan ang `DocumentViewer.autoLandscape`).
@@ -205,6 +213,7 @@ class _DocumentPreviewDialogState extends State<_DocumentPreviewDialog> {
                                 0, _hasMultiple ? 56 : 16, 0),
                             child: DocumentViewer(
                               url: widget.pages[i].url,
+                              bytes: widget.pages[i].bytes,
                               autoLandscape: widget.pages[i].autoLandscape,
                               // Walang overlay sa ibabaw ng litrato — nasa toolbar
                               // na (− / + / ⟳) ang mga kontrol.

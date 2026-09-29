@@ -138,11 +138,13 @@ class EmpLoanNotifier extends StateNotifier<EmpLoanState>
     await load(silent: true);
   }
 
-  /// [reapplyAllowedAt] — 00176: pinili ng staff sa reject modal kung kailan
-  /// pwedeng mag-apply ulit ang lender (null = 1-month default ng server).
+  /// [reapplyAllowedAt] / [permanent] — 00176 / 00179: pinili ng staff sa
+  /// reject modal kung kailan pwedeng mag-apply ulit ang lender (null =
+  /// 1-month default ng server) o kung PERMANENTE nang hindi na papayagan.
   Future<void> rejectLoan(String loanId, String reason,
-      {DateTime? reapplyAllowedAt}) async {
-    await _ds.rejectLoan(loanId, reason, reapplyAllowedAt: reapplyAllowedAt);
+      {DateTime? reapplyAllowedAt, bool permanent = false}) async {
+    await _ds.rejectLoan(loanId, reason,
+        reapplyAllowedAt: reapplyAllowedAt, permanent: permanent);
     await load(silent: true);
   }
 
@@ -165,10 +167,10 @@ extension EmpLoanProviderExtension on EmpLoanNotifier {
   }
 
   Future<bool> reject(String loanId, String reason,
-      {DateTime? reapplyAllowedAt}) async {
+      {DateTime? reapplyAllowedAt, bool permanent = false}) async {
     try {
       await _ds.rejectLoan(loanId, reason,
-          reapplyAllowedAt: reapplyAllowedAt);
+          reapplyAllowedAt: reapplyAllowedAt, permanent: permanent);
       await load(silent: true);
       return true;
     } catch (_) {

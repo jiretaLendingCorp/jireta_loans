@@ -1242,10 +1242,11 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
 
   Future<void> _showRejectDialog(Map<String, dynamic> loan) async {
     _reasonCtrl.clear();
-    // 00176: kailan pwedeng mag-apply ulit ang lender — desisyon ito ng staff
-    // dito sa reject dialog. WALANG default: habang wala pang pinili, naka-
-    // disable ang Reject (hindi ito basta nag-1 month sa likod ng user).
-    DateTime? reapplyAllowedAt;
+    // 00176 / 00179: kailan pwedeng mag-apply ulit ang lender (o kung
+    // PERMANENTE nang hindi na) — desisyon ito ng staff dito sa reject dialog.
+    // WALANG default: habang wala pang pinili, naka-disable ang Reject
+    // (hindi ito basta nag-1 month sa likod ng user).
+    LoanReapplyChoice? reapplyChoice;
     final reason = await showDialog<String>(
       context: context,
       // StatefulBuilder: para mag-rebuild ang Reject button kada may mapiling
@@ -1284,8 +1285,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 // 00176: kailan pwedeng mag-apply ulit ang lender.
                 const Divider(height: 26),
                 LoanReapplyPicker(
-                  onChanged: (date) {
-                    reapplyAllowedAt = date;
+                  onChanged: (choice) {
+                    reapplyChoice = choice;
                     setDialogState(() {});
                   },
                 ),
@@ -1302,10 +1303,12 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 foregroundColor: Colors.white,
                 shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero)),
-              onPressed: reapplyAllowedAt == null
+              onPressed: reapplyChoice == null
                   ? null
                   : () => Navigator.pop(ctx, _reasonCtrl.text.trim()),
-              child: const Text('Reject'),
+              child: Text(reapplyChoice?.permanent == true
+                  ? 'Reject permanently'
+                  : 'Reject'),
             ),
           ],
         ),
@@ -1316,7 +1319,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
       await ref.read(empLoanProvider.notifier).rejectLoan(
             widget.loanId,
             reason,
-            reapplyAllowedAt: reapplyAllowedAt,
+            reapplyAllowedAt: reapplyChoice?.allowedAt,
+            permanent: reapplyChoice?.permanent ?? false,
           );
       if (!mounted) return;
       _toast('Loan rejected', AppColors.error);

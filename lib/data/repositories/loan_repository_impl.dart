@@ -19,8 +19,9 @@ class LoanRepositoryImpl implements ILoanRepository {
 
   @override
   Future<void> rejectLoan(String loanId, String reason,
-          {DateTime? reapplyAllowedAt}) =>
-      _ds.rejectLoan(loanId, reason, reapplyAllowedAt: reapplyAllowedAt);
+          {DateTime? reapplyAllowedAt, bool permanent = false}) =>
+      _ds.rejectLoan(loanId, reason,
+          reapplyAllowedAt: reapplyAllowedAt, permanent: permanent);
 
   @override
   Future<void> cancelLoan(String loanId) => _ds.cancelLoan(loanId);

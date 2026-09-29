@@ -170,10 +170,14 @@ class LoanRemoteDataSource {
   ///
   /// Kapag null, hindi ito ipinapadala at ang server-side na 1-month default
   /// ang gamit — kaya walang date na makaka-override nang hindi sinasadya.
+  ///
+  /// [permanent] — 00179: kapag true, `loans.permanently_rejected` ang naka-set
+  /// at hindi na makakapag-apply muli ang lender (wala nang cooldown date).
   Future<void> rejectLoan(
     String loanId,
     String reason, {
     DateTime? reapplyAllowedAt,
+    bool permanent = false,
   }) async {
     await _client.patch(
       ApiEndpoints.loansReject,
@@ -182,6 +186,7 @@ class LoanRemoteDataSource {
         'rejection_reason': reason,
         if (reapplyAllowedAt != null)
           'reapply_allowed_at': reapplyAllowedAt.toUtc().toIso8601String(),
+        if (permanent) 'permanent': true,
       },
     );
   }

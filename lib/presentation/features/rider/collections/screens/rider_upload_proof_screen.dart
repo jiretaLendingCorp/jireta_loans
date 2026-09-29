@@ -357,7 +357,8 @@ class _RiderUploadProofScreenState
               style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
           SizedBox(height: 12),
           SignaturePad(
-            height: 150,
+            // Mas mataas na canvas para sa lender signature card.
+            height: 300,
             // "Signature cleared" feedback: 1 segundo lang (rider flow).
             clearedFeedbackDuration: const Duration(seconds: 1),
             onSignatureChanged: (base64) =>

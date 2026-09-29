@@ -170,13 +170,14 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
     }
   }
 
-  /// [reapplyAllowedAt] — 00176: pinili ng staff sa reject modal kung kailan
-  /// pwedeng mag-apply ulit ang lender (null = 1-month default ng server).
+  /// [reapplyAllowedAt] / [permanent] — 00176 / 00179: pinili ng staff sa
+  /// reject modal kung kailan pwedeng mag-apply ulit ang lender (null =
+  /// 1-month default ng server) o kung PERMANENTE nang hindi na papayagan.
   Future<bool> rejectLoan(String loanId, String reason,
-      {DateTime? reapplyAllowedAt}) async {
+      {DateTime? reapplyAllowedAt, bool permanent = false}) async {
     try {
       await _ds.rejectLoan(loanId, reason,
-          reapplyAllowedAt: reapplyAllowedAt);
+          reapplyAllowedAt: reapplyAllowedAt, permanent: permanent);
       await fetchLoans(silent: true);
       return true;
     } catch (_) {

@@ -18,7 +18,6 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import 'package:shimmer/shimmer.dart';
 
-import '../../../../shared/widgets/legal_links.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../../../../shared/widgets/signature_pad.dart';
@@ -107,17 +106,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   final _ecPhoneKey = GlobalKey();
   final _coMakerSignatureKey = GlobalKey();
   final _coMakerValidIdKey = GlobalKey();
-  final _termsKey = GlobalKey();
-
-  /// Terms & Conditions checkbox sa Review step. Kung false, hindi
-  /// makakapag-submit ng loan application.
-  bool _termsAccepted = false;
-  String? _termsError;
-
-  /// Ang "Please accept the Terms and Conditions…" na validation message ay
-  /// 2 segundo lang nakikita tapos awtomatikong nawawala.
-  Timer? _termsErrorTimer;
-  static const Duration _termsErrorVisibleFor = Duration(seconds: 2);
 
   /// False habang hindi pa pumipili ng loan purpose: ito ang unang full-screen
   /// na nakikita pagkapindot ng Apply Loan, bago ang Loan Details step.
@@ -250,7 +238,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   void dispose() {
     _previewDebounce?.cancel();
     _coMakerSignatureTimer?.cancel();
-    _termsErrorTimer?.cancel();
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     _amountCtrl.dispose();
@@ -516,13 +503,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         }
       });
       _focusOn(_coMakerValidIdKey);
-      return;
-    }
-    // ── Step 4: Terms & Conditions (required) ────────────────────────────
-    if (!_termsAccepted) {
-      setState(() => _step = 4);
-      _showTermsErrorBriefly();
-      _focusOn(_termsKey);
       return;
     }
     // ── Confirm modal + device credential authentication ─────────────────
@@ -1070,11 +1050,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SectionTitle('Co-Maker Information'),
-          const SizedBox(height: 6),
-          const Text(
-            'A co-maker is required for your loan application. You will be asked for their signature on the next step.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
           const SizedBox(height: 12),
           _CoMakerForm(
             key: _coMakerFormKey,
@@ -1096,11 +1071,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SectionTitle('Co-Maker Signature'),
-          const SizedBox(height: 6),
-          const Text(
-            'Ask your co-maker to sign below to consent to this loan.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
           const SizedBox(height: 12),
           Container(
             key: _coMakerSignatureKey,
@@ -1241,24 +1211,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                           ],
                         ),
                       ),
-                      if (_coMakerValidId != null || _coMakerValidIdBack != null)
-                        Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: TextButton.icon(
-                            onPressed: isSubmitting
-                                ? null
-                                : () => _previewLocalFile(
-                                    _coMakerValidId ?? _coMakerValidIdBack),
-                            style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 8),
-                                minimumSize: const Size(0, 32)),
-                            icon: const Icon(Icons.visibility_outlined,
-                                size: 16),
-                            label: const Text('View',
-                                style: TextStyle(fontSize: 12)),
-                          ),
-                        ),
                       Icon(
                           _hasCoMakerValidIdComplete
                               ? Icons.check_circle
@@ -1281,75 +1233,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  /// Preview the just-picked local image so the lender can review the
-  /// co-maker Valid ID (front/back) they uploaded before proceeding.
-  Future<void> _previewLocalFile(PlatformFile? file) async {
-    if (file == null) return;
-    Uint8List? bytes = file.bytes;
-    if (bytes == null && file.path != null) {
-      try {
-        bytes = await File(file.path!).readAsBytes();
-      } catch (_) {}
-    }
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        child: ConstrainedBox(
-          constraints: BoxConstraints(
-            maxWidth: 520,
-            maxHeight: MediaQuery.of(ctx).size.height * 0.82,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-                child: Row(
-                  children: [
-                    const Icon(Icons.visibility_outlined,
-                        size: 18, color: AppColors.lenderBlue),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        file.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600),
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () => Navigator.of(ctx).pop(),
-                      icon: const Icon(Icons.close, size: 20),
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: bytes != null
-                    ? InteractiveViewer(
-                        child: Image.memory(bytes, fit: BoxFit.contain),
-                      )
-                    : const Padding(
-                        padding: EdgeInsets.all(32),
-                        child: Text(
-                          'Preview is not available for this file type.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                              fontSize: 13, color: AppColors.textSecondary),
-                        ),
-                      ),
-              ),
-            ],
-          ),
-        ),
       ),
     );
   }
@@ -1455,11 +1338,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _SectionTitle('Financial Details'),
-          const SizedBox(height: 6),
-          const Text(
-            'Tell us about your source of income. This declaration is attached to this loan application.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
@@ -1564,11 +1442,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           ),
           const SizedBox(height: 20),
           const _SectionTitle('Emergency Contact'),
-          const SizedBox(height: 6),
-          const Text(
-            'Who should we contact in case of an emergency regarding this loan?',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
           const SizedBox(height: 12),
           Container(
             width: double.infinity,
@@ -1691,12 +1564,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionTitle('Review Details'),
-          const SizedBox(height: 6),
-          const Text(
-            'Please review the details below. If everything is correct, submit your application.',
-            style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-          ),
+          const _SectionTitle('Review Details', fontSize: 16),
           const SizedBox(height: 16),
           // Review Details = loan amounts lang. Hindi na kasama dito ang
           // co-maker, financial & emergency declaration (nasa kani-kanilang
@@ -1711,100 +1579,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             totalPayable: totalPayable,
             installment: installment,
           ),
-        ],
-      ),
-    );
-  }
-
-  /// Terms & Conditions validation: pinapakita ang mensahe nang 2 segundo lang
-  /// tapos awtomatikong nawawala — hindi nananatiling nakabalandra ang red card.
-  void _showTermsErrorBriefly() {
-    _termsErrorTimer?.cancel();
-    setState(() => _termsError =
-        'Please accept the Terms and Conditions to submit your application.');
-    _termsErrorTimer = Timer(_termsErrorVisibleFor, () {
-      if (mounted) setState(() => _termsError = null);
-    });
-  }
-
-  /// Terms & Conditions checkbox — REQUIRED bago maka-submit ng application.
-  /// Kung hindi naka-check, hindi tumutuloy ang submission at may inline na
-  /// red na mensahe sa ibaba ng checkbox.
-  Widget _buildTermsCheckbox() {
-    return Container(
-      key: _termsKey,
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
-      decoration: BoxDecoration(
-        color: _termsError == null
-            ? Colors.white
-            : AppColors.error.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: _termsError == null ? AppColors.border : AppColors.error,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Checkbox(
-                value: _termsAccepted,
-                activeColor: AppColors.lenderBlue,
-                onChanged: (v) => setState(() {
-                  _termsAccepted = v ?? false;
-                  if (_termsAccepted) {
-                    _termsErrorTimer?.cancel();
-                    _termsError = null;
-                  }
-                }),
-              ),
-              Expanded(
-                // Buong text ay tappable — bubukas ang Terms & Conditions sa
-                // bottom sheet. Ang checkbox pa rin ang nag-a-accept.
-                child: Padding(
-                  padding: const EdgeInsets.only(top: 12),
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => showTermsAndConditionsSheet(context),
-                    child: const Text.rich(
-                      TextSpan(
-                        children: [
-                          TextSpan(text: 'I have read and agree to the '),
-                          TextSpan(
-                            text: 'Terms and Conditions',
-                            style: TextStyle(
-                              color: AppColors.lenderBlue,
-                              fontWeight: FontWeight.w700,
-                              decoration: TextDecoration.underline,
-                              decorationColor: AppColors.lenderBlue,
-                            ),
-                          ),
-                          TextSpan(
-                            text:
-                                ', and I certify that all information I provided is true and correct.',
-                          ),
-                        ],
-                      ),
-                      style: TextStyle(
-                          fontSize: 12.5, color: AppColors.textSecondary),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (_termsError != null)
-            Padding(
-              padding: const EdgeInsets.only(left: 12, top: 2),
-              child: Text(
-                _termsError!,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.error),
-              ),
-            ),
         ],
       ),
     );
@@ -2014,14 +1788,6 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ],
           ),
         ),
-        // Review step: ang Terms & Conditions checkbox card ay NAKA-PIN din —
-        // nasa ibaba, sa ibabaw mismo ng Back/Submit button — kaya laging
-        // nakikita bago mag-submit.
-        if (_step == 4)
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-            child: _buildTermsCheckbox(),
-          ),
         // Back/Next (o Submit) na naka-pin sa TAAS ng floating bottom nav bar —
         // hindi na ito kasama sa scroll ng step, kaya laging nakikita.
         _buildStepNav(isSubmitting),
@@ -2486,13 +2252,18 @@ class _PesoIncomeFormatter extends TextInputFormatter {
 
 class _SectionTitle extends StatelessWidget {
   final String text;
-  const _SectionTitle(this.text);
+
+  /// Mas malaki para sa Review Details — doon kailangang madaling mabasa ang
+  /// huling tsek bago i-submit. Ang ibang step ay nananatili sa dating sukat.
+  final double fontSize;
+
+  const _SectionTitle(this.text, {this.fontSize = 14});
 
   @override
   Widget build(BuildContext context) => Text(
         text,
-        style: const TextStyle(
-          fontSize: 14,
+        style: TextStyle(
+          fontSize: fontSize,
           fontWeight: FontWeight.w700,
           color: AppColors.textPrimary,
         ),
@@ -2780,8 +2551,8 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Naka-card para malinis at hindi nakakalat ang review details sa page.
-    // Kapareho ng style ng terms card sa ibaba (puti + border + radius 12).
+    // Naka-card para malinis at hindi nakakalat ang review details sa page
+    // (puti + border + radius 12).
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -2821,23 +2592,25 @@ class _ReviewCard extends StatelessWidget {
   }
 
   Widget _row(String label, String value) => Padding(
-        padding: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.only(bottom: 14),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SizedBox(
-              width: 146,
+              // Bahagyang pinalapad — kasya pa rin sa isang linya ang mas
+              // malaking font ng mga label (hal. "Payment Frequency").
+              width: 168,
               child: Text(
                 label,
                 style: const TextStyle(
-                    fontSize: 15, color: AppColors.textSecondary),
+                    fontSize: 17, color: AppColors.textSecondary),
               ),
             ),
             Expanded(
               child: Text(
                 value,
                 style: const TextStyle(
-                  fontSize: 15,
+                  fontSize: 17,
                   fontWeight: FontWeight.w700,
                   color: AppColors.textPrimary,
                 ),

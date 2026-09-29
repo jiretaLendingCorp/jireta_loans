@@ -1,5 +1,6 @@
 // lib/presentation/features/employee/loans/screens/emp_loan_application_details_screen.dart
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/pay_in_office_button.dart';
 import '../../../../shared/widgets/status_badge.dart';
+import '../../../../shared/widgets/document_preview_dialog.dart';
 import '../../../head_manager/ci/widgets/ci_assign_modal.dart';
 import '../../../head_manager/disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../../../head_manager/loans/providers/hm_loan_provider.dart';
@@ -352,7 +354,7 @@ class _EmpLoanApplicationDetailsScreenState
       builder: (_) => ApproveRejectModal(
         loanId: loanId,
         isApprove: true,
-        onConfirm: (_, __, ___) async {
+        onConfirm: (_, __, ___, ____) async {
           final ok =
               await ref.read(hmLoanProvider.notifier).approveLoan(loanId);
           if (!mounted) return;
@@ -371,11 +373,12 @@ class _EmpLoanApplicationDetailsScreenState
       builder: (_) => ApproveRejectModal(
         loanId: loanId,
         isApprove: false,
-        onConfirm: (_, reason, reapplyAllowedAt) async {
+        onConfirm: (_, reason, reapplyAllowedAt, permanent) async {
           final ok = await ref.read(hmLoanProvider.notifier).rejectLoan(
                 loanId,
                 reason ?? '',
                 reapplyAllowedAt: reapplyAllowedAt,
+                permanent: permanent,
               );
           if (!mounted) return;
           Navigator.of(context).pop();
@@ -581,6 +584,7 @@ class _EmpLoanApplicationDetailsScreenState
     final name =
         '${cm['first_name'] ?? ''} ${cm['last_name'] ?? ''}'.trim();
     final dob = cm['date_of_birth'] as String? ?? '';
+    final validIdPages = _coMakerValidIdPages(cm);
 
     return _PremiumCard(
       title: 'Co-Maker',
@@ -639,7 +643,7 @@ class _EmpLoanApplicationDetailsScreenState
                 ],
               ),
             ),
-          if (_coMakerValidIdUrls(cm).isNotEmpty)
+          if (validIdPages.isNotEmpty)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(
@@ -653,8 +657,7 @@ class _EmpLoanApplicationDetailsScreenState
                             fontWeight: FontWeight.w600,
                             color: AppColors.textSecondary))),
                   OutlinedButton.icon(
-                    onPressed: () => _showValidIdViewer(
-                        _coMakerValidIdUrls(cm)),
+                    onPressed: () => _showValidIdViewer(validIdPages),
                     icon: const Icon(Icons.visibility_outlined,
                         size: 14, color: AppColors.deepNavy),
                     label: const Text('View',
@@ -679,163 +682,85 @@ class _EmpLoanApplicationDetailsScreenState
         ]));
   }
 
-  // Buong view ng signature sa dialog.
+  /// Buksan ang co-maker signature sa PAREHONG carousel preview modal na
+  /// ginagamit ng Lender Account Upgrade (may − / + / ⟳ sa toolbar).
+  ///
+  /// Ang `co_makers.signature` ay RAW base64 PNG mula sa SignaturePad — hindi
+  /// ito URL, kaya kailangang i-decode papuntang bytes bago maipakita.
   Future<void> _showSignatureViewer(String signature) {
-    return showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text('Co-Maker Signature',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary))),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      tooltip: 'Close',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  width: double.infinity,
-                  height: 220,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border)),
-                  clipBehavior: Clip.antiAlias,
-                  child: _buildSignatureImage(signature),
-                ),
-              ],
-            ),
-          ),
+    final bytes = _signatureBytes(signature);
+    return showDocumentPreviewDialog(
+      context,
+      title: 'Co-Maker Signature',
+      pages: [
+        DocumentPreviewPage(
+          label: 'Signature',
+          url: bytes == null ? signature : null,
+          bytes: bytes,
         ),
-      ),
+      ],
     );
   }
 
-  /// 00147: kinukuha ang URL ng co-maker valid ID image(s) — sa dialog
-  /// pinapakita kapag pinindot ang View.
-  List<String> _coMakerValidIdUrls(Map<String, dynamic> cm) {
-    final docs = (cm['co_maker_documents'] as List? ?? [])
-        .whereType<Map<String, dynamic>>()
-        .where((d) =>
-            d['document_type'] == 'valid_id' ||
-            d['document_type'] == 'valid_id_back')
-        .toList();
-    return docs
-        .map((d) =>
-            (d['signed_url'] as String?) ?? (d['file_path'] as String?))
-        .where((url) => url != null && url.isNotEmpty)
-        .cast<String>()
-        .toList();
-  }
-
-  // Buong view ng valid ID image(s) sa dialog.
-  Future<void> _showValidIdViewer(List<String> urls) {
-    return showDialog<void>(
-      context: context,
-      builder: (_) => Dialog(
-        backgroundColor: Colors.white,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ConstrainedBox(
-          constraints:
-              const BoxConstraints(maxWidth: 520, maxHeight: 640),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text('Co-Maker Valid ID',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: AppColors.textPrimary))),
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      tooltip: 'Close',
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Flexible(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      children: [
-                        for (var i = 0; i < urls.length; i++) ...[
-                          if (i > 0) const SizedBox(height: 12),
-                          Container(
-                            width: double.infinity,
-                            height: 280,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              border:
-                                  Border.all(color: AppColors.border)),
-                            clipBehavior: Clip.antiAlias,
-                            child: Image.network(
-                              urls[i],
-                              fit: BoxFit.contain,
-                              errorBuilder: (_, __, ___) => const Center(
-                                child: Icon(Icons.badge_outlined,
-                                    size: 40,
-                                    color: AppColors.textTertiary)),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSignatureImage(String signature) {
-    const placeholder = Center(
-      child: Icon(Icons.draw_outlined,
-          size: 40, color: AppColors.textTertiary));
-    if (signature.startsWith('data:') || signature.startsWith('http')) {
-      return Image.network(
-        signature,
-        fit: BoxFit.contain,
-        errorBuilder: (_, __, ___) => placeholder);
-    }
+  /// Ang raw base64 na PNG ay nagiging bytes; ang `data:` URI naman ay ang
+  /// payload nito. `null` kapag hindi ito base64 (hal. lumang `http` URL row) —
+  /// ibig sabihin, `url` ang dapat gamitin ng viewer.
+  Uint8List? _signatureBytes(String signature) {
     try {
-      final bytes = base64Decode(signature);
-      return Image.memory(
-        bytes,
-        fit: BoxFit.contain,
-        gaplessPlayback: true,
-        errorBuilder: (_, __, ___) => placeholder);
+      if (signature.startsWith('http')) return null;
+      if (signature.startsWith('data:')) {
+        final comma = signature.indexOf(',');
+        return comma < 0 ? null : base64Decode(signature.substring(comma + 1));
+      }
+      return base64Decode(signature);
     } catch (_) {
-      return placeholder;
+      return null;
     }
+  }
+
+  /// 00147: ang Front/Back na pahina ng co-maker Valid ID — nakabatay sa
+  /// `document_type` (hindi sa order ng API) para tama ang label ng bawat
+  /// panig kapag pinindot ang View.
+  List<DocumentPreviewPage> _coMakerValidIdPages(Map<String, dynamic> cm) {
+    final docs = (cm['co_maker_documents'] as List? ?? [])
+        .whereType<Map<String, dynamic>>();
+
+    String urlOf(String type) {
+      for (final d in docs) {
+        if (d['document_type'] != type) continue;
+        final url = (d['signed_url'] as String?) ?? (d['file_path'] as String?);
+        if (url != null && url.isNotEmpty) return url;
+      }
+      return '';
+    }
+
+    final front = urlOf('valid_id');
+    final back = urlOf('valid_id_back');
+    return [
+      if (front.isNotEmpty)
+        DocumentPreviewPage(
+          label: back.isNotEmpty ? 'Front Side' : 'Document',
+          url: front,
+          // Ang ID ay landscape na card — auto-landscape kapag portrait ang
+          // na-upload na litrato.
+          autoLandscape: true,
+        ),
+      if (back.isNotEmpty)
+        DocumentPreviewPage(
+          label: 'Back Side',
+          url: back,
+          autoLandscape: true,
+        ),
+    ];
+  }
+
+  /// Buong view ng valid ID ng co-maker sa parehong modal ng Account Upgrade.
+  Future<void> _showValidIdViewer(List<DocumentPreviewPage> pages) {
+    return showDocumentPreviewDialog(
+      context,
+      title: 'Co-Maker Valid ID',
+      pages: pages,
+    );
   }
 
   Widget _buildSchedulePreview(Map<String, dynamic> loan, NumberFormat fmt) {

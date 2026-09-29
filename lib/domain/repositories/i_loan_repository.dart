@@ -6,8 +6,11 @@ abstract class ILoanRepository {
   Future<void> approveLoan(String loanId);
   /// [reapplyAllowedAt] — 00176: kailan pwedeng mag-apply ulit ang lender
   /// (pinili ng staff sa reject modal). Null = server-side 1-month default.
+  ///
+  /// [permanent] — 00179: permanenteng rejection; hindi na makakapag-apply
+  /// muli ang lender kahit kailan.
   Future<void> rejectLoan(String loanId, String reason,
-      {DateTime? reapplyAllowedAt});
+      {DateTime? reapplyAllowedAt, bool permanent = false});
   Future<void> cancelLoan(String loanId);
   Future<List<dynamic>> getLoanList({String? status, int page, String? search});
   Future<LoanModel> getLoanDetails(String loanId);

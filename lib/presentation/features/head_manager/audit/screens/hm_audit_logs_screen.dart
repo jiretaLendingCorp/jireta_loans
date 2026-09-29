@@ -431,11 +431,78 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
     );
   }
 
+  /// Mga panloob na column ng DB na hindi na kailangang ipakita sa diff.
+  ///
+  /// Ang `old_values` ay madalas na BUONG dating row (`select *`), kaya puno
+  /// ito ng `id`, `role_id`, `fcm_token`, `created_at`, `created_by`,
+  /// `updated_at`, `last_login_at` — mga field na walang saysay sa tagapagbasa
+  /// at halos laging `—`. Iyon ang dating dahilan kung bakit magulo at hilaw
+  /// ang BEFORE kumpara sa AFTER (ang AFTER ay payload lang ng update).
+  static const Set<String> _internalKeys = {
+    'id',
+    'role_id',
+    'created_at',
+    'created_by',
+    'updated_at',
+    'updated_by',
+    'deleted_at',
+    'last_login_at',
+    'last_activity',
+    'fcm_token',
+    'device_token',
+    'session_id',
+    'password',
+    'password_hash',
+    'mpin_hash',
+  };
+
+  bool _isInternalKey(String key) =>
+      _internalKeys.contains(key.trim().toLowerCase());
+
+  /// Key → value para sa isang panig, inalisan na ng panloob na column.
+  /// `null` kapag hindi object ang nasa log (hal. plain string) — doon ay
+  /// ibinabalik ang dating verbatim na pag-render.
+  Map<String, dynamic>? _diffMap(dynamic raw) {
+    final entries = _valueEntries(raw);
+    if (entries.isEmpty) return null;
+    return {
+      for (final e in entries)
+        if (!_isInternalKey(e.key)) e.key: e.value,
+    };
+  }
+
+  /// Ang mga field na TALAGANG nagbago, sa AYOS ng AFTER at saka ang mga
+  /// lumang field na wala na sa bago — para magkatugma ang keys at posisyon ng
+  /// dalawang column. Walang laman kapag kulang ang isang panig.
+  List<String> _changedKeys(
+      Map<String, dynamic>? before, Map<String, dynamic>? after) {
+    if (before == null || after == null) return const [];
+    final keys = <String>[];
+    after.forEach((key, value) {
+      if (!before.containsKey(key) ||
+          _formatValue(before[key]) != _formatValue(value)) {
+        keys.add(key);
+      }
+    });
+    before.forEach((key, _) {
+      if (!after.containsKey(key)) keys.add(key);
+    });
+    return keys;
+  }
+
   /// BEFORE / AFTER diff section shared by the desktop expandable row and the
   /// mobile card layout.
+  ///
+  /// Kapag kompleto ang dalawang panig, TANGING ang talagang nagbago ang
+  /// ipinapakita (pare-pareho pa ang keys at ayos ng BEFORE at AFTER). Kung
+  /// kulang ang isang panig — hal. `create` na walang `old_values` — buo pa
+  /// ring ipinapakita ang mga makabuluhang field, para walang maitagong
+  /// impormasyon.
   Widget _buildDetails(Map<String, dynamic> log) {
     final oldValues = log['old_values'];
     final newValues = log['new_values'];
+    final changedKeys =
+        _changedKeys(_diffMap(oldValues), _diffMap(newValues));
     return Container(
       color: AppColors.surfaceVariant,
       padding: const EdgeInsets.all(16),
@@ -444,11 +511,19 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
           final before = oldValues == null
               ? null
               : _buildDiffColumn(
-                  title: 'BEFORE', values: oldValues, isBefore: true);
+                  title: 'BEFORE',
+                  values: oldValues,
+                  rows: _diffMap(oldValues),
+                  keys: changedKeys,
+                  isBefore: true);
           final after = newValues == null
               ? null
               : _buildDiffColumn(
-                  title: 'AFTER', values: newValues, isBefore: false);
+                  title: 'AFTER',
+                  values: newValues,
+                  rows: _diffMap(newValues),
+                  keys: changedKeys,
+                  isBefore: false);
           if (before == null && after == null) return const SizedBox.shrink();
           if (before == null) return after!;
           if (after == null) return before;
@@ -474,12 +549,20 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
 
   /// One side of the diff — a small header plus the changed fields rendered as
   /// readable label/value rows instead of a raw `{key: value}` map dump.
+  ///
+  /// [rows] = ang (na-filter na) field → value ng panig na ito; `null` kapag
+  /// hindi object ang laman ng log. [keys] = ang mga field na ipapakita, sa
+  /// magkatugmang ayos ng dalawang panig; kapag walang laman (walang kaparis
+  /// na panig, o walang nagbago) ay lahat ng field ng panig ang ipinapakita.
   Widget _buildDiffColumn({
     required String title,
     required dynamic values,
+    required Map<String, dynamic>? rows,
+    required List<String> keys,
     required bool isBefore,
   }) {
-    final entries = _valueEntries(values);
+    final fields = rows ?? const <String, dynamic>{};
+    final labels = keys.isNotEmpty ? keys : fields.keys.toList();
     final accent = isBefore ? AppColors.error : AppColors.success;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,17 +577,17 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
           decoration: BoxDecoration(
               color: isBefore ? AppColors.errorLight : AppColors.successLight,
               borderRadius: BorderRadius.circular(8)),
-          child: entries.isEmpty
-              ? Text(_formatValue(values),
+          child: rows == null || labels.isEmpty
+              ? Text(rows == null ? _formatValue(values) : '—',
                   style: const TextStyle(
                       fontSize: 12, fontFamily: 'monospace'))
               : Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (var i = 0; i < entries.length; i++)
+                    for (var i = 0; i < labels.length; i++)
                       _buildKvRow(
-                        '${_humanizeKey(entries[i].key)}:',
-                        _formatValue(entries[i].value),
+                        '${_humanizeKey(labels[i])}:',
+                        _formatValue(fields[labels[i]]),
                         showDivider: i > 0,
                       ),
                   ],

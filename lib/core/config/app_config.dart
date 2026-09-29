@@ -7,6 +7,17 @@ class AppConfig {
   static const String appVersion = '1.0.0';
   static const String buildNumber = '1';
 
+  // ── Submission verification (TEMPORARY toggle) ───────────────────────
+  // Kapag `false`, hindi na lalabas ang device password / biometric / device
+  // PIN at ang app-level MPIN sa pag-submit ng lender at rider (loan
+  // application, bayad, collection record, CI report, account upgrade,
+  // disbursement proof, atbp.). Deretso na ang submission.
+  //
+  // HINDI nito ginagalaw ang LOGIN — OTP / MPIN unlock at ang "Security"
+  // (MPIN) card sa Profile ay buo pa rin. Ibalik sa `true` para ibalik ang
+  // kumpirmasyon bago ang bawat submission.
+  static const bool requireVerificationBeforeSubmit = false;
+
   static const double minLoanDisplay = 3000;
   static const double maxLoanDisplay = 500000;
 

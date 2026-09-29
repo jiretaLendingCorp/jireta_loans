@@ -1,4 +1,6 @@
 // lib/presentation/shared/widgets/document_viewer.dart
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/supabase_storage_service.dart';
@@ -27,12 +29,11 @@ class _ImageProbe {
   /// 1 quarter turn (90° clockwise) kapag portrait ang litrato, 0 kung landscape.
   int get portraitQuarterTurns => _portraitQuarterTurns;
 
-  void watch(String url) {
+  void watch(ImageProvider provider) {
     _detach();
     _size = null;
     _portraitQuarterTurns = 0;
-    final stream =
-        CachedNetworkImageProvider(url).resolve(const ImageConfiguration());
+    final stream = provider.resolve(const ImageConfiguration());
     final listener = ImageStreamListener(
       (info, _) {
         final width = info.image.width.toDouble();
@@ -62,6 +63,12 @@ class _ImageProbe {
 
 class DocumentViewer extends StatefulWidget {
   final String? url;
+
+  /// Ang dokumentong nasa MEMORY (hal. ang co-maker signature na naka-base64
+  /// sa DB) — ito ang gagamitin kapag hindi ito URL. Kapag may `bytes`, hindi
+  /// na nagre-resolve ng network; direkta na itong `MemoryImage`.
+  final Uint8List? bytes;
+
   final String? label;
   final double height;
   final String bucket;
@@ -97,6 +104,7 @@ class DocumentViewer extends StatefulWidget {
   const DocumentViewer({
     super.key,
     this.url,
+    this.bytes,
     this.label,
     this.height = 200,
     this.bucket = 'account-upgrade-documents',
@@ -118,6 +126,9 @@ class _DocumentViewerState extends State<DocumentViewer> {
   final ZoomPaneController _ownZoomController = ZoomPaneController();
   ZoomPaneController? _listenedController;
   String? _resolved;
+
+  /// May laman ba ang in-memory na dokumento (base64 mula sa DB)?
+  bool get _hasBytes => widget.bytes != null && widget.bytes!.isNotEmpty;
 
   ZoomPaneController get _zoomController =>
       widget.zoomController ?? _ownZoomController;
@@ -170,7 +181,9 @@ class _DocumentViewerState extends State<DocumentViewer> {
     if (!identical(oldWidget.zoomController, widget.zoomController)) {
       _syncZoomListener();
     }
-    if (oldWidget.url != widget.url || oldWidget.bucket != widget.bucket) {
+    if (oldWidget.url != widget.url ||
+        oldWidget.bucket != widget.bucket ||
+        !identical(oldWidget.bytes, widget.bytes)) {
       _resolve();
       _quarterTurns = 0;
     }
@@ -189,10 +202,17 @@ class _DocumentViewerState extends State<DocumentViewer> {
   /// is private, so relative paths must be resolved to a signed URL before
   /// they can be displayed.
   Future<void> _resolve() async {
+    if (_hasBytes) {
+      if (mounted && _resolved != null) setState(() => _resolved = null);
+      _probeImage(MemoryImage(widget.bytes!));
+      return;
+    }
     final url = widget.url;
     if (url == null || url.isEmpty || url.startsWith('http')) {
       if (mounted && _resolved != url) setState(() => _resolved = url);
-      if (url != null && url.isNotEmpty) _probeImage(url);
+      if (url != null && url.isNotEmpty) {
+        _probeImage(CachedNetworkImageProvider(url));
+      }
       return;
     }
     try {
@@ -209,7 +229,7 @@ class _DocumentViewerState extends State<DocumentViewer> {
             .getSignedUrl(bucket: 'loan-documents', path: url);
       }
       if (mounted) setState(() => _resolved = signed);
-      _probeImage(signed);
+      _probeImage(CachedNetworkImageProvider(signed));
     } catch (_) {
       if (mounted) setState(() => _resolved = null);
     }
@@ -217,7 +237,7 @@ class _DocumentViewerState extends State<DocumentViewer> {
 
   /// Alamin ang sukat ng litrato — kailangan ito ng `ZoomPane` (fit/clamp) at
   /// ng auto-landscape detection ng mga ID.
-  void _probeImage(String url) => _probe.watch(url);
+  void _probeImage(ImageProvider provider) => _probe.watch(provider);
 
   bool get isPdf => widget.url?.toLowerCase().endsWith('.pdf') ?? false;
 
@@ -289,7 +309,10 @@ class _DocumentViewerState extends State<DocumentViewer> {
   @override
   Widget build(BuildContext context) {
     final url = _resolved;
-    if (url == null || url.isEmpty) {
+    final hasBytes = _hasBytes;
+    // Kapag in-memory (`bytes`) ang dokumento, wala itong URL — hindi iyon
+    // "missing document".
+    if (!hasBytes && (url == null || url.isEmpty)) {
       return Container(
         height: widget.height,
         decoration: BoxDecoration(
@@ -311,7 +334,7 @@ class _DocumentViewerState extends State<DocumentViewer> {
 
     if (isPdf) {
       return GestureDetector(
-        onTap: () => _openUrl(context, url),
+        onTap: () => _openUrl(context, url!),
         child: Container(
           height: widget.height,
           decoration: BoxDecoration(
@@ -342,9 +365,10 @@ class _DocumentViewerState extends State<DocumentViewer> {
 
     return GestureDetector(
       // Tap-to-fullscreen lang kapag may VIEW button (sa carousel, wala nang
-      // kontrol sa ibabaw ng litrato).
-      onTap: widget.showZoomControls
-          ? () => _showFullScreen(context, url)
+      // kontrol sa ibabaw ng litrato). Ang in-memory na litrato ay walang URL
+      // kaya hindi ito mabubuksan sa fullscreen page.
+      onTap: widget.showZoomControls && !hasBytes
+          ? () => _showFullScreen(context, url!)
           : null,
       child: Stack(
         children: [
@@ -374,7 +398,9 @@ class _DocumentViewerState extends State<DocumentViewer> {
                           // `fill` (hindi `contain`): ang pane na ang nagpi-fit, na
                           // nakabatay sa natural na sukat — doble sana ang fit.
                           child: Image(
-                            image: CachedNetworkImageProvider(url),
+                            image: hasBytes
+                                ? MemoryImage(widget.bytes!)
+                                : CachedNetworkImageProvider(url!),
                             fit: BoxFit.fill,
                             filterQuality: FilterQuality.medium,
                             errorBuilder: (_, __, ___) => Container(
@@ -398,8 +424,11 @@ class _DocumentViewerState extends State<DocumentViewer> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   if (widget.showZoomControls) ...[
-                    _viewButton(onTap: () => _showFullScreen(context, url)),
-                    const SizedBox(width: 6),
+                    // Walang fullscreen page para sa in-memory na litrato.
+                    if (!hasBytes) ...[
+                      _viewButton(onTap: () => _showFullScreen(context, url!)),
+                      const SizedBox(width: 6),
+                    ],
                     _inlineZoomButton(
                       icon: Icons.add,
                       tooltip: 'Zoom in (Ctrl + wheel)',
@@ -509,7 +538,9 @@ class _FullscreenDocumentState extends State<FullscreenDocument> {
     _transformer.addListener(() {
       if (mounted) setState(() {});
     });
-    if (widget.autoLandscape) _probe.watch(widget.imageUrl);
+    if (widget.autoLandscape) {
+      _probe.watch(CachedNetworkImageProvider(widget.imageUrl));
+    }
   }
 
   /// Iikot nang 90° (clockwise) at i-reset ang zoom.

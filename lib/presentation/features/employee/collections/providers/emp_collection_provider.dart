@@ -148,8 +148,10 @@ class EmpCollectionNotifier extends StateNotifier<EmpCollectionState>
         loanScheduleId: loanScheduleId,
         riderId: riderId,
         assignmentId: assignmentId,
-        collectionSchedule: collectionSchedule?.toIso8601String(),
-        collectionScheduleEnd: collectionScheduleEnd?.toIso8601String(),
+        // `.toUtc()` — kailangan ng `Z`/UTC marker; kung wala, itinuturing itong
+        // UTC ng Postgres at 8 oras ang pagka-mali ng rider visit date (Manila).
+        collectionSchedule: collectionSchedule?.toUtc().toIso8601String(),
+        collectionScheduleEnd: collectionScheduleEnd?.toUtc().toIso8601String(),
         notes: notes,
       );
     } catch (e) {

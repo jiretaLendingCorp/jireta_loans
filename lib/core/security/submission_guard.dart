@@ -12,10 +12,16 @@
 // Ginagamit ito ng lahat ng submission ng rider at lender — loan application,
 // bayad, collection record, CI report, disbursement proof, atbp. — kaya
 // isang behavior lang ang sinusundan ng lahat.
+//
+// MAHALAGA: pansamantalang NAKA-OFF ang buong flow na ito sa pamamagitan ng
+// `AppConfig.requireVerificationBeforeSubmit` — tuloy agad ang submission nang
+// walang device password / biometric / device PIN at walang MPIN. Ang LOGIN
+// (OTP / MPIN unlock) at ang "Security" card sa Profile ay HINDI kasama.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../presentation/shared/widgets/security/mpin_dialog.dart';
+import '../config/app_config.dart';
 import '../extensions/context_extensions.dart';
 import '../theme/app_colors.dart';
 import 'device_auth_service.dart';
@@ -55,6 +61,12 @@ class SubmissionGuard {
     BuildContext context, {
     required String reason,
   }) async {
+    // Pansamantalang OFF (tingnan ang AppConfig.requireVerificationBeforeSubmit):
+    // hindi na lalabas ang device password / biometric / device PIN o ang MPIN
+    // sa pag-submit ng lender at rider — deretso na ang submission. Ibalik sa
+    // `true` ang flag para ibalik ang dating behavior.
+    if (!AppConfig.requireVerificationBeforeSubmit) return true;
+
     final outcome = await _deviceAuth.authenticate(reason: reason);
 
     switch (outcome) {

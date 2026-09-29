@@ -199,8 +199,69 @@ void main() {
 
     expect(find.text('BEFORE'), findsOneWidget);
     expect(find.text('AFTER'), findsOneWidget);
-    expect(find.textContaining('status: pending'), findsOneWidget);
-    expect(find.textContaining('status: approved'), findsOneWidget);
+    // Bawat row ay label + value na hiwalay na Text widget.
+    expect(find.text('Status:'), findsNWidgets(2));
+    expect(find.text('pending'), findsOneWidget);
+    expect(find.text('approved'), findsOneWidget);
+  });
+
+  testWidgets('hindi ipinapakita ang panloob na DB column sa BEFORE',
+      (tester) async {
+    // Ang `old_values` ng "Update Profile" ay BUONG dating row (`select *`),
+    // kaya dati ay lumalabas ang id / role_id / fcm_token / created_at /
+    // updated_at / last_login_at na puro "—". Ang `new_values` naman ay
+    // payload lang ng update (malinis). Dapat magkatugma ang keys ng dalawang
+    // panig: tanging ang TALAGANG nagbago.
+    final ds = RecordingAuditDataSource()
+      ..logs = [
+        auditLogRow(
+          id: '1',
+          action: 'update_profile',
+          tableName: 'users',
+          oldValues: {
+            'id': '8756f4f3-ea8e-49ea-930f-08a252f779ed',
+            'role_id': '07a4cd0f-c96e-4a77-bc30-4bcb8b95aed8',
+            'fcm_token': null,
+            'created_at': '2026-09-29T12:21:25.391385+00:00',
+            'created_by': null,
+            'updated_at': '2026-09-29T20:21:26.492693+00:00',
+            'last_login_at': null,
+            'first_name': null,
+            'phone_number': '09568966622',
+          },
+          newValues: {
+            'role': 'lender',
+            'first_name': 'Mary Joy',
+            'phone_number': '09568966622',
+          },
+        ),
+      ];
+    await pumpAuditScreen(tester, ds);
+    await tester.tap(find.text('Update Profile'));
+    await tester.pump();
+
+    // Panloob na column: wala sa kahit anong panig.
+    for (final hidden in const [
+      'ID:',
+      'Role Id:',
+      'Fcm Token:',
+      'Created At:',
+      'Created By:',
+      'Updated At:',
+      'Last Login At:',
+    ]) {
+      expect(find.text(hidden), findsNothing, reason: hidden);
+    }
+
+    // Nagbago: `role` (wala sa dating row) at `first_name` (— → Mary Joy).
+    // Magkatugma ang keys ng BEFORE at AFTER.
+    expect(find.text('Role:'), findsNWidgets(2));
+    expect(find.text('First Name:'), findsNWidgets(2));
+    expect(find.text('lender'), findsOneWidget);
+    expect(find.text('Mary Joy'), findsOneWidget);
+
+    // Hindi nagbago ang numero → hindi kasama sa diff.
+    expect(find.text('Phone Number:'), findsNothing);
   });
 
   testWidgets('shows empty state when there are no logs', (tester) async {
