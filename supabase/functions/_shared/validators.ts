@@ -4,9 +4,6 @@ export function sanitizeString(input: unknown): string {
   return input.trim().replace(/[<>'"]/g, '');
 }
 
-// `rider_profiles.vehicle_type` FK-references `vehicle_types(code)`, whose rows
-// are Title-cased ("Motorcycle", "Car", "Tricycle"). The app submits lowercase
-// ("motorcycle", "tricycle", "car") so map/canonicalize to the stored codes.
 export function normalizeVehicleType(value: unknown): string | null {
   const raw = sanitizeString(value);
   if (!raw) return null;

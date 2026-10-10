@@ -618,7 +618,7 @@ async function buildInterestReport(
 ): Promise<Record<string, unknown>[]> {
   const { from, to } = bounds(params);
   const { data, error } = await db.from('loans').select(
-    `id, loan_number, principal_amount, interest_rate,
+    `id, loan_number, principal_amount, interest_rate, status,
      lender:lender_profiles!loans_lender_id_fkey(
        users!lender_profiles_id_fkey(first_name, last_name)
      )`,
@@ -639,6 +639,9 @@ async function buildInterestReport(
       interestAmount: na(fin.interest_amount),
       totalPayable: na(fin.total_payable),
       outstandingBalance: na(fin.outstanding_balance),
+      // Status ng loan — ginagamit ng Status filter sa preview ng Interest
+      // Report (Amount / Interest / Total lang ang columns doon).
+      status: na(r.status),
     };
   });
 }
