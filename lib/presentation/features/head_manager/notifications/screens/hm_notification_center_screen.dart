@@ -1,7 +1,10 @@
 // lib/presentation/features/head_manager/notifications/screens/hm_notification_center_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import '../../../../../core/services/fcm_service.dart';
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/notification_model.dart';
@@ -123,11 +126,17 @@ class _HmNotificationCenterScreenState
           key: ValueKey(state.notifications[i].id),
           notif: state.notifications[i],
           onTap: () {
-            if (!state.notifications[i].isRead) {
-              ref
-                  .read(hmNotificationProvider.notifier)
-                  .markRead(state.notifications[i].id);
+            final n = state.notifications[i];
+            if (!n.isRead) {
+              ref.read(hmNotificationProvider.notifier).markRead(n.id);
             }
+            // Open the record this notification is about (same as push taps).
+            final path = FcmService.routeFor(
+              type: n.type,
+              referenceId: n.referenceId ?? '',
+              role: AppConstants.roleHeadManager,
+            );
+            if (path != null && path.isNotEmpty) context.go(path);
           },
         ),
       ),

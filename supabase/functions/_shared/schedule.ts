@@ -5,7 +5,8 @@
 //
 // Borrowing rules (enforced here and in validators.ts):
 //   - Principal range  : ₱3,000 (min) – ₱500,000 (max)
-//   - Interest rate    : flat 20% of the principal (₱3,000 → ₱3,600 payable)
+//   - Interest rate    : flat percentage of the principal, configurable by the
+//     Head Manager via `system_config.interest_rate` (defaults to 20%).
 //   - Term by amount   : ≤5,000 → 40d · ≤10,000 → 60d · ≤20,000 → 70d
 //                        ≤50,000 → 80d · ≤100,000 → 120d · else → 180d
 //   - Per-period rates : daily = total / termDays
@@ -15,7 +16,12 @@
 //     the final installment absorbs any rounding remainder so the payments
 //     always sum back to the exact total payable.
 
-export const INTEREST_RATE = 0.20; // 20% flat — server-side enforced
+// Default flat interest rate (percentage of principal). The Head Manager can
+// override this through `system_config.interest_rate`; callers read the
+// configured value and pass it to `computeSchedule`.
+export const DEFAULT_INTEREST_RATE_PCT = 20;
+// Kept for backwards compatibility — the 20% flat fraction form.
+export const INTEREST_RATE = DEFAULT_INTEREST_RATE_PCT / 100;
 export const MIN_LOAN_AMOUNT = 3_000;
 export const MAX_LOAN_AMOUNT = 500_000;
 
@@ -84,18 +90,25 @@ function intervalDaysFor(frequency: string): number {
  * @param periodsOverride  Optional lender-chosen number of periods (installments).
  *   For DAILY this is the number of days, WEEKLY the number of weeks, MONTHLY
  *   the number of months. Must be an integer within [1, maxPeriodsFor].
- *   The total payable (principal + 20% interest) is FIXED regardless of the
+ *   The total payable (principal + interest) is FIXED regardless of the
  *   chosen number of periods — selecting fewer periods just makes each payment
  *   larger. When omitted, the maximum number of periods within the deadline is
  *   used (i.e. the default per-period rate).
+ * @param interestRatePct  Flat interest rate as a percentage of the principal
+ *   (e.g. 20 for 20%). Comes from `system_config.interest_rate` so the Head
+ *   Manager can change it; defaults to 20 when omitted or out of range.
  */
 export function computeSchedule(
   principal: number,
   frequency: string,
   startDate: Date = new Date(),
   periodsOverride?: number,
+  interestRatePct: number = DEFAULT_INTEREST_RATE_PCT,
 ): ScheduleResult {
-  const interest = round2(principal * INTEREST_RATE);
+  const ratePct = Number.isFinite(interestRatePct) && interestRatePct >= 0 && interestRatePct <= 100
+    ? interestRatePct
+    : DEFAULT_INTEREST_RATE_PCT;
+  const interest = round2(principal * (ratePct / 100));
   const totalPayable = round2(principal + interest);
   const termDays = termDaysFor(principal);
   const intervalDays = intervalDaysFor(frequency);

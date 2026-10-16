@@ -40,7 +40,9 @@ List<Map<String, dynamic>> _normalizeRows(dynamic data) {
   if (list == null) return const [];
   final out = <Map<String, dynamic>>[];
   for (final item in list) {
-    if (item is Map) out.add(item.map((k, v) => MapEntry(k.toString(), _flatten(v))));
+    if (item is Map) {
+      out.add(item.map((k, v) => MapEntry(k.toString(), _flatten(v))));
+    }
   }
   return out;
 }
@@ -192,6 +194,24 @@ const List<({String label, String key})> _loanRecordTypes = [
   (label: 'Loan Records', key: kInterestReportKey),
 ];
 
+/// Tanging status na kasama sa Loan Records ng Reports page.
+const String kActiveLoanStatus = 'active';
+
+/// Sinasala ang report rows sa ACTIVE loans lang.
+///
+/// Ito ang ipinapasa sa Loan Records section, kaya active lang din ang nasa
+/// summary cards (Loans / Total Amount / Total Interest / Total Payable) at sa
+/// Export — tugma pa rin ang na-download na file sa nakikita sa screen.
+List<Map<String, dynamic>> activeLoanRecords(
+  List<Map<String, dynamic>> rows,
+) =>
+    [
+      for (final r in rows)
+        if ((r['status'] ?? '').toString().trim().toLowerCase() ==
+            kActiveLoanStatus)
+          r,
+    ];
+
 class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   /// 5 reports lang kada page ng Generated Reports History.
   static const int _historyPageSize = 5;
@@ -200,6 +220,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   /// Nakatago (HINDI tinanggal) ang "Report Templates" section — ang Loan
   /// Records section na ang nasa itaas. Gawing `true` para ibalik ito.
   static const bool _showTemplateSection = false;
+
+  /// Nakatago ang "Report Type" dropdown; itakda sa true para ibalik.
+  static const bool _showReportTypeFilter = false;
 
   /// Panahon ng Loan Report section — default ay ang buong kasalukuyang buwan
   /// (Manila), tulad ng "Sep 01 – Sep 30" pill ng mockup.
@@ -215,23 +238,32 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) =>
-        ref.read(_reportProvider.notifier).loadLoanRecords(_range, templateKey: _reportType));
+    WidgetsBinding.instance.addPostFrameCallback((_) => ref
+        .read(_reportProvider.notifier)
+        .loadLoanRecords(_range, templateKey: _reportType));
   }
 
   static DateTimeRange _monthRange(DateTime now) =>
       DateTimeRange(start: DateTime(now.year, now.month, 1), end: now);
 
   Future<void> _pickRange() async {
+    // Ang Apply/Today button mismo ang naglo-loading: habang kinukuha ang
+    // records ng napiling range, bukas pa ang modal at naka-spinner ang
+    // pinindot na button — saka lang isinasara, kaya may loading bago lumabas
+    // ang loan records.
     final range = await showAppDateRangePicker(
       context: context,
       firstDate: DateTime(2020),
       lastDate: nowManila(),
       initialDateRange: _range,
+      showToday: true,
+      onApply: (picked) =>
+          ref.read(_reportProvider.notifier).loadLoanRecords(picked),
     );
     if (range == null) return;
+    // Kinuha na ng `onApply` ang records — range na lang ang i-update dito
+    // (hindi na doble ang fetch).
     setState(() => _range = range);
-    await ref.read(_reportProvider.notifier).loadLoanRecords(range);
   }
 
   @override
@@ -267,7 +299,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
               },
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -302,23 +334,19 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   /// columns ng mga loan record, at ang Export button ay ang mga nakalabas na
   /// (naka-filter) na rows ang ida-download.
   Widget _buildLoanReport(BuildContext context, _ReportState state) {
-    if (state.isLoadingRecords && state.records.isEmpty) {
-      return const Column(
-        children: [
-          ShimmerLoader(height: 96),
-          SizedBox(height: 16),
-          ShimmerLoader(height: 110),
-          SizedBox(height: 16),
-          ShimmerLoader(height: 320),
-        ],
-      );
-    }
     return LoanRecordsPreview(
-      rows: state.records,
+      // Active loans lang ang nasa Loan Records ng report (Rejected / Completed
+      // / Overdue at iba pa ay hindi kasama) — kasama na ang summary cards at
+      // ang Export dahil sa parehong rows sila kumukuha.
+      rows: activeLoanRecords(state.records),
       dateRange: _range,
       onPickDateRange: _pickRange,
       exportActions: _buildExportButton(context),
-      leadingFilters: [_buildReportTypeFilter()],
+      leadingFilters: [
+        if (_showReportTypeFilter) _buildReportTypeFilter(),
+      ],
+      contentPadding: EdgeInsets.zero,
+      showDropdownFilters: false,
       onFilteredChanged: (rows) => _exportRows = rows,
     );
   }
@@ -338,7 +366,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
           onChanged: (v) {
             if (v == null || v == _reportType) return;
             setState(() => _reportType = v);
-            ref.read(_reportProvider.notifier).loadLoanRecords(_range, templateKey: v);
+            ref
+                .read(_reportProvider.notifier)
+                .loadLoanRecords(_range, templateKey: v);
           },
         ),
       );
@@ -346,6 +376,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   /// "Export" button (PDF o Excel) — kapareho ng mockup na nasa may filter row.
   Widget _buildExportButton(BuildContext context) => PopupMenuButton<String>(
         tooltip: 'Export loan records',
+        position: PopupMenuPosition.under,
         onSelected: (format) => _exportLoanRecords(context, format),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         itemBuilder: (ctx) => const [
@@ -419,13 +450,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
           Expanded(
             child: Text(title,
                 style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 16,
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary)),
           ),
           if (trailing != null) trailing,
-          const SizedBox(width: 8),
-          const Expanded(child: Divider(color: AppColors.divider, height: 1)),
         ],
       );
 
@@ -481,7 +510,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     final category =
         t['category'] as String? ?? meta['category'] as String? ?? 'General';
     final hasPdf = t['has_pdf'] as bool? ?? meta['has_pdf'] as bool? ?? true;
-    final hasExcel = t['has_excel'] as bool? ?? meta['has_excel'] as bool? ?? true;
+    final hasExcel =
+        t['has_excel'] as bool? ?? meta['has_excel'] as bool? ?? true;
 
     return ResponsiveRow(
       cells: [
@@ -548,8 +578,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                 const _FormatChip(label: 'XLSX', color: AppColors.riderGreen),
               if (!hasPdf && !hasExcel)
                 const Text('—',
-                    style: TextStyle(
-                        fontSize: 12, color: AppColors.textTertiary)),
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textTertiary)),
             ],
           ),
         ),
@@ -610,28 +640,33 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
         .skip((page - 1) * _historyPageSize)
         .take(_historyPageSize)
         .toList();
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        ResponsiveListCard(
-          minTableWidth: 780,
-          variant: ResponsiveListVariant.premium,
-          columns: const [
-            ResponsiveCol('Report', icon: Icons.description_outlined, flex: 4),
-            ResponsiveCol('Format',
-                icon: Icons.file_download_outlined, flex: 1),
-            ResponsiveCol('Generated By', icon: Icons.person_outline, flex: 2),
-            ResponsiveCol('Date', icon: Icons.schedule_outlined, flex: 2),
-          ],
-          rows: [
-            for (final r in pageItems) _historyTableRow(r),
-          ],
-        ),
-        if (totalPages > 1) ...[
-          const SizedBox(height: 12),
-          _buildHistoryPagination(page, totalPages, total),
+    // Table at pagination footer ay nasa iisang card, tulad ng Loan Records.
+    return reportPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ResponsiveListCard(
+            minTableWidth: 780,
+            radius: 0,
+            outerBorder: const Border(),
+            outerShadow: const [],
+            variant: ResponsiveListVariant.premium,
+            columns: const [
+              ResponsiveCol('Report',
+                  icon: Icons.description_outlined, flex: 4),
+              ResponsiveCol('Format',
+                  icon: Icons.file_download_outlined, flex: 1),
+              ResponsiveCol('Generated By',
+                  icon: Icons.person_outline, flex: 2),
+              ResponsiveCol('Date', icon: Icons.schedule_outlined, flex: 2),
+            ],
+            rows: [
+              for (final r in pageItems) _historyTableRow(r),
+            ],
+          ),
+          if (totalPages > 1) _buildHistoryPagination(page, totalPages, total),
         ],
-      ],
+      ),
     );
   }
 
@@ -644,8 +679,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
         Text(r['report_name'] as String? ?? 'Generated Report',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style:
-                const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
         Align(
           alignment: Alignment.centerLeft,
           child: _FormatChip(
@@ -688,17 +722,16 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     final rawTo = page * _historyPageSize;
     final to = rawTo > total ? total : rawTo;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceVariant,
+        border: Border(top: BorderSide(color: AppColors.divider)),
       ),
       child: Row(
         children: [
           Text('Showing $from–$to of $total',
               style: const TextStyle(
-                  fontSize: 11, color: AppColors.textSecondary)),
+                  fontSize: 12, color: AppColors.textSecondary)),
           const Spacer(),
           _PageBtn(
             icon: Icons.chevron_left_rounded,
@@ -890,210 +923,211 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setS) {
           return AlertDialog(
-          backgroundColor: Colors.white,
-          shape: const RoundedRectangleBorder(),
-          titlePadding: EdgeInsets.zero,
-          contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
-          actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
-          title: Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
-            decoration: const BoxDecoration(
-              color: Color(0xFF5C6370),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.zero,
-                    border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.28)),
-                  ),
-                  child: Icon(
-                      template['icon'] as IconData? ??
-                          Icons.description_rounded,
-                      size: 20,
-                      color: Colors.white),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    template['name'] as String? ?? 'Report',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
+            backgroundColor: Colors.white,
+            shape: const RoundedRectangleBorder(),
+            titlePadding: EdgeInsets.zero,
+            contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 8),
+            actionsPadding: const EdgeInsets.fromLTRB(20, 4, 20, 14),
+            title: Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 12, 12),
+              decoration: const BoxDecoration(
+                color: Color(0xFF5C6370),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.16),
+                      borderRadius: BorderRadius.zero,
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.28)),
+                    ),
+                    child: Icon(
+                        template['icon'] as IconData? ??
+                            Icons.description_rounded,
+                        size: 20,
                         color: Colors.white),
                   ),
-                ),
-                IconButton(
-                  onPressed: () => Navigator.pop(ctx),
-                  visualDensity: VisualDensity.compact,
-                  icon: const Icon(Icons.close_rounded,
-                      size: 18, color: Colors.white),
-                ),
-              ],
-            ),
-          ),
-          content: SizedBox(
-            width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 4),
-                const Text('Date Range',
-                    style:
-                        TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(height: 8),
-                InkWell(
-                  onTap: () async {
-                    final picked = await showAppDateRangePicker(
-                        context: ctx,
-                        firstDate: DateTime(2020),
-                        lastDate: DateTime.now());
-                    if (picked != null) setS(() => range = picked);
-                  },
-                  borderRadius: BorderRadius.zero,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 13),
-                    decoration: BoxDecoration(
-                      color: range == null
-                          ? Colors.white
-                          : const Color(0xFFF3F4F6),
-                      border: Border.all(
-                        color: range == null
-                            ? AppColors.border
-                            : AppColors.borderDark,
-                        width: range == null ? 1 : 1.4,
-                      ),
-                      borderRadius: BorderRadius.zero,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.date_range_rounded,
-                            size: 18, color: AppColors.textSecondary),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                              range == null
-                                  ? 'Select Date Range'
-                                  : '${DateFormat('MMM dd').format(range!.start)} – ${DateFormat('MMM dd, yyyy').format(range!.end)}',
-                              style: TextStyle(
-                                  color: range == null
-                                      ? AppColors.textTertiary
-                                      : AppColors.textPrimary,
-                                  fontSize: 13,
-                                  fontWeight: range == null
-                                      ? FontWeight.w400
-                                      : FontWeight.w700)),
-                        ),
-                        if (range != null)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 3),
-                            decoration: const BoxDecoration(
-                              color: AppColors.surfaceVariant,
-                              borderRadius: BorderRadius.zero,
-                            ),
-                            child: Text(
-                                '${range!.end.difference(range!.start).inDays + 1} days',
-                                style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textSecondary)),
-                          ),
-                      ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      template['name'] as String? ?? 'Report',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          color: Colors.white),
                     ),
                   ),
-                ),
-              ],
+                  IconButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    visualDensity: VisualDensity.compact,
+                    icon: const Icon(Icons.close_rounded,
+                        size: 18, color: Colors.white),
+                  ),
+                ],
+              ),
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textSecondary))),
-            const SizedBox(width: 8),
-            ElevatedButton.icon(
-              // Habang tumatakbo ang generate, naka-disable at naka-loading
-              // ang Proceed button — hindi na nagsasara agad ang date range
-              // dialog bago pa matapos ang paggawa ng report.
-              onPressed: (range == null || loading)
-                  ? null
-                  : () async {
-                      final selected = range!;
-                      setS(() => loading = true);
-                      final templateKey = template['key'] as String;
-                      final params = <String, dynamic>{
-                        'date_from':
-                            DateFormat('yyyy-MM-dd').format(selected.start),
-                        'date_to':
-                            DateFormat('yyyy-MM-dd').format(selected.end),
-                      };
-                      Map<String, dynamic>? result;
-                      try {
-                        // PREVIEW lang — hindi pa naka-record sa Generated
-                        // Reports History. Ang Excel/PDF export sa preview modal
-                        // lang ang nagsa-save ng entry.
-                        result = await ref
-                            .read(_reportProvider.notifier)
-                            .generate(templateKey, params, preview: true);
-                      } catch (e) {
-                        debugPrint('[DEBUG] Generate error: $e');
-                      }
-                      if (!ctx.mounted) return;
-                      // Tapos na ang preview fetch — isara na ang date dialog at
-                      // buksan ang preview (modal) ng report.
-                      Navigator.pop(ctx);
-                      if (!context.mounted) return;
-                      dynamic rawData;
-                      if (result != null) {
-                        rawData = result['data'] ??
-                            result['rows'] ??
-                            result['records'] ??
-                            result;
-                        if (rawData is Map && rawData.containsKey('data')) {
-                          rawData = rawData['data'];
-                        }
-                      }
-                      final dataForPreview = rawData ?? [];
-                      await _showDownloadDialog(
-                          context,
-                          template['name'] as String? ?? 'Report',
-                          dataForPreview,
-                          templateKey: templateKey,
-                          parameters: params,
-                          dateRange: selected);
+            content: SizedBox(
+              width: 420,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 4),
+                  const Text('Date Range',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () async {
+                      final picked = await showAppDateRangePicker(
+                          context: ctx,
+                          firstDate: DateTime(2020),
+                          lastDate: DateTime.now(),
+                          showToday: true);
+                      if (picked != null) setS(() => range = picked);
                     },
-              icon: loading
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.arrow_forward_rounded, size: 16),
-              label: Text(loading ? 'Generating…' : 'Proceed'),
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5C6370),
-                  disabledBackgroundColor:
-                      const Color(0xFF5C6370).withValues(alpha: 0.35),
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 12),
-                  shape: const RoundedRectangleBorder()),
+                    borderRadius: BorderRadius.zero,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 13),
+                      decoration: BoxDecoration(
+                        color: range == null
+                            ? Colors.white
+                            : const Color(0xFFF3F4F6),
+                        border: Border.all(
+                          color: range == null
+                              ? AppColors.border
+                              : AppColors.borderDark,
+                          width: range == null ? 1 : 1.4,
+                        ),
+                        borderRadius: BorderRadius.zero,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.date_range_rounded,
+                              size: 18, color: AppColors.textSecondary),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                                range == null
+                                    ? 'Select Date Range'
+                                    : '${DateFormat('MMM dd').format(range!.start)} – ${DateFormat('MMM dd, yyyy').format(range!.end)}',
+                                style: TextStyle(
+                                    color: range == null
+                                        ? AppColors.textTertiary
+                                        : AppColors.textPrimary,
+                                    fontSize: 13,
+                                    fontWeight: range == null
+                                        ? FontWeight.w400
+                                        : FontWeight.w700)),
+                          ),
+                          if (range != null)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 8, vertical: 3),
+                              decoration: const BoxDecoration(
+                                color: AppColors.surfaceVariant,
+                                borderRadius: BorderRadius.zero,
+                              ),
+                              child: Text(
+                                  '${range!.end.difference(range!.start).inDays + 1} days',
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppColors.textSecondary)),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        );
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel',
+                      style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textSecondary))),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                // Habang tumatakbo ang generate, naka-disable at naka-loading
+                // ang Proceed button — hindi na nagsasara agad ang date range
+                // dialog bago pa matapos ang paggawa ng report.
+                onPressed: (range == null || loading)
+                    ? null
+                    : () async {
+                        final selected = range!;
+                        setS(() => loading = true);
+                        final templateKey = template['key'] as String;
+                        final params = <String, dynamic>{
+                          'date_from':
+                              DateFormat('yyyy-MM-dd').format(selected.start),
+                          'date_to':
+                              DateFormat('yyyy-MM-dd').format(selected.end),
+                        };
+                        Map<String, dynamic>? result;
+                        try {
+                          // PREVIEW lang — hindi pa naka-record sa Generated
+                          // Reports History. Ang Excel/PDF export sa preview modal
+                          // lang ang nagsa-save ng entry.
+                          result = await ref
+                              .read(_reportProvider.notifier)
+                              .generate(templateKey, params, preview: true);
+                        } catch (e) {
+                          debugPrint('[DEBUG] Generate error: $e');
+                        }
+                        if (!ctx.mounted) return;
+                        // Tapos na ang preview fetch — isara na ang date dialog at
+                        // buksan ang preview (modal) ng report.
+                        Navigator.pop(ctx);
+                        if (!context.mounted) return;
+                        dynamic rawData;
+                        if (result != null) {
+                          rawData = result['data'] ??
+                              result['rows'] ??
+                              result['records'] ??
+                              result;
+                          if (rawData is Map && rawData.containsKey('data')) {
+                            rawData = rawData['data'];
+                          }
+                        }
+                        final dataForPreview = rawData ?? [];
+                        await _showDownloadDialog(
+                            context,
+                            template['name'] as String? ?? 'Report',
+                            dataForPreview,
+                            templateKey: templateKey,
+                            parameters: params,
+                            dateRange: selected);
+                      },
+                icon: loading
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.arrow_forward_rounded, size: 16),
+                label: Text(loading ? 'Generating…' : 'Proceed'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF5C6370),
+                    disabledBackgroundColor:
+                        const Color(0xFF5C6370).withValues(alpha: 0.35),
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 18, vertical: 12),
+                    shape: const RoundedRectangleBorder()),
+              ),
+            ],
+          );
         },
       ),
     );
@@ -1246,8 +1280,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
 
   /// Dito lang naka-record ang report sa Generated Reports History — sa
   /// mismong pagpindot ng Excel o PDF mula sa preview, hindi sa Proceed.
-  Future<bool> _recordExport(String templateKey,
-      Map<String, dynamic> parameters,
+  Future<bool> _recordExport(
+      String templateKey, Map<String, dynamic> parameters,
       {required String format}) async {
     final res = await ref.read(_reportProvider.notifier).generate(
           templateKey,

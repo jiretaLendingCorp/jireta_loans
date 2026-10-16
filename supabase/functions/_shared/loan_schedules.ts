@@ -24,7 +24,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { DbClient } from './types.ts';
-import { computeSchedule } from './schedule.ts';
+import { computeSchedule, DEFAULT_INTEREST_RATE_PCT } from './schedule.ts';
 
 interface LoanScheduleSource {
   id: string;
@@ -58,11 +58,16 @@ async function loadLoan(db: DbClient, loanId: string): Promise<LoanScheduleSourc
 
 function planFor(loan: LoanScheduleSource, startDate: Date): ReturnType<typeof computeSchedule> {
   const frequency = String(loan.payment_frequency ?? 'monthly').toLowerCase();
+  // Ang interest rate ay ang SNAPSHOT na naka-save sa loan (hindi ang kasalukuyang
+  // system setting) — kaya kapag na-rebase/na-regenerate ang schedule, tugma pa
+  // rin ito sa total payable na ginagamit ng outstanding-balance computation.
+  const ratePct = Number(loan.interest_rate);
   return computeSchedule(
     Number(loan.principal_amount),
     frequency,
     startDate,
     loan.term_periods ?? undefined,
+    Number.isFinite(ratePct) ? ratePct : DEFAULT_INTEREST_RATE_PCT,
   );
 }
 

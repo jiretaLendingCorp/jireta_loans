@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/timezone.dart';
 
 class AppDateRangePicker extends StatelessWidget {
   final DateTimeRange? value;
@@ -31,7 +32,9 @@ class AppDateRangePicker extends StatelessWidget {
       firstDate: firstDate ?? DateTime(2020),
       lastDate: lastDate ?? DateTime.now().add(const Duration(days: 365)),
       initialDateRange: value,
+      showToday: true,
     );
+    if (result == null) return;
     onChanged(result);
   }
 
@@ -92,11 +95,16 @@ class AppDateRangePicker extends StatelessWidget {
 /// Opens the app's custom modal date-range picker (grey header, flat/square
 /// style consistent with the rest of the app) and returns the picked range,
 /// or null if the user cancels.
+/// [onApply] — kapag ibinigay, mananatiling bukas ang modal at maglo-loading
+/// ang pinindot na Apply/Today button hanggang matapos ito (hal. habang
+/// kinukuha ang loan records ng bagong range); saka lang isinasara ang modal.
 Future<DateTimeRange?> showAppDateRangePicker({
   required BuildContext context,
   DateTime? firstDate,
   DateTime? lastDate,
   DateTimeRange? initialDateRange,
+  bool showToday = true,
+  Future<void> Function(DateTimeRange range)? onApply,
 }) {
   return showDialog<DateTimeRange>(
     context: context,
@@ -104,6 +112,8 @@ Future<DateTimeRange?> showAppDateRangePicker({
       firstDate: firstDate ?? DateTime(2020),
       lastDate: lastDate ?? DateTime.now().add(const Duration(days: 365)),
       initialDateRange: initialDateRange,
+      showToday: showToday,
+      onApply: onApply,
     ),
   );
 }
@@ -114,12 +124,20 @@ class AppDateRangePickerDialog extends StatefulWidget {
   final DateTime firstDate;
   final DateTime lastDate;
   final DateTimeRange? initialDateRange;
+  final bool showToday;
+
+  /// Trabaho na tatakbo habang nakabukas pa ang modal (hal. load ng records).
+  /// Habang tumatakbo ito, naka-loading ang Apply/Today button at hindi pa
+  /// isinasara ang modal — kaya may loading bago lumabas ang bagong records.
+  final Future<void> Function(DateTimeRange range)? onApply;
 
   const AppDateRangePickerDialog({
     super.key,
     required this.firstDate,
     required this.lastDate,
     this.initialDateRange,
+    this.showToday = true,
+    this.onApply,
   });
 
   @override
@@ -133,6 +151,9 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
   late DateTime _month;
   DateTime? _start;
   DateTime? _end;
+
+  /// Alin ang kasalukuyang naglo-load: 'apply', 'today', o wala.
+  String? _applyingAction;
   final _fromCtrl = TextEditingController();
   final _toCtrl = TextEditingController();
 
@@ -266,6 +287,29 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
     );
   }
 
+  /// Isinasagawa ang pinindot na Apply/Today. Kapag may [AppDateRangePickerDialog.onApply]
+  /// (hal. load ng loan records ng napiling range), naglo-loading muna ang
+  /// button habang tumatakbo ito — saka lang isinasara ang modal, kaya hindi na
+  /// "lumalabas agad" ang (lumang) records nang walang loading.
+  Future<void> _apply(DateTimeRange range, String action) async {
+    if (_applyingAction != null) return;
+    final onApply = widget.onApply;
+    if (onApply == null) {
+      Navigator.pop(context, range);
+      return;
+    }
+    setState(() => _applyingAction = action);
+    try {
+      await onApply(range);
+    } catch (err) {
+      // Hindi dapat maipit ang user sa modal kapag nabigo ang load — isinasara
+      // pa rin ito at ang screen na ang may sariling error state.
+      debugPrint('date range onApply failed: $err');
+    } finally {
+      if (mounted) Navigator.pop(context, range);
+    }
+  }
+
   void _prevMonth() {
     final m = DateTime(_month.year, _month.month - 1);
     if (m.isBefore(
@@ -336,7 +380,9 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
                             color: Colors.white)),
                   ),
                   IconButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _applyingAction != null
+                        ? null
+                        : () => Navigator.pop(context),
                     visualDensity: VisualDensity.compact,
                     icon: const Icon(Icons.close_rounded,
                         size: 18, color: Colors.white),
@@ -437,8 +483,36 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
+                  if (widget.showToday) ...[
+                    TextButton(
+                      onPressed: _applyingAction != null
+                          ? null
+                          : () {
+                              final now = nowManila();
+                              final today =
+                                  DateTime(now.year, now.month, now.day);
+                              _apply(
+                                  DateTimeRange(start: today, end: today),
+                                  'today');
+                            },
+                      child: _applyingAction == 'today'
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.deepNavy))
+                          : const Text('Today',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.deepNavy)),
+                    ),
+                    const Spacer(),
+                  ],
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: _applyingAction != null
+                        ? null
+                        : () => Navigator.pop(context),
                     child: const Text('Cancel',
                         style: TextStyle(
                             fontSize: 13,
@@ -448,7 +522,7 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
                   const SizedBox(width: 8),
 
                   ElevatedButton(
-                    onPressed: canApply
+                    onPressed: canApply && _applyingAction == null
                         ? () {
                             var start = from;
                             var end = to;
@@ -457,8 +531,8 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
                               start = end;
                               end = t;
                             }
-                            Navigator.pop(
-                                context, DateTimeRange(start: start, end: end));
+                            _apply(DateTimeRange(start: start, end: end),
+                                'apply');
                           }
                         : null,
                     style: ElevatedButton.styleFrom(
@@ -470,9 +544,15 @@ class _AppDateRangePickerDialogState extends State<AppDateRangePickerDialog> {
                           horizontal: 16, vertical: 10),
                       shape: const RoundedRectangleBorder(),
                     ),
-                    child: const Text('Apply',
-                        style: TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w700)),
+                    child: _applyingAction == 'apply'
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white))
+                        : const Text('Apply',
+                            style: TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w700)),
                   ),
                 ],
               ),

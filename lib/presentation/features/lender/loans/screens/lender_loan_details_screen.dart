@@ -13,6 +13,7 @@ import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/lender_loan_provider.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 const _lenderNavItems = [
   MobileNavItem(
@@ -361,7 +362,7 @@ class _AmountCard extends StatelessWidget {
           _row('Principal Amount',
               (loan.principalAmount as num?)?.toCurrency ?? '₱0.00'),
           _divider(),
-          _row('Interest (20%)',
+          _row(interestRateLabel(loan.interestRate),
               (loan.interestAmount as num?)?.toCurrency ?? '₱0.00'),
           _divider(),
           _row('Total Payable',

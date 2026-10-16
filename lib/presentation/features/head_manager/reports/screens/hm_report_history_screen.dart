@@ -176,6 +176,7 @@ class _HmReportHistoryScreenState extends ConsumerState<HmReportHistoryScreen> {
       initialDateRange: _dateRange ??
           DateTimeRange(
               start: now.subtract(const Duration(days: 30)), end: now),
+      showToday: true,
     );
     if (range != null) setState(() => _dateRange = range);
   }

@@ -147,7 +147,7 @@ async function handleApprove(req: Request) {
     }
 
     await writeAuditLog({ performedBy: user.id, action: 'loan_approve', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'approved' }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Approved', body: 'Congratulations! Your loan has been approved. Please choose how you want to receive the funds to complete the release.', type: 'loan_approved', referenceId: loan_id });
+    await sendPushNotification({ sentBy: user.id, userId: loan.lender_id, title: 'Loan Approved', body: 'Congratulations! Your loan has been approved. Please choose how you want to receive the funds to complete the release.', type: 'loan_approved', referenceId: loan_id });
 
     return jsonResponse({ message: 'Loan approved successfully' });
 }
@@ -245,7 +245,7 @@ async function handleReject(req: Request) {
     }
 
     await writeAuditLog({ performedBy: user.id, action: 'loan_reject', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'rejected', rejection_reason: reason, reapply_allowed_at: reapplyAllowedAt, permanently_rejected: isPermanent }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${reason}`, type: 'loan_rejected', referenceId: loan_id });
+    await sendPushNotification({ sentBy: user.id, userId: loan.lender_id, title: 'Loan Application Rejected', body: `Your loan was rejected: ${reason}`, type: 'loan_rejected', referenceId: loan_id });
 
     return jsonResponse({
       message: 'Loan rejected',
@@ -315,7 +315,7 @@ async function handleApplyPenalty(req: Request) {
     await db.from('penalty_logs').insert({ loan_id, applied_by: user.id, penalty_rate: PENALTY_RATE_PCT, penalty_basis: penaltyBasis, penalty_amount: penaltyAmount, reason: reason ?? 'Overdue penalty applied' });
 
     await writeAuditLog({ performedBy: user.id, action: 'apply_penalty', tableName: 'penalty_logs', recordId: loan_id, oldValues: { outstanding_balance: penaltyBasis }, newValues: { outstanding_balance: newBalance, penalty_basis: penaltyBasis, penalty_amount: penaltyAmount }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: `Active Loan Increased by ${PENALTY_RATE_PCT}%`, body: `A ${PENALTY_RATE_PCT}% penalty of ₱${penaltyAmount.toLocaleString()} was added on top of your current active loan balance of ₱${penaltyBasis.toLocaleString()}. Your new outstanding balance is ₱${newBalance.toLocaleString()}.`, type: 'penalty_applied', referenceId: loan_id });
+    await sendPushNotification({ sentBy: user.id, userId: loan.lender_id, title: `Active Loan Increased by ${PENALTY_RATE_PCT}%`, body: `A ${PENALTY_RATE_PCT}% penalty of ₱${penaltyAmount.toLocaleString()} was added on top of your current active loan balance of ₱${penaltyBasis.toLocaleString()}. Your new outstanding balance is ₱${newBalance.toLocaleString()}.`, type: 'penalty_applied', referenceId: loan_id });
 
     return jsonResponse({ message: 'Penalty applied', penalty_amount: penaltyAmount, new_balance: newBalance });
 }
@@ -345,7 +345,7 @@ async function handleRequestCi(req: Request) {
     // assignment the loan shows "CI Required", never "CI Assigned".
     await db.from('loans').update({ status: 'ci_required' }).eq('id', loan_id);
     await writeAuditLog({ performedBy: user.id, action: 'request_ci', tableName: 'loans', recordId: loan_id, oldValues: { status: loan.status }, newValues: { status: 'ci_required' }, ipAddress: ip });
-    await sendPushNotification({ userId: loan.lender_id, title: 'Credit Investigation Required', body: 'Hello! Your loan application requires a credit investigation. A rider will visit your address for verification. Please be available. Tap to view your application status.', type: 'ci_required', referenceId: loan_id });
+    await sendPushNotification({ sentBy: user.id, userId: loan.lender_id, title: 'Credit Investigation Required', body: 'Hello! Your loan application requires a credit investigation. A rider will visit your address for verification. Please be available. Tap to view your application status.', type: 'ci_required', referenceId: loan_id });
 
     return jsonResponse({ message: 'CI requested' });
 }

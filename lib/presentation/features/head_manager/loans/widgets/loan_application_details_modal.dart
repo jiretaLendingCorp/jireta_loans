@@ -11,6 +11,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
 import 'approve_reject_modal.dart';
 import '../providers/hm_loan_provider.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 Future<void> showLoanApplicationDetailsModal(
   BuildContext context,
@@ -552,7 +553,7 @@ class _LoanApplicationDetailsModalState
               value: '₱${fmt.format(loan['principal_amount'] ?? 0)}',
               highlight: true),
           _KVRow(
-              label: 'Interest (20%)',
+              label: interestRateLabel(loan['interest_rate']),
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
           const Divider(height: 1),
           const SizedBox(height: 4),

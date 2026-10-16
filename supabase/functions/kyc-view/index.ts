@@ -24,6 +24,7 @@ import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financi
 import { NO_MATCH_ID } from '../_shared/search.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule } from '../_shared/schedule.ts';
+import { getInterestRatePct } from '../_shared/system_config.ts';
 
 // Bucket kung saan nakaimbak ang Account Upgrade documents (pareho ng kyc-submit).
 const ACCOUNT_UPGRADE_BUCKET = 'account-upgrade-documents';
@@ -183,7 +184,9 @@ async function handleVerify(req: Request) {
             const parsed = Number(String(loanDet.term_periods).replace(/,/g, '').trim());
             periodsOverride = Number.isNaN(parsed) ? undefined : parsed;
           }
-          const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride);
+          // Interest rate mula sa Head Manager setting (system_config.interest_rate).
+          const interestRatePct = await getInterestRatePct(db);
+          const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride, interestRatePct);
           const year = new Date().getFullYear();
           const seq = Math.floor(Math.random() * 900000 + 100000);
           const loanNumber = `LN-${year}-${seq}`;
@@ -192,7 +195,7 @@ async function handleVerify(req: Request) {
             in_office_application_id: appId,
             loan_number: loanNumber,
             principal_amount: principalAmount,
-            interest_rate: 20,
+            interest_rate: interestRatePct,
             payment_frequency: frequency,
             term_days: sched.termDays,
             term_periods: sched.installments,
@@ -285,6 +288,7 @@ async function handleVerify(req: Request) {
           });
           await sendPushNotification({
             userId: targetLenderId,
+            sentBy: user.id,
             title: 'Walk-in Loan Now Ready',
             body: `Your Walk-in loan application (₱${principalAmount.toLocaleString()}) is now submitted and pending approval. Track it in My Loans.`,
             type: 'loan_applied',

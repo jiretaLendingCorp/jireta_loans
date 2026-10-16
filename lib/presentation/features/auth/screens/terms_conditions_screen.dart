@@ -360,11 +360,11 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
                             ),
                             _sectionTitle('2. Loan Services'),
                             _body(
-                              'Jireta Loans & Credit Corp 1966 offers lending services ranging from ₱3,000 to ₱500,000 with an interest rate of 20% per loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.',
+                              'Jireta Loans & Credit Corp 1966 offers lending services ranging from ₱3,000 to ₱500,000 at the interest rate set by Jireta for the loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.',
                             ),
                             _sectionTitle('3. Interest & Penalties'),
                             _body(
-                              'All loans carry a 20% interest rate on the principal amount. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.',
+                              'Interest is charged on the principal amount at the rate set by Jireta for the loan term. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.',
                             ),
                             _sectionTitle('4. Account Upgrade Requirements'),
                             _body(

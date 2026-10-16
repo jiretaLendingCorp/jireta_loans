@@ -179,6 +179,23 @@ export async function dispatchPendingPushNotifications(
   return { dispatched: rows.length };
 }
 
+/** "First Last" of a user, or null when unknown. */
+export async function resolveActorName(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string
+): Promise<string | null> {
+  const { data } = await db
+    .from('users')
+    .select('first_name, last_name')
+    .eq('id', userId)
+    .maybeSingle();
+  const name = [data?.first_name, data?.last_name]
+    .map((s) => String(s ?? '').trim())
+    .filter(Boolean)
+    .join(' ');
+  return name || null;
+}
+
 export async function sendPushNotification(params: {
   userId: string;
   title: string;
@@ -189,6 +206,12 @@ export async function sendPushNotification(params: {
 }): Promise<void> {
   try {
     const db = getAdminClient();
+
+    // Prefix the body with the acting user's name so recipients see who triggered it.
+    if (params.sentBy && params.sentBy !== params.userId) {
+      const actor = await resolveActorName(db, params.sentBy);
+      if (actor) params = { ...params, body: `${actor}: ${params.body}` };
+    }
 
     // 1) Source of truth: store the notification (in-app/Realtime delivery).
     const title = decorateNotificationTitle(params.type, params.title);

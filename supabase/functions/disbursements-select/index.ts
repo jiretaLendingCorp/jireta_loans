@@ -166,7 +166,7 @@ serve(async (req) => {
         sentBy: authResult.id,
       });
 
-      await notifyStaffForSelection({ loanId: loan_id, method: 'gcash', db });
+      await notifyStaffForSelection({ loanId: loan_id, method: 'gcash', db, actorId: authResult.id });
 
       return jsonResponse({
         success: true,
@@ -197,7 +197,7 @@ serve(async (req) => {
       sentBy: authResult.id,
     });
 
-    await notifyStaffForSelection({ loanId: loan_id, method: normalizedMethod, db });
+    await notifyStaffForSelection({ loanId: loan_id, method: normalizedMethod, db, actorId: authResult.id });
 
     return jsonResponse({
       success: true,
@@ -214,6 +214,7 @@ serve(async (req) => {
 // method selected and is ready to be fulfilled.
 async function notifyStaffForSelection(params: {
   loanId: string;
+  actorId: string;
   method: string;
   db: ReturnType<typeof getAdminClient>;
 }): Promise<void> {
@@ -236,6 +237,7 @@ async function notifyStaffForSelection(params: {
           body: `A lender chose ${methodLabel} for loan disbursement and it is ready to be fulfilled.`,
           type: 'disbursement',
           referenceId: params.loanId,
+          sentBy: params.actorId,
         })
       )
     );

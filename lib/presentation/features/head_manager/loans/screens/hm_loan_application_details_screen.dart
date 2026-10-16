@@ -19,6 +19,7 @@ import '../../ci/widgets/ci_assign_modal.dart';
 import '../../disbursements/widgets/rider_disburse_assign_modal.dart';
 import '../providers/hm_loan_provider.dart';
 import '../widgets/approve_reject_modal.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 class HmLoanApplicationDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
@@ -206,6 +207,10 @@ class _HmLoanApplicationDetailsScreenState
     final loanNumber = loan['loan_number'] as String? ?? 'Pending Number';
     final principal = (loan['principal_amount'] as num?)?.toDouble() ?? 0;
     final totalPayable = (loan['total_payable'] as num?)?.toDouble() ?? 0;
+    // Remaining balance ng lender — ang `outstanding_balance` mula sa
+    // `loans-view?fn=get-details` (total payable + penalties − verified
+    // payments, hindi bababa sa 0). Ito ang dapat pang bayaran ng lender.
+    final remaining = (loan['outstanding_balance'] as num?)?.toDouble() ?? 0;
     final applied = loan['created_at'];
 
     return _PremiumCard(
@@ -225,6 +230,13 @@ class _HmLoanApplicationDetailsScreenState
             child: _SimpleStat(
                 label: 'Total Payable',
                 value: '₱${fmt.format(totalPayable)}')),
+          Container(width: 1, height: 32, color: AppColors.divider),
+          Expanded(
+            child: _SimpleStat(
+                label: 'Remaining Balance',
+                value: '₱${fmt.format(remaining)}',
+                // Naka-highlight: ito ang halagang dapat pang kolektahin.
+                valueColor: AppColors.deepNavy)),
           Container(width: 1, height: 32, color: AppColors.divider),
           Expanded(
             child:
@@ -529,7 +541,7 @@ class _HmLoanApplicationDetailsScreenState
                   fontWeight: FontWeight.w800,
                   color: AppColors.deepNavy)),
           _KVRow(
-              label: 'Interest (20%)',
+              label: interestRateLabel(loan['interest_rate']),
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
           _KVRow(
               label: 'Total Payable',
@@ -1106,23 +1118,29 @@ class _ScheduleStatusPill extends StatelessWidget {
 class _SimpleStat extends StatelessWidget {
   final String label;
   final String value;
-  const _SimpleStat({required this.label, required this.value});
+
+  /// Kulay ng halaga — default ay textPrimary; ang mahahalagang numero (hal.
+  /// Remaining Balance) ay maaaring bigyan ng mas matingkad na kulay.
+  final Color? valueColor;
+  const _SimpleStat(
+      {required this.label, required this.value, this.valueColor});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       children: [
         Text(label,
+            textAlign: TextAlign.center,
             style: const TextStyle(
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: AppColors.textTertiary)),
         const SizedBox(height: 4),
         Text(value,
-            style: const TextStyle(
+            style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
-                color: AppColors.textPrimary),
+                color: valueColor ?? AppColors.textPrimary),
             textAlign: TextAlign.center),
       ]);
   }

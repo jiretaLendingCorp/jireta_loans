@@ -7,6 +7,7 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../domain/repositories/i_loan_repository.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 class Step3LoanDetails extends ConsumerStatefulWidget {
   final Map<String, dynamic> data;
@@ -221,7 +222,7 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
                   ),
                   const Divider(height: 16),
                   _PreviewRow(
-                    label: 'Interest (20%)',
+                    label: interestRateLabel(_preview!['interest_rate']),
                     value: (_preview!['interest'] as num? ?? 0)
                         .toDouble()
                         .toCurrency,

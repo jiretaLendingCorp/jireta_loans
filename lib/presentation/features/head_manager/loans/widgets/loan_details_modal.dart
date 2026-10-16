@@ -8,6 +8,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_loan_provider.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 Future<void> showLoanDetailsModal(BuildContext context, String loanId) {
   return showDialog<void>(
@@ -376,7 +377,7 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                   fontWeight: FontWeight.w800,
                   color: AppColors.deepNavy)),
           _KVRow(
-              label: 'Interest (20%)',
+              label: interestRateLabel(loan['interest_rate']),
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
           Container(
             margin: const EdgeInsets.symmetric(vertical: 8),

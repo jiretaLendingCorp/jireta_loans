@@ -343,6 +343,8 @@ class _UserAvatar extends ConsumerWidget {
           } else if (role == AppConstants.roleEmployee) {
             context.go(RouteConstants.empProfile);
           }
+        } else if (val == 'settings') {
+          context.go(RouteConstants.hmSettings);
         } else if (val == 'logout') {
           // Prevent double-tap while a logout is already running.
           if (ref.read(authStateProvider).isLoggingOut) return;
@@ -467,6 +469,17 @@ class _UserAvatar extends ConsumerWidget {
             ],
           ),
         ),
+        if (authState.role == AppConstants.roleHeadManager)
+          const PopupMenuItem(
+            value: 'settings',
+            child: Row(
+              children: [
+                Icon(Icons.settings_outlined, size: 18),
+                SizedBox(width: 10),
+                Text('Settings'),
+              ],
+            ),
+          ),
         const PopupMenuItem(
           value: 'logout',
           child: Row(

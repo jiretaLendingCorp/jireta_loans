@@ -22,6 +22,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule } from '../_shared/schedule.ts';
+import { getInterestRatePct } from '../_shared/system_config.ts';
 import { geocodeInBackground } from '../_shared/geocode.ts';
 
 // ── [moved from in-office-submit] ───────────────────────────────────────────
@@ -576,6 +577,7 @@ async function handleSubmit(req: Request) {
       // no loan is created yet — only the account up to the upgrade stage.
       await sendPushNotification({
         userId: lenderId,
+        sentBy: authResult.id,
         title: 'Your Account Has Been Created',
         body: `Hello! Your account was created through a walk-in application at our office. Please log in with your phone number and complete your Account Upgrade. Once verified, you can apply for your loan yourself.`,
         type: 'account_upgrade_required',
@@ -633,7 +635,9 @@ async function handleSubmit(req: Request) {
       const parsed = Number(String(s3.term_periods).replace(/,/g, '').trim());
       periodsOverride = Number.isNaN(parsed) ? undefined : parsed;
     }
-    const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride);
+    // Interest rate mula sa Head Manager setting (system_config.interest_rate).
+    const interestRatePct = await getInterestRatePct(db);
+    const sched = computeSchedule(principalAmount, frequency, new Date(), periodsOverride, interestRatePct);
     const termDays = sched.termDays;
     const dueDates = sched.dueDates;
     const amounts = sched.amounts;
@@ -651,7 +655,7 @@ async function handleSubmit(req: Request) {
       in_office_application_id: application_id,
       loan_number: loanNumber,
       principal_amount: principalAmount,
-      interest_rate: 20,
+      interest_rate: interestRatePct,
       payment_frequency: frequency,
       term_days: termDays,
       term_periods: sched.installments,
@@ -751,6 +755,7 @@ async function handleSubmit(req: Request) {
 
     await sendPushNotification({
       userId: lenderId,
+      sentBy: authResult.id,
       title: 'Loan Application Received',
       body: `Your loan application has been submitted for ₱${principalAmount.toLocaleString()}.`,
       type: 'loan_applied',
@@ -930,6 +935,7 @@ async function handleSubmitAccount(req: Request) {
     if (isNewLender) {
       await sendPushNotification({
         userId: lenderId,
+        sentBy: authResult.id,
         title: 'Your Account Is Verified',
         body: 'Hello! Your account was created and verified through our walk-in application. Log in with your phone number, then apply for your loan in the app.',
         type: 'account_upgrade_update',
@@ -938,6 +944,7 @@ async function handleSubmitAccount(req: Request) {
     } else {
       await sendPushNotification({
         userId: lenderId,
+        sentBy: authResult.id,
         title: 'Account Verified',
         body: 'Your account has been verified for your in-office loan application.',
         type: 'account_upgrade_update',

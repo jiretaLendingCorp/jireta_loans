@@ -12,6 +12,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../head_manager/loans/providers/hm_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 class EmpLoanDetailsScreen extends ConsumerStatefulWidget {
   final String loanId;
@@ -484,7 +485,7 @@ class _EmpLoanDetailsScreenState extends ConsumerState<EmpLoanDetailsScreen> {
                   fontWeight: FontWeight.w800,
                   color: AppColors.deepNavy)),
           _KVRow(
-              label: 'Interest (20%)',
+              label: interestRateLabel(loan['interest_rate']),
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
           _KVRow(
               label: 'Total Payable',

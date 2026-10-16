@@ -265,12 +265,35 @@ void main() {
         expect(src,
             contains("loan.status == 'active' || loan.status == 'overdue'"));
         expect(src, contains('isCurrentActiveLoan'));
-        // Walang current active loan → "N/A", hindi blangko/dash.
-        expect(src, contains(": 'N/A',"));
+        // Walang current active loan → ₱0.00, HINDI "N/A": ang pending /
+        // approved / rejected / completed ay walang outstanding balance.
+        expect(src,
+            contains('isCurrentActiveLoan ? loan.outstandingBalance : 0'));
+        // Wala nang "?'₱${fmt.format(loan.outstandingBalance)}' : 'N/A'" na branch.
+        expect(
+            src,
+            isNot(contains(
+                "? '₱\${fmt.format(loan.outstandingBalance)}'")));
       }
       // Ang loan records screen ng HM/Employee ay pinamagatang "Loan Records".
       expect(hm, contains("title: 'Loan Records'"));
       expect(emp, contains("title: 'Loan Records'"));
+    });
+
+    test(
+        'Loan Application Details (HM + Employee) ay may Remaining Balance',
+        () async {
+      for (final path in [
+        'lib/presentation/features/head_manager/loans/screens/hm_loan_application_details_screen.dart',
+        'lib/presentation/features/employee/loans/screens/emp_loan_application_details_screen.dart',
+      ]) {
+        final src = readNormalized(path);
+        // Ang halaga ay galing sa `loans-view?fn=get-details`
+        // (`outstanding_balance` = total payable + penalties − verified
+        // payments), hindi kino-compute muli sa client.
+        expect(src, contains("loan['outstanding_balance']"));
+        expect(src, contains("label: 'Remaining Balance'"));
+      }
     });
 
     test('Lenders (People) list ay HINDI na nagpapakita ng outstanding balance', () async {

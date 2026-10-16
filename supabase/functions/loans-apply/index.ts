@@ -6,6 +6,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
 import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
+import { getInterestRatePct } from '../_shared/system_config.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { sanitizeString } from '../_shared/validators.ts';
@@ -301,7 +302,12 @@ serve(async (req) => {
       }
     }
 
-    const sched = computeSchedule(Number(principal), frequency, new Date(), periods);
+    // Ang interest rate ay galing sa Head Manager setting
+    // (`system_config.interest_rate`) — hindi na hardcoded sa 20%. Naka-snapshot
+    // ito sa `loans.interest_rate` para hindi maapektuhan ng mga susunod na
+    // pagbabago ng setting ang mga lumang loan.
+    const interestRatePct = await getInterestRatePct(db);
+    const sched = computeSchedule(Number(principal), frequency, new Date(), periods, interestRatePct);
     const loanNumber = generateLoanNumber();
     const dueDate = sched.dueDates[sched.dueDates.length - 1];
 
@@ -311,7 +317,7 @@ serve(async (req) => {
         lender_id: lenderId,
         loan_number: loanNumber,
         principal_amount: Number(principal),
-        interest_rate: 20,
+        interest_rate: interestRatePct,
         payment_frequency: frequency,
         term_days: sched.termDays,
         term_periods: sched.installments,
@@ -568,6 +574,7 @@ serve(async (req) => {
         (staffUsers as { id: string }[]).map((u) =>
           sendPushNotification({
             userId: u.id,
+            sentBy: authResult.id,
             title: 'New Loan Application',
             body: `A new loan application of ₱${Number(principal).toLocaleString()} has been submitted.`,
             type: 'loan_applied',

@@ -123,7 +123,7 @@ async function handleCiSubmitReport(req: Request) {
   // patakbuhin sa BACKGROUND — hindi ito dapat magpahintay sa rider.
   runInBackground((async () => {
     await writeAuditLog({ performedBy: user.id, action: 'ci_submit_report', tableName: 'credit_investigations', recordId: ci_id, ipAddress: ip });
-    await notifyStaff({ title: 'CI Report Submitted — Awaiting Review', body: 'A rider has submitted a credit investigation report. Please review and approve/reject it before loan disbursement. Lender will choose disbursement method only after CI approval.', type: 'ci_completed', referenceId: ci.loan_id });
+    await notifyStaff({ title: 'CI Report Submitted — Awaiting Review', body: 'A rider has submitted a credit investigation report. Please review and approve/reject it before loan disbursement. Lender will choose disbursement method only after CI approval.', type: 'ci_completed', referenceId: ci.loan_id, sentBy: user.id });
   })());
 
   return jsonResponse({ message: 'CI report submitted. Awaiting manager approval before disbursement.' });

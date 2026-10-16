@@ -17,6 +17,7 @@ import '../../../head_manager/loans/widgets/loan_reapply_picker.dart';
 import '../../ci/widgets/emp_ci_assign_modal.dart';
 import '../providers/emp_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 final _empModalLoanDetailProvider =
     FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
@@ -918,7 +919,7 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
               value: '₱${fmt.format(loan['principal_amount'] ?? 0)}',
               highlight: true),
           _KVRow(
-              label: 'Interest (20%)',
+              label: interestRateLabel(loan['interest_rate']),
               value: '₱${fmt.format(loan['interest_amount'] ?? 0)}'),
           const Divider(height: 1),
           const SizedBox(height: 4),

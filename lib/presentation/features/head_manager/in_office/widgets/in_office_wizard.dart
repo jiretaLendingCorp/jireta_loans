@@ -419,7 +419,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
 
   /// Status na nakalagay sa header — ang TOTOONG progreso ng walk-in
   /// application at ng loan nito, hindi lang "Account Verified":
-  ///   • May loan na   → status ng loan ('Active Loan', 'Loan Pending', ...)
+  ///   • May loan na   → status ng loan ('Ongoing Loan', 'Loan Pending', ...)
   ///   • 'submitted'   → 'Upgraded Account' (na-upgrade na ang account,
   ///                     naghihintay lang na mag-apply si lender)
   ///   • 'draft'       → 'Draft'
@@ -440,7 +440,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           _ => (AppColors.goldLight, Icons.hourglass_top_rounded),
         };
         final label = switch (s) {
-          'active' => 'Active Loan',
+          'active' => 'Ongoing Loan',
           'overdue' => 'Overdue Loan',
           'completed' => 'Completed Loan',
           'approved' => 'Loan Approved',

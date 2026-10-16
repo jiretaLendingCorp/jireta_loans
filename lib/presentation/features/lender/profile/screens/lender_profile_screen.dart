@@ -318,11 +318,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                   ModernSheetSection(
                       title: 'Loan Services',
                       body:
-                          'Jireta Loans & Credit Corp 1966 offers loans from ₱3,000 to ₱500,000 at 20% interest per term, subject to verification and credit evaluation.'),
+                          'Jireta Loans & Credit Corp 1966 offers loans from ₱3,000 to ₱500,000 at the interest rate set per loan term, subject to verification and credit evaluation.'),
                   ModernSheetSection(
                       title: 'Interest & Penalties',
                       body:
-                          'All loans carry 20% interest. If the loan term ends with an unpaid balance, a one-time 20% penalty is charged on the outstanding balance at that time.'),
+                          'Interest is charged per loan term at the rate set by Jireta. If the loan term ends with an unpaid balance, a one-time 20% penalty is charged on the outstanding balance at that time.'),
                   ModernSheetSection(
                       title: 'Account Requirements',
                       body:

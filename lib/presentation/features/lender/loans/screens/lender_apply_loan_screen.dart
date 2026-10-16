@@ -28,6 +28,7 @@ import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
+import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
 /// Maliit na pagitan ng naka-pin na button/row (Back/Next ng wizard, Confirm
 /// ng disbursement) sa TAAS ng floating bottom nav pill — 8px lang ang gap,
@@ -1554,6 +1555,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     final interest = preview == null ? null : (preview['interest'] ?? 0);
+    final interestRate = preview == null ? null : preview['interest_rate'];
     final totalPayable =
         preview == null ? null : (preview['total_payable'] ?? 0);
     final installment =
@@ -1576,6 +1578,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             purpose: _purposeCtrl.text.trim(),
             fmt: fmt,
             interest: interest,
+            interestRate: interestRate,
             totalPayable: totalPayable,
             installment: installment,
           ),
@@ -2302,6 +2305,7 @@ class _SchedulePreview extends StatelessWidget {
     final totalPayable = (preview['total_payable'] ?? 0).toDouble();
     final interest =
         (preview['interest'] ?? preview['interest_amount'] ?? 0).toDouble();
+    final interestLabel = interestRateLabel(preview['interest_rate']);
     final installment = (preview['installment_amount'] ?? 0).toDouble();
     final installments = preview['installments'] ?? 0;
     final freq = (preview['frequency'] ?? '').toString();
@@ -2345,7 +2349,7 @@ class _SchedulePreview extends StatelessWidget {
               children: [
                 _PreviewRow('Loan Amount', '₱${fmt.format(principal)}',
                     AppColors.textPrimary),
-                _PreviewRow('Interest (20%)', '₱${fmt.format(interest)}',
+                _PreviewRow(interestLabel, '₱${fmt.format(interest)}',
                     AppColors.warning),
                 _PreviewRow('Total Payable', '₱${fmt.format(totalPayable)}',
                     AppColors.lenderBlue),
@@ -2536,6 +2540,7 @@ class _ReviewCard extends StatelessWidget {
   final String purpose;
   final NumberFormat fmt;
   final dynamic interest;
+  final dynamic interestRate;
   final dynamic totalPayable;
   final dynamic installment;
   const _ReviewCard({
@@ -2545,6 +2550,7 @@ class _ReviewCard extends StatelessWidget {
     required this.purpose,
     required this.fmt,
     this.interest,
+    this.interestRate,
     this.totalPayable,
     this.installment,
   });
@@ -2575,7 +2581,7 @@ class _ReviewCard extends StatelessWidget {
           _row('Loan Term', termLabel),
           _row('Purpose', purpose.isEmpty ? '-' : purpose),
           if (interest != null) ...[
-            _row('Interest (20%)',
+            _row(interestRateLabel(interestRate),
                 '₱${fmt.format((interest as num).toDouble())}'),
           ],
           if (totalPayable != null) ...[

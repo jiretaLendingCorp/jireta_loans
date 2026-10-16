@@ -268,6 +268,7 @@ async function handleRecordOffice(req: Request) {
     userId: loan.lender_id,
     title: 'Paid in Office',
     body: `Your payment of ₱${Number(amount).toLocaleString()} was recorded at the office. Remaining balance: ₱${newBalance.toLocaleString()}`,
+    sentBy: authResult.id,
     type: 'payment_recorded',
     referenceId: payment.id,
   });
@@ -322,7 +323,7 @@ async function handleReverse(req: Request) {
     : null;
   await writeAuditLog({ performedBy: user.id, action: 'payment_reverse', tableName: 'payments', recordId: payment_id, oldValues: { status: 'verified', amount: payment.amount }, newValues: { status: 'reversed', reason }, ipAddress: ip });
   if (lenderId) {
-    await sendPushNotification({ userId: lenderId, title: 'Payment Reversed', body: `A payment of ₱${Number(payment.amount).toLocaleString()} has been reversed.`, type: 'payment_reversed', referenceId: payment_id });
+    await sendPushNotification({ sentBy: user.id, userId: lenderId, title: 'Payment Reversed', body: `A payment of ₱${Number(payment.amount).toLocaleString()} has been reversed.`, type: 'payment_reversed', referenceId: payment_id });
   }
   return jsonResponse({ message: 'Payment reversed, balance restored' });
 }

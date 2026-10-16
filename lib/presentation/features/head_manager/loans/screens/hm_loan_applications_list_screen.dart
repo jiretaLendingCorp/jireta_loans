@@ -58,7 +58,10 @@ class _HmLoanApplicationsListScreenState
     FilterTabDef('ci_completed', 'CI Completed', Icons.verified_outlined),
   ];
   final _pillTabs = const [
-    FilterTabDef('active', 'Active Loan', Icons.account_balance_wallet_outlined),
+    // "Ongoing Loan" (dating "Active Loan") — ito ang buong pangalan ng
+    // aktibong loan; "Ongoing" lang ang status label nito sa table.
+    FilterTabDef(
+        'active', 'Ongoing Loan', Icons.account_balance_wallet_outlined),
     FilterTabDef('completed', 'Completed', Icons.verified_rounded),
     FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
     FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
@@ -159,7 +162,7 @@ class _HmLoanApplicationsListScreenState
   }
 
   // ─────────────────────────────── Pill Tabs + Dropdown ───────────────────────────────
-  // Active Loan & In-Office stay as pills; pipeline (All/Pending/etc.) is dropdown.
+  // Ongoing Loan & In-Office stay as pills; pipeline (All/Pending/etc.) is dropdown.
   Widget _buildTabPills(String active) {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
     final isDropdownActive = dropdownKeys.contains(active);
@@ -714,7 +717,7 @@ class _HmLoanApplicationsListScreenState
             ? DateFormat('MMM dd, yyyy h:mm a').format(createdAt)
             : '—';
         // Hindi 'Converted'/'Submitted' ang ipinapakita kundi ang totoong
-        // progreso: 'Active Loan' kapag aktibo na ang naka-link na loan, at
+        // progreso: 'Ongoing Loan' kapag aktibo na ang naka-link na loan, at
         // 'Upgraded Account' kapag submitted pa lang (wala pang loan).
         final (statusColor, statusLabel) = _inOfficeStatusMeta(app);
         // Kaparehong order ng `columns` sa taas: Lender · Created · Status ·
@@ -929,12 +932,12 @@ class _HmLoanApplicationsListScreenState
                   color: AppColors.textPrimary),
               overflow: TextOverflow.ellipsis,
             ),
-            // Outstanding balance — para lang sa CURRENT ACTIVE LOAN;
-            // "N/A" kapag hindi ito ang kasalukuyang aktibong loan.
+            // Outstanding balance — ang totoong halaga ay para lang sa CURRENT
+            // ACTIVE LOAN (active/overdue, na-release at hindi pa tapos).
+            // ₱0.00 — HINDI "N/A" — ang iba (pending, approved, rejected,
+            // completed): wala silang outstanding balance.
             Text(
-              isCurrentActiveLoan
-                  ? '₱${fmt.format(loan.outstandingBalance)}'
-                  : 'N/A',
+              '₱${fmt.format(isCurrentActiveLoan ? loan.outstandingBalance : 0)}',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w700,
@@ -1429,7 +1432,7 @@ class _StatusInline extends StatelessWidget {
   final String status;
 
   /// Optional override — ginagamit ng In-Office table para ipakita ang TOTOONG
-  /// progreso ng application (hal. 'Active Loan', 'Upgraded Account') sa halip
+  /// progreso ng application (hal. 'Ongoing Loan', 'Upgraded Account') sa halip
   /// na ang hilaw na status nito ('converted', 'submitted').
   final String? labelOverride;
   final Color? colorOverride;
@@ -1477,7 +1480,9 @@ class _StatusInline extends StatelessWidget {
         break;
       case 'active':
         c = AppColors.riderGreen;
-        label = 'Active';
+        // "Ongoing" ang label ng status na `active` (na-release at patuloy pa
+        // ang bayad) — hiwalay ito sa "Ongoing Loan" na tab sa itaas.
+        label = 'Ongoing';
         break;
       case 'completed':
         c = AppColors.info;
@@ -1717,7 +1722,7 @@ class _RowActions extends StatelessWidget {
 /// Status label + kulay ng In-Office application — hindi ang hilaw na status
 /// ng application ('submitted' / 'converted') kundi ang TOTOONG progreso nito
 /// (kaparehong panuntunan ng label sa header ng `InOfficeWizard`):
-///   • may naka-link nang loan → status ng LOAN ('Active Loan',
+///   • may naka-link nang loan → status ng LOAN ('Ongoing Loan',
 ///     'Loan Pending', 'Overdue Loan', …)
 ///   • 'submitted' (wala pang loan) → 'Upgraded Account'
 ///   • 'converted' (may loan na) → 'Converted to Loan'
@@ -1726,7 +1731,7 @@ class _RowActions extends StatelessWidget {
   if (loan is Map && loan.isNotEmpty) {
     final s = (loan['status'] ?? '').toString().toLowerCase().trim();
     return switch (s) {
-      'active' => (AppColors.riderGreen, 'Active Loan'),
+      'active' => (AppColors.riderGreen, 'Ongoing Loan'),
       'overdue' => (AppColors.error, 'Overdue Loan'),
       'completed' => (AppColors.info, 'Completed Loan'),
       'approved' => (AppColors.success, 'Loan Approved'),

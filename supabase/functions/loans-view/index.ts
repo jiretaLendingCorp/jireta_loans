@@ -18,18 +18,21 @@ import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination, validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLastPaymentDatesBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
-import { computeSchedule, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
+import { computeSchedule, maxPeriodsFor, termDaysFor, DEFAULT_INTEREST_RATE_PCT } from '../_shared/schedule.ts';
+import { getInterestRatePct } from '../_shared/system_config.ts';
 import { searchUserIdsByName } from '../_shared/search.ts';
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
-const INTEREST_RATE = 0.20;
-
-// ── [moved from loans-get-schedule-preview] ─────────────────────────────────
-function computeSchedulePreview(principal: number, frequency: string, periods?: number) {
-  const sched = computeSchedule(Number(principal), frequency, new Date(), periods);
+function computeSchedulePreview(
+  principal: number,
+  frequency: string,
+  periods?: number,
+  interestRatePct: number = DEFAULT_INTEREST_RATE_PCT,
+) {
+  const sched = computeSchedule(Number(principal), frequency, new Date(), periods, interestRatePct);
   return {
     principal: sched.principal,
-    interest_rate: INTEREST_RATE * 100,
+    interest_rate: interestRatePct,
     interest: sched.interest,
     interest_amount: sched.interest,
     total_payable: sched.totalPayable,
@@ -560,5 +563,8 @@ async function handleGetSchedulePreview(req: Request) {
       }
     }
 
-    return jsonResponse(computeSchedulePreview(Number(principal), frequency, periods));
+    // Interest rate mula sa Head Manager setting (system_config.interest_rate).
+    const db = getAdminClient();
+    const interestRatePct = await getInterestRatePct(db);
+    return jsonResponse(computeSchedulePreview(Number(principal), frequency, periods, interestRatePct));
 }

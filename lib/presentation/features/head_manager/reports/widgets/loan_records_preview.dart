@@ -53,16 +53,15 @@ class _LoanRecordCol {
 const List<_LoanRecordCol> _exportCols = [
   _LoanRecordCol('Loan Record', _loanKeys, Icons.tag_outlined),
   _LoanRecordCol('Loan Name', _lenderKeys, Icons.person_outline),
-  _LoanRecordCol('Amount', ['principalAmount', 'amount'],
-      Icons.payments_outlined,
+  _LoanRecordCol(
+      'Amount', ['principalAmount', 'amount'], Icons.payments_outlined,
       money: true),
-  _LoanRecordCol('Interest', ['interestAmount', 'interest_amount'],
-      Icons.percent_rounded,
+  _LoanRecordCol(
+      'Interest', ['interestAmount', 'interest_amount'], Icons.percent_rounded,
       money: true),
   _LoanRecordCol('Total', ['totalPayable', 'total_payable'],
       Icons.account_balance_wallet_outlined,
-      money: true,
-      total: true),
+      money: true, total: true),
 ];
 
 /// Columns NA NAKA-TABLE sa screen — kapareho ng Loan Records page: ang loan
@@ -70,16 +69,15 @@ const List<_LoanRecordCol> _exportCols = [
 /// halaga. Status column ang idinadagdag kapag may status data ang rows.
 const List<_LoanRecordCol> _tableCols = [
   _LoanRecordCol('Lender & Loan', [], Icons.tag_outlined, flex: 3),
-  _LoanRecordCol('Amount', ['principalAmount', 'amount'],
-      Icons.payments_outlined,
+  _LoanRecordCol(
+      'Amount', ['principalAmount', 'amount'], Icons.payments_outlined,
       money: true),
-  _LoanRecordCol('Interest', ['interestAmount', 'interest_amount'],
-      Icons.percent_rounded,
+  _LoanRecordCol(
+      'Interest', ['interestAmount', 'interest_amount'], Icons.percent_rounded,
       money: true),
   _LoanRecordCol('Total', ['totalPayable', 'total_payable'],
       Icons.account_balance_wallet_outlined,
-      money: true,
-      total: true),
+      money: true, total: true),
 ];
 
 /// Halaga ng isang column mula sa row — unang key na may totoong laman
@@ -106,6 +104,22 @@ List<Map<String, dynamic>> interestPreviewRows(
           for (final c in _exportCols) c.label: reportColumnValue(r, c.keys),
         },
     ];
+
+/// Puting panel na may manipis na border — iisang estilo para sa lahat ng
+/// section ng Reports page (filter bar, summary cards, table, history).
+Widget reportPanel({
+  required Widget child,
+  EdgeInsetsGeometry padding = EdgeInsets.zero,
+}) =>
+    Container(
+      padding: padding,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: child,
+    );
 
 /// Value ng "All …" na item ng mga dropdown.
 const String _allFilter = 'all';
@@ -157,6 +171,13 @@ class LoanRecordsPreview extends StatefulWidget {
   /// iyon ang gamit ng preview modal.
   final List<Widget> leadingFilters;
 
+  /// Padding ng buong content. Sa Reports page, zero — ang page na ang may
+  /// sariling margin.
+  final EdgeInsetsGeometry contentPadding;
+
+  /// Kapag false, walang Status / Lender dropdown (search at date pa lang).
+  final bool showDropdownFilters;
+
   const LoanRecordsPreview({
     super.key,
     required this.rows,
@@ -165,6 +186,8 @@ class LoanRecordsPreview extends StatefulWidget {
     this.onPickDateRange,
     this.exportActions,
     this.leadingFilters = const [],
+    this.contentPadding = const EdgeInsets.fromLTRB(20, 18, 20, 18),
+    this.showDropdownFilters = true,
   });
 
   @override
@@ -261,22 +284,33 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     final total = rows.length;
     final totalPages = total == 0 ? 1 : (total / _pageSize).ceil();
     final page = _page > totalPages ? totalPages : _page;
-    final items = filtered.skip((page - 1) * _pageSize).take(_pageSize).toList();
+    final items =
+        filtered.skip((page - 1) * _pageSize).take(_pageSize).toList();
     // Status pill column lang kapag may status data ang rows (kapareho ng
     // Loan Records page); kung wala, hindi na ito pinipilit ipakita.
     final hasStatus = filtered.any((r) => _text(r, _statusKeys).isNotEmpty);
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      padding: widget.contentPadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _buildFilterCard(),
+          reportPanel(
+            padding: const EdgeInsets.all(16),
+            child: _buildFilterCard(),
+          ),
           const SizedBox(height: 16),
           _buildSummaryCards(rows),
           const SizedBox(height: 16),
-          _buildTableCard(items, page, totalPages, total,
-              hasStatus: hasStatus),
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 10),
+            child: Text('Loan Records',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+          ),
+          _buildTableCard(items, page, totalPages, total, hasStatus: hasStatus),
         ],
       ),
     );
@@ -291,13 +325,15 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     final filters = [
       // May sariling filter ang page ("Report Type"); sa preview modal, Status
       // dropdown ang unang nasa row.
+      if (widget.showDropdownFilters) ...[
       if (widget.leadingFilters.isEmpty)
         labeledFilterField(
           'Status',
           FilterDropdown<String>(
             value: _status,
             items: [
-              const DropdownMenuItem(value: _allFilter, child: Text('All Status')),
+              const DropdownMenuItem(
+                  value: _allFilter, child: Text('All Status')),
               for (final s in statuses)
                 DropdownMenuItem(value: s.toLowerCase(), child: Text(s)),
             ],
@@ -311,12 +347,14 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
         FilterDropdown<String>(
           value: _lender,
           items: [
-            const DropdownMenuItem(value: _allFilter, child: Text('All Lenders')),
+            const DropdownMenuItem(
+                value: _allFilter, child: Text('All Lenders')),
             for (final l in lenders) DropdownMenuItem(value: l, child: Text(l)),
           ],
           onChanged: (v) => _onFilterChanged(() => _lender = v ?? _allFilter),
         ),
       ),
+      ],
     ];
 
     final search = SizedBox(
@@ -341,51 +379,49 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
       ),
     );
 
-    // Walang background box — deretso sa page ang mga filter (flat), tulad ng
-    // hiling na layout.
     return LayoutBuilder(
-        builder: (context, c) {
-          // Opsyonal na date pill at Export button — nasa dulo ng filter row,
-          // tulad ng nasa mockup na header.
-          final extras = <Widget>[
-            if (widget.dateRange != null) _datePill(widget.dateRange!),
-            if (widget.exportActions != null) widget.exportActions!,
-          ];
+      builder: (context, c) {
+        // Opsyonal na date pill at Export button — nasa dulo ng filter row,
+        // tulad ng nasa mockup na header.
+        final extras = <Widget>[
+          if (widget.dateRange != null) _datePill(widget.dateRange!),
+          if (widget.exportActions != null) widget.exportActions!,
+        ];
 
-          // Malapad: mga dropdown sa kaliwa, search sa gitna, at ang date
-          // pill/Export sa kanan (naka-align sa ibaba ng mga dropdown, hindi
-          // sa label). Masikip: nakasalansan lahat.
-          if (c.maxWidth >= 980) {
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                for (final f in filters) ...[
-                  f,
-                  const SizedBox(width: 14),
-                ],
-                Expanded(child: search),
-                for (final e in extras) ...[
-                  const SizedBox(width: 12),
-                  e,
-                ],
-              ],
-            );
-          }
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
+        // Malapad: mga dropdown sa kaliwa, search sa gitna, at ang date
+        // pill/Export sa kanan (naka-align sa ibaba ng mga dropdown, hindi
+        // sa label). Masikip: nakasalansan lahat.
+        if (c.maxWidth >= 980) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              search,
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 14,
-                runSpacing: 12,
-                crossAxisAlignment: WrapCrossAlignment.end,
-                children: [...filters, ...extras],
-              ),
+              for (final f in filters) ...[
+                f,
+                const SizedBox(width: 14),
+              ],
+              Expanded(child: search),
+              for (final e in extras) ...[
+                const SizedBox(width: 12),
+                e,
+              ],
             ],
           );
-        },
-      );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            search,
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 14,
+              runSpacing: 12,
+              crossAxisAlignment: WrapCrossAlignment.end,
+              children: [...filters, ...extras],
+            ),
+          ],
+        );
+      },
+    );
   }
 
   /// Napiling panahon — tulad ng "Sep 01, 2025 – Sep 30, 2025" pill sa mockup.
@@ -428,8 +464,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
   Widget _buildSummaryCards(List<Map<String, dynamic>> rows) {
     return LayoutBuilder(
       builder: (context, c) {
-        final perRow =
-            c.maxWidth >= 700 ? 4 : (c.maxWidth >= 420 ? 2 : 1);
+        final perRow = c.maxWidth >= 700 ? 4 : (c.maxWidth >= 420 ? 2 : 1);
         final w = (c.maxWidth - (perRow - 1) * 12) / perRow;
         final cards = [
           _PreviewStatCard(
@@ -480,21 +515,13 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Padding(
-            padding: EdgeInsets.fromLTRB(16, 14, 16, 12),
-            child: Text('Loan Records',
-                style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.textPrimary)),
-          ),
           if (total == 0)
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 16),
@@ -521,8 +548,8 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
               outerShadow: const [],
               rowPadding:
                   const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              headerPadding: const EdgeInsets.symmetric(
-                  horizontal: 16, vertical: 12),
+              headerPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               columns: [
                 for (final c in _tableCols)
                   ResponsiveCol(c.label, icon: c.icon, flex: c.flex),
@@ -635,9 +662,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                  color: color)),
+                  fontSize: 12.5, fontWeight: FontWeight.w600, color: color)),
         ),
       ],
     );
@@ -664,10 +689,12 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     final from = (page - 1) * _pageSize + 1;
     final rawTo = page * _pageSize;
     final to = rawTo > total ? total : rawTo;
-    final window = totalPages > 1 ? _pageWindow(page, totalPages) : const <int?>[];
+    final window =
+        totalPages > 1 ? _pageWindow(page, totalPages) : const <int?>[];
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+      padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       decoration: const BoxDecoration(
+        color: AppColors.surfaceVariant,
         border: Border(top: BorderSide(color: AppColors.divider)),
       ),
       child: Row(
@@ -677,7 +704,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: 11, color: AppColors.textSecondary)),
+                    fontSize: 12, color: AppColors.textSecondary)),
           ),
           const SizedBox(width: 8),
           // Naka-scroll pahalang kapag marami ang page number — hindi umaapaw
@@ -689,8 +716,9 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
                 children: [
                   _PageButton(
                     icon: Icons.chevron_left_rounded,
-                    onTap:
-                        page > 1 ? () => setState(() => _page = page - 1) : null,
+                    onTap: page > 1
+                        ? () => setState(() => _page = page - 1)
+                        : null,
                   ),
                   for (final p in window) ...[
                     const SizedBox(width: 6),
@@ -705,9 +733,8 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
                       _PageButton(
                         label: '$p',
                         active: p == page,
-                        onTap: p == page
-                            ? null
-                            : () => setState(() => _page = p),
+                        onTap:
+                            p == page ? null : () => setState(() => _page = p),
                       ),
                   ],
                   const SizedBox(width: 6),
@@ -742,10 +769,9 @@ class _PreviewStatCard extends StatelessWidget {
       required this.icon,
       required this.color});
 
-  /// Walang background box — flat na (deretso sa page) ang summary cards.
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 4),
+  Widget build(BuildContext context) => reportPanel(
+        padding: const EdgeInsets.all(16),
         child: Row(
           children: [
             Container(
@@ -829,7 +855,9 @@ class _PageButton extends StatelessWidget {
                 size: 18,
                 color: active
                     ? Colors.white
-                    : (enabled ? AppColors.textPrimary : AppColors.textTertiary)),
+                    : (enabled
+                        ? AppColors.textPrimary
+                        : AppColors.textTertiary)),
       ),
     );
   }

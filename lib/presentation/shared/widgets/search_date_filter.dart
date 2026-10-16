@@ -52,7 +52,10 @@ class _SearchDateFilterState extends State<SearchDateFilter> {
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       initialDateRange: widget.value,
+      showToday: true,
     );
+    // Cancel / X = walang binago, kaya hindi tinatawag ang onChanged (walang reload).
+    if (result == null) return;
     widget.onChanged(result);
   }
 

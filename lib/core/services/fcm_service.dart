@@ -516,13 +516,15 @@ class FcmService {
     final referenceId = (data['reference_id'] ?? '').toString();
     final role = await SecureStorage.getUserRole();
 
-    final path = _routeFor(type: type, referenceId: referenceId, role: role);
+    final path = routeFor(type: type, referenceId: referenceId, role: role);
     if (path != null && path.isNotEmpty) {
       router.go(path);
     }
   }
 
-  String? _routeFor({
+  /// Returns the in-app path that matches a notification, or null when the
+  /// role has no matching screen. Shared by push taps and the in-app bell.
+  static String? routeFor({
     required String type,
     required String referenceId,
     String? role,
@@ -595,7 +597,7 @@ class FcmService {
     }
   }
 
-  String? _routeForStaff({
+  static String? _routeForStaff({
     required String type,
     required String referenceId,
     required String notifications,

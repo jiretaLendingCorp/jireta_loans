@@ -8,6 +8,7 @@ import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/route_constants.dart';
+import '../../../core/services/fcm_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../features/employee/notifications/providers/emp_notification_provider.dart';
@@ -136,6 +137,7 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
                   child: NotificationDropdownPanel(
                     onClose: _hide,
                     onViewAll: _handleViewAll,
+                    onOpen: _handleOpenNotification,
                   ),
                 ),
               ),
@@ -189,6 +191,21 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
     panelCtrl?.dispose();
     if (entry == null) return;
     _safeRemove(entry);
+  }
+
+  /// Tap on a notification row: go to the screen for that notification
+  /// (same routing as a push tap), so the user lands on the record itself.
+  void _handleOpenNotification(NotificationModel n) {
+    final role = ref.read(authStateProvider).role ?? '';
+    // Capture router before closing (overlay context gets disposed).
+    final router = GoRouter.of(context);
+    _hide();
+    final path = FcmService.routeFor(
+      type: n.type,
+      referenceId: n.referenceId ?? '',
+      role: role,
+    );
+    if (path != null && path.isNotEmpty) router.go(path);
   }
 
   void _handleViewAll() {
@@ -411,11 +428,13 @@ class _StaggeredItemState extends State<_StaggeredItem> {
 class NotificationDropdownPanel extends ConsumerWidget {
   final VoidCallback onClose;
   final VoidCallback onViewAll;
+  final void Function(NotificationModel n) onOpen;
 
   const NotificationDropdownPanel({
     super.key,
     required this.onClose,
     required this.onViewAll,
+    required this.onOpen,
   });
 
   @override
@@ -595,6 +614,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
               visible: visible,
               totalCount: notifications.length,
               onMarkRead: onMarkRead,
+              onOpen: onOpen,
               onRefresh: onRefresh,
             ),
           ),
@@ -613,6 +633,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
     required List<NotificationModel> visible,
     required int totalCount,
     required void Function(String id) onMarkRead,
+    required void Function(NotificationModel n) onOpen,
     required VoidCallback onRefresh,
   }) {
     if (isLoading && visible.isEmpty) {
@@ -698,7 +719,10 @@ class NotificationDropdownPanel extends ConsumerWidget {
           return _StaggeredItem(
             index: i,
             child: InkWell(
-              onTap: n.isRead ? null : () => onMarkRead(n.id),
+              onTap: () {
+                if (!n.isRead) onMarkRead(n.id);
+                onOpen(n);
+              },
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 220),
                 curve: Curves.easeOut,
