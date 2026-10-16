@@ -18,6 +18,7 @@ import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/dialogs/loading_dialog.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../shared/widgets/branded_loading_screen.dart';
+import '../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../shared/widgets/legal_links.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../../../shared/widgets/security/mpin_keypad.dart';
@@ -713,9 +714,11 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        backgroundColor: const Color(0xFFF7F8FA),
+        backgroundColor: MediaQuery.sizeOf(context).width >= kDesktopBreakpoint
+            ? const Color(0xFFFCFCFE)
+            : const Color(0xFFF7F8FA),
         body: SafeArea(
-          child: Column(
+          child: _desktopFrame(Column(
             children: [
               // Top bar: menu right-aligned (kapareho ng login page)
               Padding(
@@ -944,7 +947,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                 ),
               ),
             ],
-          ),
+          )),
         ),
       ),
     );
@@ -1018,7 +1021,56 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     );
   }
 
+  /// Desktop (≥ [kDesktopBreakpoint]) na balot ng login page: isang naka-center
+  /// na makitid na column sa malawak na panel (gradient + gold glow) — kapareho
+  /// ng desktop auth surfaces ng app, imbes na isang buong-lapad na mobile
+  /// form na nakaunat sa buong browser. Hindi ito gumagalaw sa mobile: doon ay
+  /// buo pa rin ang lapad (`SizedBox.shrink` na wrapper lang ang nilalagay).
+  Widget _desktopFrame(Widget child) {
+    if (MediaQuery.sizeOf(context).width < kDesktopBreakpoint) return child;
+    return Stack(
+      children: [
+        const Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0xFFFCFCFE), Color(0xFFF6F7FB)],
+              ),
+            ),
+          ),
+        ),
+        // Faint gold glow — tugma sa web auth panels.
+        Positioned(
+          top: -120,
+          right: -100,
+          child: Container(
+            width: 320,
+            height: 320,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [
+                  AppColors.gold.withValues(alpha: 0.06),
+                  AppColors.gold.withValues(alpha: 0.0),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: child,
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildLoginForm(bool canSendOtp, bool isOnline) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -1029,13 +1081,14 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       ),
       child: Scaffold(
         resizeToAvoidBottomInset: true,
-        backgroundColor: const Color(0xFFF7F8FA),
+        backgroundColor:
+            isDesktop ? const Color(0xFFFCFCFE) : const Color(0xFFF7F8FA),
         body: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnim,
             child: SlideTransition(
               position: _slideAnim,
-              child: Column(
+              child: _desktopFrame(Column(
                 children: [
                   // Top bar: menu right-aligned
                   Padding(
@@ -1736,7 +1789,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       ),
                     ),
                 ],
-              ),
+              )),
             ),
           ),
         ),

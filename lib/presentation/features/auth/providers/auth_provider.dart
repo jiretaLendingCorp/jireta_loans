@@ -11,6 +11,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/di/injection.dart';
 import '../../../../core/errors/app_exception.dart';
 import '../../../../core/security/jwt_parser.dart';
+import '../../../../core/security/mfa_service.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/services/realtime_service.dart';
 import '../../../../core/utils/validators.dart';
@@ -27,6 +28,42 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   /// Pending Google OAuth completer, so the UI can cancel the browser flow
   /// (e.g. the user pressed back) instead of waiting for the full timeout.
   Completer<Session?>? _googleOAuthCompleter;
+
+  /// Ang MFA (TOTP) state na iniulat ng server sa PINAKABAGONG login.
+  ///
+  /// Ginagamit ito ng login screens para malaman kung kailangan pang dumaan sa
+  /// authenticator challenge — at upang maipasa ang factor id sa MFA screen
+  /// nang walang dagdag na round-trip.
+  LoginMfaInfo _loginMfa = const LoginMfaInfo.unknown();
+
+  LoginMfaInfo get loginMfa => _loginMfa;
+
+  /// True kapag dapat dumaan muna sa authenticator (TOTP) challenge ang
+  /// bagong login.
+  ///
+  /// Ang sagot ng SERVER (mula sa OTP login response) ang nauuna — ito ang
+  /// pinagmumulan ng katotohanan. Kapag hindi ito natukoy (lumang deployment
+  /// o admin API error), gumagamit ito ng fallback sa Supabase Auth
+  /// (`getUser().factors`) — at kung doon din ito mabigo, hindi ito nagpi-pilit
+  /// (ang server pa rin ang huling salita sa mga sensitibong aksyon).
+  Future<bool> _resolveMfaChallenge() async {
+    final serverFlag = _loginMfa.enabled;
+    if (serverFlag != null) return serverFlag;
+    try {
+      final status = await MfaService().status();
+      _loginMfa = LoginMfaInfo(
+        enabled: status.enrolled,
+        factorId: status.factorId,
+        friendlyName: status.enrolled
+            ? status.verifiedFactors.first.friendlyName
+            : null,
+      );
+      return status.requiresChallenge;
+    } catch (e) {
+      debugPrint('[MFA] hindi matukoy ang MFA status pagkatapos ng login: $e');
+      return false;
+    }
+  }
 
   /// Cancels a pending Google OAuth flow. Safe to call when no flow is in
   /// progress or the flow already completed.
@@ -55,6 +92,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<bool> login({required String email, required String password}) async {
     _authState.startInteractiveAuth();
+    // Staff (email/password) login: huwag magmanang ng MFA state ng nakaraang
+    // mobile login — ang gate na ito ay para sa (mobile) OTP / Google na may
+    // naka-enroll na authenticator.
+    _loginMfa = const LoginMfaInfo.unknown();
     state = const AsyncLoading();
     try {
       // Claim this device's STABLE session id server-side (survives refresh).
@@ -220,6 +261,14 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         createdAt: DateTime.now(),
       );
       _authState.setAuthenticated(user);
+      // Google sign-in din: kapag may naka-enroll na authenticator app ang
+      // account, kailangan pa rin ng MFA bago ang dashboard. Walang `mfa` block
+      // sa exchange response, kaya ang fallback (Supabase Auth `getUser()`)
+      // ang nagpapasya — server-side pa rin ang pinagmumulan ng factor state.
+      _loginMfa = const LoginMfaInfo.unknown();
+      if (await _resolveMfaChallenge()) {
+        await _authState.requireMfa();
+      }
       state = const AsyncData(null);
       RealtimeService.instance.reconnect();
       return true;
@@ -304,6 +353,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;
+      // MFA (TOTP) state na iniulat ng server para sa login na ito.
+      _loginMfa = LoginMfaInfo.fromLoginResponse(res['mfa']);
       await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
       // clearAll wiped the session id — restore it (see login()).
@@ -338,6 +389,15 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         createdAt: DateTime.now(),
       );
       _authState.setAuthenticated(user);
+      // ── May naka-enroll bang authenticator (TOTP) ang account? ───────────
+      // Kapag oo, hindi pa ito "tapos na login": kailangang ipasa muna ang
+      // `mfa.challenge` + `mfa.verify` (session na may `aal: aal2`) bago ang
+      // anumang protected na pahina. Ang gate ay nasa auth state + router
+      // (`mfaRedirect`), at ang server ay may sariling tseke
+      // (`_shared/mfa.ts`) para sa mga sensitibong aksyon.
+      if (await _resolveMfaChallenge()) {
+        await _authState.requireMfa();
+      }
       state = const AsyncData(null);
       RealtimeService.instance.reconnect();
       return true;

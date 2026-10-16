@@ -59,11 +59,13 @@ class ForcePasswordChangeException extends AppException {
       : super('Password change required', code: 'FORCE_PASSWORD_CHANGE');
 }
 
+/// 429 na tinanggihan ng server. Ang [message] ay ang **server's own sentence**
+/// kapag mayroon — mahalaga iyon dahil madalas itong may detalyeng hindi
+/// maibibigay ng generic na fallback (hal. ilang minuto pa bago makapag-retry
+/// ang isang lender sa GCash link limit).
 class RateLimitException extends AppException {
-  const RateLimitException()
-      : super(
-          'Too many requests. Please try again later.',
-          code: 'RATE_LIMITED',
-          statusCode: 429,
-        );
+  const RateLimitException([
+    super.message = 'Too many requests. Please try again later.',
+    String code = 'RATE_LIMITED',
+  ]) : super(code: code, statusCode: 429);
 }

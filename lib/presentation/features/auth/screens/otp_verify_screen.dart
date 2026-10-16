@@ -6,13 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
-import '../../../../core/security/mpin_login_gate.dart';
-import '../../../../core/security/mpin_service.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../../../../core/utils/logger.dart';
+import '../auth_post_login.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
+import 'mfa_verify_screen.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 /// Ang dinadaang argumento ng [RouteConstants.otpVerify] (`GoRouterState.extra`).
@@ -174,10 +173,27 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     if (!mounted) return;
     setState(() => _loading = false);
     if (ok) {
-      final state = ref.read(authStateProvider);
-      final role = state.role;
-      final isRiderOrLender = role == AppConstants.roleRider ||
-          role == AppConstants.roleLender;
+      // ── Authenticator (TOTP) challenge MUNA, bago ang lahat ──────────────
+      // Ang desisyon ay kinuha na ng [AuthNotifier] habang nag-e-verify ng OTP
+      // (server ang unang pinagkukunan ng factor state, Supabase Auth ang
+      // fallback), kaya dito ay binabasa na lang ito. Kapag may verified TOTP
+      // factor ang account, hindi dapat maabot ang MPIN, ang dashboard, o
+      // kahit ang "Reset MPIN" — sensitibo ang huli sa server at tinatanggihan
+      // kapag `aal1` pa ang session.
+      if (ref.read(authStateProvider).mfaRequired) {
+        final loginMfa = ref.read(authProvider.notifier).loginMfa;
+        await _showSuccessAndGo(
+          RouteConstants.mfaVerify,
+          extra: MfaVerifyArgs(
+            factorId: loginMfa.factorId,
+            phone: widget.phone,
+            resetMpin: widget.resetMpin,
+          ),
+          title: 'OTP verified',
+          message: 'Enter the 6-digit code from your authenticator app.',
+        );
+        return;
+      }
       // ── "Reset MPIN": burahin ang lumang MPIN, tapos DERETSO sa create ────
       // Sa takbong ito, napatunayan na ng OTP ang numero, kaya ngayon pa lang
       // binubura ang lumang MPIN (kung mag-back ang user bago ito, hindi
@@ -195,7 +211,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       // sa "Enter MPIN" na hindi naman niya alam ang sagot. Ngayon, ang bigong
       // pag-reset ay sinasabi nang malinaw sa halip na ituloy sa maling screen.
       if (widget.resetMpin) {
-        final cleared = await _clearMpinForReset();
+        final cleared = await clearMpinForReset(ref);
         if (!mounted) return;
         if (!cleared) {
           setState(() {
@@ -213,53 +229,20 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         );
         return;
       }
-      // ── Rider / lender (mobile): palaging dumadaan muna sa MPIN ──────────
-      // Hindi ito deretsong pumapasok sa dashboard pagkatapos ng OTP:
-      //   * TAHASANG wala pang MPIN → MPIN setup (ito na ang gagamitin sa
-      //                               susunod);
-      //   * may MPIN na / hindi matiyak → "locked" state, kaya ang MPIN screen
-      //                       na may numerong ginamit ang lalabas (pagkatapos
-      //                       ng tamang MPIN pa lang makakapasok sa dashboard).
-      // Kapareho ito ng nangyayari sa pagbukas muli ng app pagkatapos itong
-      // isara, kaya iisa ang takbo ng dalawang pagkakataon.
-      if (isRiderOrLender) {
-        // TRI-STATE ang tsek dito (`true` / `false` / `null`) — hindi ang
-        // `isSet()` na nagiging `false` kahit "hindi matiyak" lang. Kapag
-        // nag-create ng MPIN ang isang account na mayroon na, tatanggi ang
-        // server (INVALID_CURRENT_MPIN) at hindi na makausad ang user.
-        final hasMpin = await ref.read(mpinServiceProvider).statusHasMpin();
-        if (!mounted) return;
-        // Tanging TAHASANG "wala pang MPIN" ang dumadaan sa create.
-        if (mpinStepAfterOtp(hasMpin) == MpinAfterOtpStep.create) {
-          await _showSuccessAndGo(RouteConstants.mpinSetup);
-          return;
-        }
-        await ref.read(authStateProvider.notifier).lockForMpinUnlock();
-        if (!mounted) return;
-        // Ipinapasa ang nalalaman na natin — ang numero at ang katotohanang may
-        // naka-set nang MPIN — kaya deretso agad sa MPIN screen ang login page.
-        // Kung wala ito, muli pa itong nagbabasa ng secure storage at isang
-        // buong screen na kapareho ng splash ang lumalabas bago ang MPIN.
-        await _showSuccessAndGo(
-          RouteConstants.mobileLogin,
-          extra: MpinLoginChoice(showMpin: true, phone: widget.phone),
-        );
-        return;
-      }
-      if (state.forcePasswordChange) {
-        await _showSuccessAndGo(RouteConstants.forceChangePassword);
-      } else {
-        switch (role) {
-          case AppConstants.roleRider:
-            await _showSuccessAndGo(RouteConstants.riderDashboard);
-            break;
-          case AppConstants.roleLender:
-            await _showSuccessAndGo(RouteConstants.lenderDashboard);
-            break;
-          default:
-            await _showSuccessAndGo(RouteConstants.mobileLogin);
-        }
-      }
+      // ── Susunod na screen pagkatapos ng OTP ─────────────────────────────
+      // Rider / lender: palaging dumadaan muna sa MPIN (setup kung wala pa, o
+      // "Enter MPIN" na may numerong ginamit); staff: dashboard ng role (o
+      // force-password-change). Kapareho ito ng nangyayari sa pagbukas muli ng
+      // app, kaya iisa ang takbo ng dalawang pagkakataon — iisang pinagmulan
+      // na lang (`resolvePostAuthDestination`) dahil ginagamit din ito ng MFA
+      // screen.
+      final destination =
+          await resolvePostAuthDestination(ref, phone: widget.phone);
+      if (!mounted) return;
+      await _showSuccessAndGo(
+        destination.location,
+        extra: destination.extra,
+      );
     } else {
       for (final c in _controllers) {
         c.clear();
@@ -320,27 +303,6 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     await dialogDone;
   }
 
-  /// Binubura ang lumang MPIN (server-side) sa "Reset MPIN" na takbo.
-  ///
-  /// Dalawang beses itong sinusubukan — kapag sumablay ang unang tawag dahil
-  /// saglit na nawala ang internet, hindi natutuloy ang pag-reset at
-  /// mahuhulog ang user sa "Enter MPIN" na hindi na niya alam ang sagot.
-  /// Ang `true` ay nangangahulugang TALAGANG nabura na ang MPIN (naka-`false`
-  /// na rin ang lokal na hint), kaya ligtas nang pumunta sa "Create Your MPIN".
-  Future<bool> _clearMpinForReset() async {
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        await ref.read(mpinServiceProvider).clear();
-        return true;
-      } catch (e) {
-        AppLogger.w(
-          '[MPIN] Reset bago mag-create: bigong burahin ang MPIN '
-          '(try ${attempt + 1}) — $e',
-        );
-      }
-    }
-    return false;
-  }
 
   Future<void> _resend() async {
     if (_secondsLeft > 0 || _lockSecondsLeft > 0) return;

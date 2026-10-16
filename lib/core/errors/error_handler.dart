@@ -59,10 +59,11 @@ class ErrorHandler {
       return AuthFailure(e.message, code: e.code);
     }
     if (e is RateLimitException) {
-      return const AuthFailure(
-        'Too many requests. Please try again.',
-        code: 'RATE_LIMITED',
-      );
+      // Ang server's own sentence ang ipinapasa kapag mayroon — iyon ang may
+      // "try again in about N minute(s)" na kailangan ng user. Dating generic
+      // na "Too many requests" lang ang lumalabas kahit may detalyeng
+      // ipinadala ang server.
+      return AuthFailure(e.message, code: e.code ?? 'RATE_LIMITED');
     }
     return ServerFailure(e.message, code: e.code);
   }
@@ -94,11 +95,15 @@ class ErrorHandler {
         return ServerFailure(message, code: code ?? 'CONFLICT');
       case 422:
         return ValidationFailure(message, code: code);
-      case 429:
-        return const AuthFailure(
-          'Too many requests. Please try again.',
-          code: 'RATE_LIMITED',
-        );
+      case 429: {
+        // Pareho ng `_fromAppException` na landas: huwag patayin ang mensahe
+        // ng server. Fallback lang kapag blangko o placeholder ang body.
+        final rateLimitMessage =
+            (message.isEmpty || message == 'An error occurred')
+                ? 'Too many requests. Please try again.'
+                : message;
+        return AuthFailure(rateLimitMessage, code: code ?? 'RATE_LIMITED');
+      }
       case 500:
       case 502:
       case 503:

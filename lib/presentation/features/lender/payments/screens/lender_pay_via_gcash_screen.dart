@@ -44,11 +44,26 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
   String? _paymentUrl;
   bool _isGenerating = false;
   bool _paymentInitiated = false;
+
+  /// Hinarang ang pagbukas ng checkout (popup blocker sa web, o walang app na
+  /// makakabukas ng URL). Hindi ito error: ipinapakita ang link sa ibaba at
+  /// may button na pwedeng pindutin.
+  bool _launchFailed = false;
   String? _error;
 
   @override
   void initState() {
     super.initState();
+    // MANWAL NA LANDAS: kapag ang `payment_url` ay ipinasa na (nagawa na ang
+    // invoice sa Payment Method screen pero hinarang ang pagbukas), huwag nang
+    // mag-generate ng panibago — doble ang invoice at `payments` row kung ganoon.
+    final provided = (widget.extra['payment_url'] as String?)?.trim();
+    if (provided != null && provided.isNotEmpty) {
+      _paymentUrl = provided;
+      // Ipakita agad ang manwal na link (ito ang dahilan ng pagpunta dito).
+      _launchFailed = true;
+      return;
+    }
     Future.microtask(_generateLink);
   }
 
@@ -68,24 +83,62 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
               loanId: loanId,
               loanScheduleId: scheduleId,
             );
+    // Ang provider ay naglalagay ng SANITIZED na dahilan mula sa Edge Function
+    // (hal. "Loan is not active", "Installment already paid", o ang rate-limit
+    // na mensahe) — iyon ang ipapakita imbes na generic na "Failed...", para
+    // malinaw sa lender kung bakit hindi nabuo ang GCash link.
+    final providerError = ref.read(lenderPaymentProvider).error?.trim();
+    final failed = url == null || url.isEmpty;
     setState(() {
       _isGenerating = false;
       _paymentUrl = url;
-      if (url == null) {
-        _error = 'Failed to generate payment link. Please try again.';
-      }
+      _launchFailed = false;
+      _error = failed
+          ? ((providerError != null && providerError.isNotEmpty)
+              ? providerError
+              : 'Failed to generate payment link. Please try again.')
+          : null;
     });
+    if (!failed) {
+      // DERETSO SA CHECKOUT: buksan agad ang hosted Xendit checkout page
+      // (`invoice_url`) pagkatapos itong mabuo — hindi na kailangan ng
+      // pangalawang tap. Kapag hinarang ito ng browser (popup blocker sa web
+      // dahil hindi na kasama ang orihinal na tap) o walang app na
+      // makakabukas, hindi ito tinatrato na error: nasa ibaba ang link at ang
+      // button.
+      await _openCheckout(auto: true);
+    }
   }
 
-  Future<void> _openGcash() async {
-    if (_paymentUrl == null) return;
-    final uri = Uri.parse(_paymentUrl!);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-      setState(() => _paymentInitiated = true);
-    } else {
-      setState(() => _error = 'Could not open payment link. Please try again.');
+  /// Bubuksan ang Xendit checkout (`invoice_url`). [auto] = ang unang
+  /// pagsubok pagkatapos ma-generate ang link, kaya hindi ito nagpapakita ng
+  /// error banner kahit harangin ng browser — ang fallback UI ang sapat.
+  Future<void> _openCheckout({bool auto = false}) async {
+    final url = _paymentUrl;
+    if (url == null || url.isEmpty) return;
+    var launched = false;
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (_) {
+      // Walang platform handler (hal. sa widget tests) — fallback UI na lang.
+      launched = false;
     }
+    if (!mounted) return;
+    setState(() {
+      if (launched) {
+        _paymentInitiated = true;
+        _launchFailed = false;
+        _error = null;
+      } else {
+        _launchFailed = true;
+        _error = auto
+            ? null
+            : 'Could not open the Xendit checkout. Please use the secure link below.';
+      }
+    });
   }
 
   @override
@@ -118,7 +171,7 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
                     color: AppColors.textPrimary)),
             const SizedBox(height: 8),
             const Text(
-              'Tap the button below to open GCash and complete your payment securely via Xendit.',
+              'You will be redirected to the secure Xendit checkout page to complete your payment.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
             ),
@@ -183,13 +236,33 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
                     ),
                     const SizedBox(height: 20),
                   ],
+                  // Maikli ang label: ang `AppButton` ay `Row` na hindi
+                  // flexible ang text, kaya ang mahabang label ay nag-o-overflow
+                  // sa makitid na phone. Nasa title at description na ang
+                  // "Xendit checkout", kaya sapat na ang "Open Checkout".
                   AppButton(
                     label:
-                        _paymentInitiated ? 'Open GCash Again' : 'Open GCash',
-                    onPressed: _openGcash,
+                        _paymentInitiated ? 'Open Checkout Again' : 'Open Checkout',
+                    onPressed: _openCheckout,
                     color: const Color(0xFF007DFF),
                     icon: Icons.open_in_new,
                   ),
+                  if (_launchFailed) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'If the checkout did not open, use this secure link:',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(
+                      _paymentUrl ?? '',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textPrimary),
+                    ),
+                  ],
                 ],
               ),
           ],

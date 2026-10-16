@@ -18,11 +18,13 @@ import 'package:shimmer/shimmer.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/account_upgrade_document_model.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../../data/models/loan_schedule_model.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../../data/models/payment_model.dart';
 import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../collections/providers/lender_collection_provider.dart';
@@ -31,6 +33,7 @@ import '../../payments/providers/lender_payment_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_dashboard_provider.dart';
 import 'widgets/lender_promo_carousel.dart';
+import 'widgets/lender_welcome_group.dart';
 
 final lenderAmountObscuredProvider =
     StateNotifierProvider<LenderAmountObscuredNotifier, bool>(
@@ -297,113 +300,481 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     // layout (balance card / overview) never flashes before the active loan.
     final showLoanLoader = loanState.isLoading && loanState.loans.isEmpty;
 
+    // ── Mga section ng dashboard — ISANG pinagmumulan lang ────────────────
+    // Dito lang binubuo ang bawat piraso, at pareho ang listahang iyon para sa
+    // mobile at desktop layout: ang tanging pinag-iba ay ang PAGKAKA-AYOS.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final welcome = _WelcomeBanner(
+      kpi: state.kpi,
+      firstName: profileState.user?.firstName,
+      showBalance: activeLoan == null,
+      // Sa desktop, nakadikit sa KALIWANG gilid ang Rive, at ang fox mismo ang
+      // pinaka-kaliwa — nasa KANAN nito ang greeting dialog. Sa mobile, nasa
+      // kaliwa pa rin ng fox ang dialog (walang binago).
+      desktop: isDesktop,
+    );
+    final approvedBanner = (approvedLoan != null && activeLoan == null)
+        ? _ApprovedLoanBanner(loan: approvedLoan)
+        : null;
+    final primaryAction = activeLoan != null
+        ? null
+        : (inReviewLoan != null
+            ? _PendingLoanCard(loan: inReviewLoan)
+            : (approvedLoan == null ? const _QuickActions() : null));
+    final myLoanCard = activeLoan == null
+        ? null
+        : Transform.translate(
+            offset: const Offset(0, -14),
+            child: _MyLoanCard(loan: activeLoan),
+          );
+    // May active loan na → walang "Apply Loan" na button sa promo banner (hindi
+    // na siya maaaring mag-apply ulit).
+    final promo = LenderPromoCarousel(
+      hideApplyLoanCta: activeLoan != null,
+      onCtaTap: (index, _) => _handlePromoTap(context, index, activeLoan),
+    );
+    final loansOverview =
+        activeLoan == null ? _MyLoansOverview(kpi: state.kpi) : null;
+    // Recent Activity renders with or without an active loan: loans + payments +
+    // collections, pinakabago muna. Kaya kahit active pa lang ang loan, may
+    // nakikitang aktibidad ang lender (payment, collection request, atbp.).
+    final recentActivity = _RecentActivitySection(
+      loans: loanState.loans,
+      activeLoanId: activeLoan?.id ?? '',
+      payments: paymentState.payments,
+      collections: collectionItems,
+      upgrade: upgradeStatus,
+    );
+    final errorBanner =
+        state.error == null ? null : _ErrorBanner(state.error!);
+
     return MobileScaffold(
       title: 'Account',
       accentColor: AppColors.lenderBlue,
       navItems: _riderNavItems,
+      // Sa desktop, nasa top bar ang refresh — hindi kayang i-drag ng mouse ang
+      // pull-to-refresh. Sa mobile walang idinadagdag ito (may pull-down doon).
+      appBarActions: isDesktop
+          ? [
+              IconButton(
+                tooltip: 'Refresh',
+                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+                onPressed: _silentRefresh,
+              ),
+            ]
+          : null,
       body: state.isLoading || showLoanLoader
           ? const _LenderDashboardSkeleton()
           : MobileRefresh(
               // Silent loads: kapag hindi, magiging `isLoading = true` ang
               // dashboard sa gitna ng pull-down at mapapalitan ng skeleton ang
               // RefreshIndicator mismo — nawawala ang spinner at ang gesture.
-              onRefresh: () async {
-                await ref
-                    .read(lenderDashboardProvider.notifier)
-                    .load(silent: true);
-                await ref
-                    .read(lenderLoanProvider.notifier)
-                    .loadLoans(silent: true);
-              },
+              onRefresh: _silentRefresh,
               color: AppColors.lenderBlue,
               child: FadeTransition(
                 opacity: _fadeCtrl,
-                child: SingleChildScrollView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  // Eksaktong dikit sa itaas ng floating bottom nav pill.
-                  // [mobileBottomNavHeight] ang tama dito dahil ang context ng
-                  // screen build ay nasa LABAS ng body (safe area lang ang
-                  // nasa MediaQuery padding doon).
-                  padding: EdgeInsets.fromLTRB(
-                    16,
-                    16,
-                    16,
-                    mobileBottomNavHeight(context),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _WelcomeBanner(
-                        kpi: state.kpi,
-                        firstName: profileState.user?.firstName,
-                        showBalance: activeLoan == null,
+                child: isDesktop
+                    ? _desktopBody(
+                        welcome: welcome,
+                        loan: activeLoan,
+                        approvedBanner: approvedBanner,
+                        primaryAction: primaryAction,
+                        myLoanCard: myLoanCard,
+                        promo: promo,
+                        loansOverview: loansOverview,
+                        recentActivity: recentActivity,
+                        errorBanner: errorBanner,
+                      )
+                    : _mobileBody(
+                        welcome: welcome,
+                        approvedBanner: approvedBanner,
+                        activeLoan: activeLoan,
+                        primaryAction: primaryAction,
+                        myLoanCard: myLoanCard,
+                        promo: promo,
+                        loansOverview: loansOverview,
+                        recentActivity: recentActivity,
+                        errorBanner: errorBanner,
                       ),
-                      const SizedBox(height: 16),
-                      if (approvedLoan != null && activeLoan == null) ...[
-                        _ApprovedLoanBanner(loan: approvedLoan),
-                        const SizedBox(height: 20),
-                      ],
-                      if (activeLoan == null) ...[
-                        if (inReviewLoan != null)
-                          _PendingLoanCard(loan: inReviewLoan)
-                        else if (approvedLoan == null)
-                          const _QuickActions(),
-                        const SizedBox(height: 16),
-                        // Promo carousel — nasa baba ng Apply Now button.
-                        LenderPromoCarousel(
-                          onCtaTap: (index, _) =>
-                              _handlePromoTap(context, index, activeLoan),
-                        ),
-                        // HIDDEN: "Pay with" section (Cash on Delivery / Office
-                        // cards) — hindi na ipinapakita sa lender Home. Nasa code
-                        // pa rin ang `_PayWithSection` at ang mga route
-                        // (`/lender/payment-method`, `/lender/pay-office`) kung
-                        // ibabalik ito.
-                        // const _PayWithSection(loan: null),
-                        const SizedBox(height: 20),
-                      ],
-                      if (activeLoan != null) ...[
-                        Transform.translate(
-                          offset: const Offset(0, -14),
-                          child: _MyLoanCard(loan: activeLoan),
-                        ),
-                        const SizedBox(height: 6),
-                        // May active loan na → walang "Apply Loan" na button sa
-                        // promo banner (hindi na siya maaaring mag-apply ulit).
-                        LenderPromoCarousel(
-                          hideApplyLoanCta: true,
-                          onCtaTap: (index, _) =>
-                              _handlePromoTap(context, index, activeLoan),
-                        ),
-                        const SizedBox(height: 20),
-                      ] else
-                        _MyLoansOverview(kpi: state.kpi),
-                      // Recent Activity renders with or without an active loan:
-                      // loans + payments + collections, pinakabago muna. Kaya
-                      // kahit active pa lang ang loan, may nakikitang aktibidad
-                      // ang lender (payment, collection request, atbp.).
-                      _RecentActivitySection(
-                        loans: loanState.loans,
-                        activeLoanId: activeLoan?.id ?? '',
-                        payments: paymentState.payments,
-                        collections: collectionItems,
-                        upgrade: upgradeStatus,
-                      ),
-                      // HIDDEN: live rider tracking card — hindi na ipinapakita
-                      // sa lender (request). Nasa code pa rin ang widget /
-                      // route (`/lender/live-tracking`) kung ibabalik ito.
-                      // const LenderRiderTrackingCard(),
-                      // Walang trailing na spacing dito — dapat dikit ang huling
-                      // nilalaman sa itaas ng floating bottom nav.
-                      if (state.error != null) ...[
-                        const SizedBox(height: 20),
-                        _ErrorBanner(state.error!),
-                      ],
-                    ],
-                  ),
-                ),
               ),
             ),
+    );
+  }
+
+  /// Silent refresh para sa pull-down at sa Refresh button ng desktop top bar —
+  /// hindi ito nagpapalit ng screen sa skeleton.
+  Future<void> _silentRefresh() async {
+    await ref.read(lenderDashboardProvider.notifier).load(silent: true);
+    await ref.read(lenderLoanProvider.notifier).loadLoans(silent: true);
+  }
+
+  /// MOBILE na ayos: isang column lang, nakadikit sa floating bottom nav pill.
+  /// Kapareho ito ng dating layout — walang binago sa phone.
+  Widget _mobileBody({
+    required Widget welcome,
+    required Widget? approvedBanner,
+    required LoanModel? activeLoan,
+    required Widget? primaryAction,
+    required Widget? myLoanCard,
+    required Widget promo,
+    required Widget? loansOverview,
+    required Widget recentActivity,
+    required Widget? errorBanner,
+  }) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      // Eksaktong dikit sa itaas ng floating bottom nav pill.
+      // [mobileBottomNavHeight] ang tama dito dahil ang context ng screen build
+      // ay nasa LABAS ng body (safe area lang ang nasa MediaQuery padding doon).
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        mobileBottomNavHeight(context),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          welcome,
+          // Walang aktibong loan: ang Balance card sa loob ng `welcome` ang
+          // outstanding balance, kaya sa ilalim nito ang mga tile.
+          if (activeLoan == null) ...[
+            const SizedBox(height: 16),
+            _LenderKpiStats(loan: activeLoan),
+          ],
+          const SizedBox(height: 16),
+          if (approvedBanner != null) ...[
+            approvedBanner,
+            const SizedBox(height: 20),
+          ],
+          if (activeLoan == null) ...[
+            if (primaryAction != null) primaryAction,
+            const SizedBox(height: 16),
+            // Promo carousel — nasa baba ng Apply Now button.
+            promo,
+            // HIDDEN: "Pay with" section (Cash on Delivery / Office cards) —
+            // hindi na ipinapakita sa lender Home. Nasa code pa rin ang
+            // `_PayWithSection` at ang mga route (`/lender/payment-method`,
+            // `/lender/pay-office`) kung ibabalik ito.
+            const SizedBox(height: 20),
+          ],
+          if (myLoanCard != null) ...[
+            myLoanCard,
+            // Next Payment + Installment — nasa ILALIM ng Outstanding Balance
+            // card, at nakikita rin sa MOBILE (hindi desktop-only).
+            const SizedBox(height: 16),
+            _LenderKpiStats(loan: activeLoan),
+            const SizedBox(height: 6),
+            promo,
+            const SizedBox(height: 20),
+          ] else if (loansOverview != null)
+            loansOverview,
+          recentActivity,
+          // HIDDEN: live rider tracking card — hindi na ipinapakita sa lender
+          // (request). Nasa code pa rin ang widget / route
+          // (`/lender/live-tracking`) kung ibabalik ito.
+          // Walang trailing na spacing dito — dapat dikit ang huling nilalaman
+          // sa itaas ng floating bottom nav.
+          if (errorBanner != null) ...[
+            const SizedBox(height: 20),
+            errorBanner,
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// DESKTOP na ayos: dalawang column — pangunahing nilalaman (balanse, loan
+  /// cards, promo) sa kaliwa, at makitid na rail (overview + Recent Activity) sa
+  /// kanan. Naka-cap ang lapad (1240) at naka-center, kaya hindi nakaunat ang
+  /// mobile card sa buong lapad ng monitor, at normal na desktop padding ang
+  /// gamit (wala nang espasyong nakalaan para sa bottom nav).
+  Widget _desktopBody({
+    required Widget welcome,
+    // Aktibong loan (null kapag wala) — pinagmumulan ng "Next Payment" at
+    // "Installment" na stat tiles sa desktop.
+    required LoanModel? loan,
+    required Widget? approvedBanner,
+    required Widget? primaryAction,
+    required Widget? myLoanCard,
+    required Widget promo,
+    required Widget? loansOverview,
+    required Widget recentActivity,
+    required Widget? errorBanner,
+  }) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ── Pangunahing column ──
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [                    // ── Top row ──
+                    // May aktibong loan: maliit lang ang `welcome` (fox + greeting
+                    // dialog), kaya sinasamantala ang bakanteng espasyo sa KANAN
+                    // nito para sa Next Payment / Installment — kaya hindi na
+                    // naaaksaya ang taas, at ang kanang gilid ng tiles ay pantay
+                    // sa kanang gilid ng Outstanding Balance card sa ibaba.
+                    if (loan != null)
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(child: welcome),
+                          const SizedBox(width: 20),
+                          Expanded(child: _LenderKpiStats(loan: loan)),
+                        ],
+                      )
+                    else ...[
+                      // Walang aktibong loan: ang gradient na Balance card
+                      // (bahagi ng `welcome`) ang outstanding balance, kaya sa
+                      // ilalim nito ang mga tile.
+                      welcome,
+                      const SizedBox(height: 20),
+                      _LenderKpiStats(loan: loan),
+                    ],
+                    const SizedBox(height: 20),
+          if (approvedBanner != null) ...[
+                      approvedBanner,
+                      const SizedBox(height: 20),
+                    ],
+                    if (primaryAction != null) ...[
+                      primaryAction,
+                      const SizedBox(height: 18),
+                    ],
+                    if (myLoanCard != null) ...[
+                      myLoanCard,
+                      const SizedBox(height: 6),
+                    ],
+                    promo,
+                  ],
+                ),
+              ),
+              const SizedBox(width: 24),
+              // ── Right rail: buod ng loan + Recent Activity ──
+              SizedBox(
+                width: 360,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (loansOverview != null) ...[
+                      loansOverview,
+                      const SizedBox(height: 20),
+                    ],
+                    recentActivity,
+                    if (errorBanner != null) ...[
+                      const SizedBox(height: 20),
+                      errorBanner,
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Buod ng account — DALAWANG stat tiles: ang **Next Payment** (susunod na hindi
+/// pa bayad na installment kasama ang due date) at ang **Installment** (halaga
+/// ng bawat bayaran). Ipinapakita ito sa DESKTOP at MOBILE.
+///
+/// Ayos: sa DESKTOP (may aktibong loan), nakadikit ito sa KANANG bahagi ng
+/// greeting row — pantay ang kanang gilid sa Outstanding Balance card sa ibaba;
+/// kapag walang aktibong loan, sa ilalim ng Balance card ito. Sa MOBILE, laging
+/// sa ilalim ng Outstanding Balance card.
+class _LenderKpiStats extends ConsumerWidget {
+  /// Aktibong loan — null kapag wala ("—" ang ipinapakita sa mga tile).
+  final LoanModel? loan;
+
+  const _LenderKpiStats({required this.loan});
+
+  /// Ang NEXT na bayaran: ang pinakamaagang schedule na may natitirang balanse
+  /// (`amount_due - amount_paid`) — mas tumpak ito kung may partial payment.
+  ///
+  /// Kapag WALANG schedules sa payload (ang `loans-view?fn=get-list` ay
+  /// `due_date` + `installment_amount` lang ang ipinapadala, hindi ang buong
+  /// schedule), bumabalik ito sa installment_amount na may kasamang next due
+  /// date — kaya hindi "—" ang Next Payment ng aktibong loan. Null lang kapag
+  /// wala talagang susunod na bayaran (bayad na lahat o wala pang due date).
+  ({double amount, DateTime? dueDate})? _nextPayment() {
+    final raw = loan?.schedules;
+    if (raw != null && raw.isNotEmpty) {
+      final unpaid = raw
+          .whereType<Map>()
+          .map((e) => LoanScheduleModel.fromJson(Map<String, dynamic>.from(e)))
+          .where((s) => s.remainingAmount > 0)
+          .toList()
+        ..sort((a, b) => a.dueDate.compareTo(b.dueDate));
+      return unpaid.isEmpty
+          ? null // bayad na lahat ng schedule
+          : (
+              amount: unpaid.first.remainingAmount,
+              dueDate: unpaid.first.dueDate,
+            );
+    }
+    final amount = loan?.installmentAmount ?? 0;
+    final due = loan?.dueDate;
+    if (loan == null || amount <= 0 || due == null) return null;
+    return (amount: amount, dueDate: due);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final obscured = ref.watch(lenderAmountObscuredProvider);
+    String money(double value) => obscured ? '₱ ••••••' : value.toPeso();
+
+    final next = _nextPayment();
+    final installmentAmount = loan?.installmentAmount ?? 0;
+
+    final nextTile = _StatTile(
+      icon: Icons.event_available_outlined,
+      label: 'Next Payment',
+      value: next == null ? '—' : money(next.amount),
+      // Ang due date ay bahagi ng "next payment" — nakatago rin kapag obscured
+      // ang mga halaga (privacy, gaya ng ibang amount sa app).
+      hint: (next?.dueDate == null || obscured)
+          ? null
+          : 'Due ${next!.dueDate!.toDateString()}',
+    );
+    final installmentTile = _StatTile(
+      icon: Icons.receipt_long_outlined,
+      label: 'Installment',
+      value: installmentAmount > 0 ? money(installmentAmount) : '—',
+    );
+
+    // ISANG ROW (desktop at mobile) — IntrinsicHeight + stretch para pantay ang
+    // TAAS kahit may "Due …" na linya ang Next Payment. Ang mga teksto sa loob
+    // ng tile ay nagsi-shrink (FittedBox) kaya buo pa rin silang nababasa kahit
+    // makitid ang espasyo — hindi napuputol ng "…".
+    return IntrinsicHeight(
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(child: nextTile),
+          const SizedBox(width: 14),
+          Expanded(child: installmentTile),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  /// Opsyonal na maliit na linya sa ilalim ng halaga (hal. "Due Sep 28, 2026").
+  final String? hint;
+
+  const _StatTile({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.hint,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.cBorder),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: AppColors.lenderBlue.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(9),
+            ),
+            child: Icon(icon, size: 15, color: AppColors.lenderBlue),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // FittedBox (scaleDown): kapag makitid ang tile, LUMILIIT ang
+                // teksto imbes na maputol ng "…" — kaya laging kita ang label,
+                // halaga at due date.
+                _TileText(
+                  text: label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.2,
+                    color: context.cTextTertiary,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                _TileText(
+                  text: value,
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: context.cTextPrimary,
+                  ),
+                ),
+                if (hint != null) ...[
+                  const SizedBox(height: 2),
+                  _TileText(
+                    text: hint!,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: context.cTextTertiary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Isang linya ng `_StatTile` na hindi kailanman napuputol: kapag mas makitid
+/// ang espasyo kaysa sa teksto, ini-scale down ito (hindi ellipsis).
+class _TileText extends StatelessWidget {
+  final String text;
+  final TextStyle style;
+
+  const _TileText({required this.text, required this.style});
+
+  @override
+  Widget build(BuildContext context) {
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Text(
+        text,
+        maxLines: 1,
+        softWrap: false,
+        style: style,
+      ),
     );
   }
 }
@@ -412,21 +783,41 @@ class _WelcomeBanner extends ConsumerStatefulWidget {
   final dynamic kpi;
   final String? firstName;
   final bool showBalance;
+
+  /// Kapag true (desktop layout): nakadikit sa KALIWANG gilid ang Rive group,
+  /// at ang fox ang pinaka-kaliwa — nasa KANAN nito ang greeting dialog.
+  final bool desktop;
+
   const _WelcomeBanner(
-      {required this.kpi, this.firstName, this.showBalance = true});
+      {required this.kpi,
+      this.firstName,
+      this.showBalance = true,
+      this.desktop = false});
 
   @override
   ConsumerState<_WelcomeBanner> createState() => _WelcomeBannerState();
 }
 
 class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
+  /// Ang fox (Rive) at ang greeting dialog — sa desktop, ang FOX ang
+  /// pinaka-kaliwa at nasa KANAN nito ang dialog; sa mobile, baliktad.
+  Widget get _welcomeGroup => LenderWelcomeGroup(
+        firstName: widget.firstName,
+        riveFirst: widget.desktop,
+        rive: const SizedBox(
+          width: 118,
+          height: 118,
+          child: _FoxyRive(),
+        ),
+      );
+
   @override
   Widget build(BuildContext context) {
     final obscured = ref.watch(lenderAmountObscuredProvider);
     if (!widget.showBalance) {
       return Align(
-        alignment: Alignment.topRight,
-        child: _FoxyRiveGroup(firstName: widget.firstName),
+        alignment: widget.desktop ? Alignment.topLeft : Alignment.topRight,
+        child: _welcomeGroup,
       );
     }
     return Stack(
@@ -434,8 +825,9 @@ class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
       children: [
         Positioned(
           top: -10,
-          right: 4,
-          child: _FoxyRiveGroup(firstName: widget.firstName),
+          left: widget.desktop ? 4 : null,
+          right: widget.desktop ? null : 4,
+          child: _welcomeGroup,
         ),
         Container(
           width: double.infinity,
@@ -511,132 +903,9 @@ class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
   }
 }
 
-class _FoxyRiveGroup extends StatelessWidget {
-  final String? firstName;
-  const _FoxyRiveGroup({this.firstName});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _GoodMorningBubble(name: firstName),
-        const SizedBox(width: 6),
-        const SizedBox(
-          width: 118,
-          height: 118,
-          child: _FoxyRive(),
-        ),
-      ],
-    );
-  }
-}
-
-class _GoodMorningBubble extends StatefulWidget {
-  final String? name;
-  const _GoodMorningBubble({this.name});
-
-  @override
-  State<_GoodMorningBubble> createState() => _GoodMorningBubbleState();
-}
-
-class _GoodMorningBubbleState extends State<_GoodMorningBubble>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 700),
-    )..forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final hour = nowManila().hour;
-    final greeting = hour < 12
-        ? 'Good morning'
-        : hour < 18
-            ? 'Good afternoon'
-            : 'Good evening';
-    final name = widget.name?.trim() ?? '';
-    final message = name.isEmpty ? '$greeting!' : '$greeting, $name!';
-
-    return SlideTransition(
-      position: Tween<Offset>(
-        begin: const Offset(0.6, 0.4),
-        end: Offset.zero,
-      ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutBack)),
-      child: FadeTransition(
-        opacity: _ctrl,
-        child: Container(
-          margin: const EdgeInsets.only(top: 26),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Text(
-                message,
-                style: const TextStyle(
-                  color: AppColors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              Positioned(
-                right: -8,
-                bottom: -10,
-                child: ClipPath(
-                  clipper: _BubbleTailClipper(),
-                  child: Container(
-                    width: 16,
-                    height: 14,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _BubbleTailClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path()
-      ..moveTo(0, 0)
-      ..lineTo(size.width, 0)
-      ..lineTo(0, size.height);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant _BubbleTailClipper oldClipper) => false;
-}
+/// Ang fox (Rive) at ang greeting dialog — nasa [LenderWelcomeGroup] na ang
+/// ayos ng dalawa (injectable ang Rive kaya nate-test ito nang hindi umaasa sa
+/// Rive asset sa test host).
 
 class _ApprovedLoanBanner extends StatelessWidget {
   final LoanModel loan;

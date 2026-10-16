@@ -158,7 +158,22 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
         loanId: loanId,
         loanScheduleId: loanScheduleId,
       );
-      final url = result['xendit_invoice_url'] as String?;
+      // ANG EDGE FUNCTION AY `invoice_url` ANG IBINABALIK (hosted Xendit
+      // checkout page). Dating `xendit_invoice_url` ang binabasa dito, kaya
+      // LAGING null ang URL: matagumpay ang server (gumawa ng invoice, nag-log
+      // ng payment row) pero hindi kailanman nabubuksan ang checkout at
+      // "Failed to generate payment link" ang nakikita ng lender. Tinatanggap
+      // pa rin ang lumang key bilang fallback kung may ibang bersyon ng
+      // function na naka-deploy.
+      final url =
+          (result['invoice_url'] ?? result['xendit_invoice_url']) as String?;
+      if (url == null || url.isEmpty) {
+        state = state.copyWith(
+          isSubmitting: false,
+          error: 'Xendit did not return a checkout link. Please try again.',
+        );
+        return null;
+      }
       state = state.copyWith(isSubmitting: false, xenditUrl: url);
       return url;
     } catch (e) {

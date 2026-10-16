@@ -12,6 +12,7 @@ import '../../../../data/models/user_model.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../../features/employee/profile/providers/emp_profile_provider.dart';
 import '../../../features/head_manager/profile/providers/hm_profile_provider.dart';
+import '../../../features/lender/profile/providers/lender_profile_provider.dart';
 import '../../providers/auth_state_provider.dart';
 import '../dialogs/success_dialog.dart';
 import '../notification_dropdown.dart';
@@ -34,7 +35,96 @@ final _sidebarExpandedGroupsProvider =
 /// stay visible when People is selected (click People -> show All Users etc.).
 final _peopleFlyoutOpenProvider = StateProvider<bool>((ref) => false);
 
-const double _desktopBreakpoint = 900;
+/// Lapad kung saan nagsisimula ang desktop chrome: sidebar + top bar ang
+/// ipinapakita (tingnan ang [WebScaffold]) imbes na ang mobile na app bar at
+/// floating bottom nav. Ginagamit din ito ng `MobileScaffold` para sa desktop
+/// layout ng lender role — isang breakpoint lang para sa buong app.
+const double kDesktopBreakpoint = 900;
+
+/// Logout flow na pinagsasaluhan ng avatar dropdown (HM / employee) at ng
+/// "Log Out" na item sa sidebar ng lender: confirm modal → loading modal →
+/// success modal → login page.
+Future<void> performLogout(BuildContext context, WidgetRef ref) async {
+  // Prevent double-tap while a logout is already running.
+  if (ref.read(authStateProvider).isLoggingOut) return;
+  // Capture the router BEFORE any async gap. Once logout clears the auth
+  // state, the router's redirect immediately unmounts this dashboard subtree
+  // (auto-navigate to /login) — using `context.go` afterwards would run on a
+  // disposed context and can leave the app on a blank /login page (URL
+  // changes, no widget builds).
+  final router = GoRouter.of(context);
+  // 1) Confirm modal muna: "Are you sure to logout?"
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      title: const Text('Log Out'),
+      content: const Text('Are you sure to logout?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx, false),
+          child: const Text('No'),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Yes'),
+        ),
+      ],
+    ),
+  );
+  if (confirmed != true || !context.mounted) return;
+  // 2) Loading modal (non-dismissible) habang tumatakbo ang logout.
+  // Hold the auto-redirect while the modals are up para hindi ma-yank ang
+  // stack mid-modal (gaya sa mobile logout flow).
+  AppConstants.suppressLogoutRedirect = true;
+  if (context.mounted) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+              SizedBox(width: 14),
+              Text('Logging out…',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+  try {
+    await ref.read(authProvider.notifier).logout();
+  } catch (_) {
+    // Tuloy pa rin sa success flow — naka-clear na ang session.
+  } finally {
+    AppConstants.suppressLogoutRedirect = false;
+  }
+  if (context.mounted) Navigator.pop(context); // close loading
+  if (!context.mounted) return;
+  // 3) Success modal — steady 2s, tapos diretso sa login.
+  try {
+    await SuccessDialog.showAutoDismiss(
+      context,
+      title: 'Successfully Logged Out',
+      message: 'You have been logged out successfully.',
+    );
+  } catch (_) {}
+  if (router.routeInformationProvider.value.uri.path !=
+      RouteConstants.webLogin) {
+    router.go(RouteConstants.webLogin);
+  }
+}
 
 class WebScaffold extends ConsumerWidget {
   final String title;
@@ -42,23 +132,36 @@ class WebScaffold extends ConsumerWidget {
   final List<Widget>? actions;
   final Widget? floatingActionButton;
 
+  /// Widget na ipinapakita sa UNANG bahagi ng top bar (bago ang sidebar
+  /// toggle) — dito ipinapasa ng lender desktop layout ang back button ng mga
+  /// detail screen. Walang epekto sa HM / employee screens (null ito sa kanila).
+  final Widget? leading;
+
+  /// Pinipilit ang role na gagamitin sa sidebar navigation. Kapag null, ang
+  /// role ng naka-log in (auth state) ang batayan. Kailangan ito ng lender
+  /// desktop shell para hindi mawala ang lender navigation kahit hindi pa
+  /// nakumpirma ang role (hal. account upgrade / onboarding flow).
+  final String? roleOverride;
+
   const WebScaffold({
     super.key,
     required this.title,
     required this.body,
     this.actions,
     this.floatingActionButton,
+    this.leading,
+    this.roleOverride,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final collapsed = ref.watch(_sidebarCollapsedProvider);
     final authState = ref.watch(authStateProvider);
-    final role = authState.role ?? '';
+    final role = roleOverride ?? authState.role ?? '';
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isDesktop = constraints.maxWidth >= _desktopBreakpoint;
+        final isDesktop = constraints.maxWidth >= kDesktopBreakpoint;
 
         if (isDesktop) {
           return Scaffold(
@@ -74,10 +177,14 @@ class WebScaffold extends ConsumerWidget {
                       _TopBar(
                         title: title,
                         actions: actions,
+                        leading: leading,
                         onMenuTap: () => ref
                             .read(_sidebarCollapsedProvider.notifier)
                             .state = !collapsed,
                         authState: authState,
+                        // Ang role ng SHELL (kasama ang roleOverride) ang
+                        // batayan ng chrome — hindi lang ang auth state.
+                        role: role,
                       ),
                       Expanded(
                         child: _buildBody(floatingActionButton),
@@ -122,7 +229,7 @@ class WebScaffold extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       ...?actions,
-                      _MobileActions(authState: authState),
+                      _MobileActions(authState: authState, role: role),
                     ],
                   ),
                 ),
@@ -164,7 +271,8 @@ class WebScaffold extends ConsumerWidget {
 
 class _MobileActions extends ConsumerWidget {
   final AuthState authState;
-  const _MobileActions({required this.authState});
+  final String role;
+  const _MobileActions({required this.authState, required this.role});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -172,7 +280,10 @@ class _MobileActions extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const NotificationBellButton(),
-        _UserAvatar(authState: authState, showName: false),
+        // Lender: nasa drawer/sidebar na ang My Profile at Log Out (tingnan ang
+        // `_SidebarAccountItem`), kaya hindi na ipinapakita ang avatar.
+        if (role != AppConstants.roleLender)
+          _UserAvatar(authState: authState, showName: false),
       ],
     );
   }
@@ -181,14 +292,20 @@ class _MobileActions extends ConsumerWidget {
 class _TopBar extends StatelessWidget {
   final String title;
   final List<Widget>? actions;
+  final Widget? leading;
   final VoidCallback onMenuTap;
   final AuthState authState;
+
+  /// Role na ginagamit ng shell (auth state o `roleOverride`).
+  final String role;
 
   const _TopBar({
     required this.title,
     this.actions,
+    this.leading,
     required this.onMenuTap,
     required this.authState,
+    required this.role,
   });
 
   @override
@@ -202,6 +319,7 @@ class _TopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
         children: [
+          if (leading != null) leading!,
           IconButton(
             onPressed: onMenuTap,
             icon: const Icon(Icons.menu, color: AppColors.textSecondary),
@@ -221,7 +339,11 @@ class _TopBar extends StatelessWidget {
           const SizedBox(width: 8),
           const NotificationBellButton(),
           const SizedBox(width: 4),
-          _UserAvatar(authState: authState),
+          // Nakatago na ang identity (avatar + pangalan + role) sa lender: nasa
+          // SIDEBAR na ang My Profile at Log Out, kaya wala nang laman ang
+          // dropdown nito. Ang HM / employee ay hindi apektado.
+          if (role != AppConstants.roleLender)
+            _UserAvatar(authState: authState),
         ],
       ),
     );
@@ -257,6 +379,8 @@ class _UserAvatar extends ConsumerWidget {
       profileUser = ref.watch(hmProfileProvider).user;
     } else if (role == AppConstants.roleEmployee) {
       profileUser = ref.watch(empProfileProvider).valueOrNull;
+    } else if (role == AppConstants.roleLender) {
+      profileUser = ref.watch(lenderProfileProvider).user;
     }
 
     final user = profileUser ?? authState.user;
@@ -286,55 +410,63 @@ class _UserAvatar extends ConsumerWidget {
       ),
     );
 
-    return PopupMenuButton<String>(
-      offset: const Offset(0, 48),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          avatar,
-          if (showName) ...[
-            const SizedBox(width: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 160),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
+    // Identity row (avatar + pangalan + role) — ito ang ipinapakita ng top bar.
+    final identity = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        avatar,
+        if (showName) ...[
+          const SizedBox(width: 10),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  displayName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
+                if (roleLabel.isNotEmpty)
                   Text(
-                    displayName,
+                    roleLabel.toUpperCase(),
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: AppColors.textTertiary,
+                      letterSpacing: 0.4,
                     ),
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                   ),
-                  if (roleLabel.isNotEmpty)
-                    Text(
-                      roleLabel.toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textTertiary,
-                        letterSpacing: 0.4,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                    ),
-                ],
-              ),
+              ],
             ),
-            const SizedBox(width: 4),
-            const Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 18,
-              color: AppColors.textSecondary,
-            ),
-          ],
+          ),
         ],
-      ),
+        const SizedBox(width: 4),
+        const Icon(
+          Icons.keyboard_arrow_down_rounded,
+          size: 18,
+          color: AppColors.textSecondary,
+        ),
+      ],
+    );
+
+    // Ang lender ay may "My Profile" at "Log Out" na sa SIDEBAR — wala nang
+    // natitirang laman ang dropdown para sa kanila, kaya plain display na lang
+    // ang avatar (hindi na clickable). Ang HM / employee ay dropdown pa rin.
+    if (authState.role == AppConstants.roleLender) return identity;
+
+    return PopupMenuButton<String>(
+      offset: const Offset(0, 48),
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+      child: identity,
       onSelected: (val) async {
         if (val == 'profile') {
           final role = authState.role;
@@ -342,97 +474,13 @@ class _UserAvatar extends ConsumerWidget {
             context.go(RouteConstants.hmProfile);
           } else if (role == AppConstants.roleEmployee) {
             context.go(RouteConstants.empProfile);
+          } else if (role == AppConstants.roleLender) {
+            context.go(RouteConstants.lenderProfile);
           }
         } else if (val == 'settings') {
           context.go(RouteConstants.hmSettings);
         } else if (val == 'logout') {
-          // Prevent double-tap while a logout is already running.
-          if (ref.read(authStateProvider).isLoggingOut) return;
-          // Capture the router BEFORE any async gap. Once logout clears the
-          // auth state, the router's redirect immediately unmounts this
-          // dashboard subtree (auto-navigate to /login) — using `context.go`
-          // afterwards would run on a disposed context and can leave the
-          // app on a blank /login page (URL changes, no widget builds).
-          final router = GoRouter.of(context);
-          // 1) Confirm modal muna: "Are you sure to logout?"
-          final confirmed = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              shape: const RoundedRectangleBorder(
-                borderRadius: BorderRadius.zero,
-              ),
-              title: const Text('Log Out'),
-              content: const Text('Are you sure to logout?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('No'),
-                ),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error),
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Yes'),
-                ),
-              ],
-            ),
-          );
-          if (confirmed != true || !context.mounted) return;
-          // 2) Loading modal (non-dismissible) habang tumatakbo ang logout.
-          // Hold the auto-redirect while the modals are up para hindi
-          // ma-yank ang stack mid-modal (gaya sa mobile logout flow).
-          AppConstants.suppressLogoutRedirect = true;
-          // Loading modal (non-dismissible) — ito ang "loading button" state.
-          if (context.mounted) {
-            showDialog(
-              context: context,
-              barrierDismissible: false,
-              builder: (_) => const Dialog(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.zero),
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                      horizontal: 28, vertical: 24),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      ),
-                      SizedBox(width: 14),
-                      Text('Logging out…',
-                          style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-          try {
-            await ref.read(authProvider.notifier).logout();
-          } catch (_) {
-            // Tuloy pa rin sa success flow — naka-clear na ang session.
-          } finally {
-            AppConstants.suppressLogoutRedirect = false;
-          }
-          if (context.mounted) Navigator.pop(context); // close loading
-          if (!context.mounted) return;
-          // Success modal — steady 2s, tapos diretso sa login.
-          try {
-            await SuccessDialog.showAutoDismiss(
-              context,
-              title: 'Successfully Logged Out',
-              message: 'You have been logged out successfully.',
-            );
-          } catch (_) {}
-          if (router.routeInformationProvider.value.uri.path !=
-              RouteConstants.webLogin) {
-            router.go(RouteConstants.webLogin);
-          }
+          await performLogout(context, ref);
         }
       },
       itemBuilder: (_) => [
@@ -566,9 +614,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
     final role = widget.role;
     final inDrawer = widget.inDrawer;
     final effectiveCollapsed = inDrawer ? false : collapsed;
-    final items = role == AppConstants.roleHeadManager
-        ? _hmItems(context)
-        : _empItems(context);
+    final items = _itemsForRole(role);
     final w = inDrawer ? double.infinity : (collapsed ? 68.0 : 240.0);
     final path = GoRouterState.of(context).uri.path;
     final expandedGroups = ref.watch(_sidebarExpandedGroupsProvider);
@@ -644,14 +690,47 @@ class _SidebarState extends ConsumerState<_Sidebar> {
               }).toList(),
             ),
           ),
+          // ── Account items (LENDER) ────────────────────────────────────
+          // Nasa SIDEBAR na ang My Profile at Log Out — hindi na dropdown sa
+          // avatar ng top bar. Nakapin sa ibaba, hiwalay sa mga pangunahing
+          // section ng app.
+          if (role == AppConstants.roleLender) ...[
+            const Divider(height: 1, thickness: 1, color: Colors.white12),
+            const SizedBox(height: 8),
+            _SidebarAccountItem(
+              icon: Icons.person_outlined,
+              label: 'My Profile',
+              collapsed: !showText,
+              isActive: path == RouteConstants.lenderProfile ||
+                  path.startsWith('${RouteConstants.lenderProfile}/'),
+              onTap: () => context.go(RouteConstants.lenderProfile),
+            ),
+            _SidebarAccountItem(
+              icon: Icons.logout,
+              label: 'Log Out',
+              collapsed: !showText,
+              onTap: () => performLogout(context, ref),
+            ),
+            const SizedBox(height: 8),
+          ],
         ],
       ),
     );
   }
 
-  List<_NavItem> _hmItems(BuildContext ctx) => [
-        const _NavItem(
-            Icons.dashboard_outlined, 'Dashboard', RouteConstants.hmDashboard),
+}
+
+/// Mga nav item ng bawat role — isang pinagmumulan lang ito para sa sidebar
+/// (HM / employee) at sa header nav bar (lender).
+List<_NavItem> _itemsForRole(String role) {
+  if (role == AppConstants.roleHeadManager) return _hmItems();
+  if (role == AppConstants.roleLender) return _lenderItems();
+  return _empItems();
+}
+
+List<_NavItem> _hmItems() => [
+      const _NavItem(
+          Icons.dashboard_outlined, 'Dashboard', RouteConstants.hmDashboard),
         // Flyout: "People" is grouping only (no route) - clicking shows box with 5,
         // no child pre-selected. Must pick one, then box disappears.
         const _NavItem(
@@ -696,12 +775,12 @@ class _SidebarState extends ConsumerState<_Sidebar> {
             Icons.history_outlined, 'Audit Logs', RouteConstants.hmAudit),
       ];
 
-  List<_NavItem> _empItems(BuildContext ctx) => [
-        const _NavItem(
-          Icons.dashboard_outlined,
-          'Dashboard',
-          RouteConstants.empDashboard,
-        ),
+List<_NavItem> _empItems() => [
+      const _NavItem(
+        Icons.dashboard_outlined,
+        'Dashboard',
+        RouteConstants.empDashboard,
+      ),
         // Employee also gets the same nested People grouping for consistency
         // (Lenders + Riders under People). Archived is Head Manager only.
         const _NavItem(
@@ -733,7 +812,31 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           RouteConstants.empCollections,
         ),
       ];
-}
+
+/// Mga section ng LENDER role para sa sidebar — TATLONG items lang ito
+/// (Dashboard, Payments, Transactions), kapareho ng laman ng mobile bottom nav.
+/// Ang ibang lender sections (Loans, Collections, Documents, Account Upgrade,
+/// Profile) ay hindi nakalista rito: ang My Profile at Log Out ay nasa account
+/// section sa ibaba ng sidebar (tingnan ang `_SidebarAccountItem`).
+List<_NavItem> _lenderItems() => const [
+      _NavItem(Icons.dashboard_outlined, 'Dashboard',
+          RouteConstants.lenderDashboard),
+      _NavItem(
+          Icons.payments_outlined, 'Payments', RouteConstants.lenderPayments),
+      _NavItem(Icons.receipt_long_outlined, 'Transactions',
+          RouteConstants.lenderPaymentHistory),
+    ];
+
+/// Ang "Payments" ng lender ay sumasakop din sa mga payment sub-screen (GCash,
+/// office cash, payment method at resibo) — hindi ito dapat mawalan ng
+/// highlight kapag nandoon ang user.
+bool _isLenderPaymentsItemActive(_NavItem item, String path) =>
+    item.route == RouteConstants.lenderPayments &&
+    (path.startsWith(RouteConstants.lenderPaymentMethod) ||
+        path.startsWith(RouteConstants.lenderPayViaGcash) ||
+        path.startsWith(RouteConstants.lenderOfficePayment) ||
+        path.startsWith(RouteConstants.lenderPaymentReceipt
+            .replaceFirst('/:id', '')));
 
 class _SidebarHeader extends StatelessWidget {
   final bool collapsed;
@@ -840,8 +943,13 @@ class _SidebarItem extends ConsumerWidget {
         (item.route == RouteConstants.empCollections &&
             (path == RouteConstants.empPayments ||
                 path.startsWith('${RouteConstants.empPayments}/')));
+    // ── Lender ──
+    // Ang "Payments" ng lender ay sumasakop din sa mga payment sub-screen
+    // (method, GCash, office cash, resibo) — ang "Transactions" ang history lang.
+    final isLenderPaymentsParent = _isLenderPaymentsItemActive(item, path);
     final baseActive = isLoanApplicationsParent ||
         isCollectionsParent ||
+        isLenderPaymentsParent ||
         (item.route.isNotEmpty &&
             (path == item.route || path.startsWith('${item.route}/')));
     final isActive = !isPeopleOpen && baseActive;
@@ -886,6 +994,81 @@ class _SidebarItem extends ConsumerWidget {
                       fontWeight:
                           isActive ? FontWeight.w600 : FontWeight.w400,
                       color: isActive ? AppColors.gold : Colors.white70,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Item sa ibaba ng sidebar para sa account actions ng LENDER (My Profile at
+/// Log Out). Hindi ito kasama sa `_itemsForRole` dahil hindi ito navigation
+/// section ng app — pares lang ito ng account action na nakapin sa ibaba, at
+/// ginaya ang hitsura ng `_SidebarItem` para pantay ang alignment.
+class _SidebarAccountItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool collapsed;
+  final bool isActive;
+
+  /// Hindi ito navigation item — kaya walang route: ang tap ay direktang
+  /// tumatakbo ng action (hal. logout) o `context.go(...)` mula sa caller.
+  final VoidCallback onTap;
+
+  const _SidebarAccountItem({
+    required this.icon,
+    required this.label,
+    required this.collapsed,
+    required this.onTap,
+    this.isActive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Kapareho ng kulay ng ibang sidebar item (puti) — hindi pula: ordinaryong
+    // nav item ang Log Out, hindi babala.
+    final Color fg = isActive ? AppColors.gold : Colors.white70;
+    final Color iconColor = isActive ? AppColors.gold : Colors.white54;
+
+    return Tooltip(
+      message: collapsed ? label : '',
+      preferBelow: false,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          padding: EdgeInsets.symmetric(
+            horizontal: collapsed ? 14 : 12,
+            vertical: 10,
+          ),
+          decoration: BoxDecoration(
+            color: isActive
+                ? AppColors.gold.withValues(alpha: 0.15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+            border: isActive
+                ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+                : null,
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 20, color: iconColor),
+              if (!collapsed) ...[
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                      color: fg,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

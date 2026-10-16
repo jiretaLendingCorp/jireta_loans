@@ -23,6 +23,9 @@ class AuditActionCatalog {
     'archive_role',
     'unarchive_role',
     'update_profile',
+    // MFA / 2FA (Google Authenticator) — Head Manager-assisted reset kapag
+    // nawala ang authenticator app ng isang account (users-admin?fn=reset-mfa).
+    'mfa_reset',
     // Escalation follow-up (00152): inaalis ang automatic account pause
     'unpause_lender',
     // Loans
@@ -37,6 +40,10 @@ class AuditActionCatalog {
     'payment_reverse',
     'generate_gcash_link',
     'xendit_payment_verified',
+    // Xendit SANDBOX diagnostics (Head Manager Settings) — test-only actions;
+    // walang loan/payment record na binabago.
+    'xendit_test_payment_created',
+    'xendit_test_payment_simulated',
     // Collections
     'collection_request',
     'collection_assign',
@@ -57,6 +64,7 @@ class AuditActionCatalog {
     'disbursement_delivery_proof',
     'disbursement_webhook',
     // Credit investigation
+    'ci_replace_document',
     'ci_assigned',
     'ci_accept',
     'ci_decline',
@@ -66,6 +74,7 @@ class AuditActionCatalog {
     'ci_upload_documents',
     // Account upgrade
     'account_upgrade_submit',
+    'account_upgrade_replace_document',
     // In-office
     'in_office_draft_created',
     'in_office_submitted',

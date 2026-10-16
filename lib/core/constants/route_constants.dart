@@ -13,6 +13,13 @@ class RouteConstants {
   static const String mobileLogin = '/mobile-login';
   static const String otpVerify = '/otp-verify';
 
+  /// Lender (at sinumang may naka-enroll na TOTP factor): ang authenticator
+  /// (Google Authenticator) challenge pagkatapos ng OTP. Hindi ito maaaring
+  /// lampasan ng deep link — pinipilit ito ng redirect ng router habang may
+  /// nakabinbing challenge, at ang server ay tumatanggi sa mga sensitibong
+  /// aksyon kapag `aal1` pa ang session.
+  static const String mfaVerify = '/mfa-verify';
+
   /// Rider / lender: required na pag-set ng 4-digit MPIN pagkatapos ng OTP.
   /// Ito na ang gagamitin sa susunod na login.
   static const String mpinSetup = '/mpin-setup';

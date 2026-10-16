@@ -25,6 +25,15 @@ class AuthState {
   final UserModel? user;
   final String? error;
 
+  /// May nakabinbing authenticator (TOTP) challenge para sa session na ito.
+  ///
+  /// Ito ay GATE lamang (nag-uutos na dumaan sa `/mfa-verify`), hindi patunay:
+  /// ang tanging patunay ng MFA ay ang `aal: aal2` claim ng access token — na
+  /// sinusuri ng server (`_shared/mfa.ts`) at hindi kayang pekein ng UI.
+  /// Kapag `true`, hindi maaaring manatili ang user sa alinmang protected na
+  /// pahina (tingnan ang `mfaRedirect` sa `app_router.dart`).
+  final bool mfaRequired;
+
   /// One-shot reason for the forced logout (e.g. the single-active-session
   /// "signed in on another device" notice). Login screens show it once and
   /// call [AuthStateNotifier.clearSecurityMessage] to consume it.
@@ -37,6 +46,7 @@ class AuthState {
     this.user,
     this.error,
     this.securityMessage,
+    this.mfaRequired = false,
   });
 
   String? get role => user?.role;
@@ -49,6 +59,7 @@ class AuthState {
     UserModel? user,
     String? error,
     String? securityMessage,
+    bool? mfaRequired,
   }) =>
       AuthState(
         isAuthenticated: isAuthenticated ?? this.isAuthenticated,
@@ -57,6 +68,7 @@ class AuthState {
         user: user ?? this.user,
         error: error,
         securityMessage: securityMessage ?? this.securityMessage,
+        mfaRequired: mfaRequired ?? this.mfaRequired,
       );
 }
 
@@ -289,6 +301,42 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
             }
           }
 
+          // ── Nakabinbing authenticator (TOTP) challenge ────────────────────
+          // Kung na-trigger na ang MFA sa login (may verified factor ang
+          // account) at pinatay/na-refresh ang app habang hindi pa tapos ang
+          // challenge, dapat MFA pa rin ang unang hihingin — hindi ang
+          // dashboard. Ang marker ay GATE lamang; ang tunay na batayan ay ang
+          // `aal` claim ng token: kapag `aal2` na ito (natapos na ang challenge
+          // noong nakaraang session), hindi na kailangan ang gate at binubura
+          // na ang marker.
+          final mfaPending = await SecureStorage.isMfaPending();
+          if (mfaPending) {
+            final token = await SecureStorage.getAccessToken();
+            if (JwtParser.isAal2(token)) {
+              await SecureStorage.saveMfaPending(false);
+            } else {
+              if (kDebugMode) {
+                debugPrint(
+                    '[MFA] initialize: may nakabinbing challenge → /mfa-verify');
+              }
+              state = AuthState(
+                isAuthenticated: true,
+                mfaRequired: true,
+                user: UserModel(
+                  id: userId,
+                  role: role,
+                  firstName: '',
+                  lastName: '',
+                  accountStatus: 'active',
+                  forcePasswordChange: false,
+                  createdAt: DateTime.now(),
+                ),
+              );
+              _scheduleExpiryCheck();
+              return;
+            }
+          }
+
           // Rider / lender (mobile) na may 4-digit MPIN: HINDI awtomatikong
           // pumapasok sa dashboard. Naka-lock ang app — sa pagbukas nito ay
           // ang login page (na may numero sa itaas) ang unang lalabas, MPIN
@@ -374,6 +422,23 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
         user: state.user!.copyWith(forcePasswordChange: false),
       );
     }
+  }
+
+  /// Nag-uutos na dumaan muna sa authenticator challenge bago ang anumang
+  /// protected na pahina. Hindi ito patunay ng MFA — gate lang
+  /// (tingnan ang [AuthState.mfaRequired]).
+  Future<void> requireMfa({bool persist = true}) async {
+    if (persist) {
+      await SecureStorage.saveMfaPending(true);
+    }
+    state = state.copyWith(mfaRequired: true);
+  }
+
+  /// Tinatanggal ang MFA gate — tanging pagkatapos ng TAGUMPAY na `mfa.verify`
+  /// (ang bagong token ay may `aal: aal2`).
+  Future<void> clearMfaRequired() async {
+    await SecureStorage.saveMfaPending(false);
+    state = state.copyWith(mfaRequired: false);
   }
 
   /// Flips the logout loading flag on immediately so logout buttons show

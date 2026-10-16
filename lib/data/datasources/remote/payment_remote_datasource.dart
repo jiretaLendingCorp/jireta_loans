@@ -65,6 +65,62 @@ class PaymentRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  // ── Xendit SANDBOX diagnostics (Head Manager only) ──────────────────────
+  // Ang secret key ay nasa Supabase Edge Function secret store — HINDI
+  // kailanman dito at hindi kailanman nasa request/response ng client.
+
+  /// Read-only connectivity check ng `XENDIT_SECRET_KEY`. 200 ang status kahit
+  /// hindi pumasa ang key: ang hatol ay nasa `status` field ng body
+  /// (`connected` / `auth_failed` / `permission_denied` / `unverified`).
+  Future<Map<String, dynamic>> checkXenditConnectivity() async {
+    final res = await _client.post(ApiEndpoints.paymentsXenditDiagnostics);
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// Gumagawa ng TEST (sandbox) payment request. Idempotent sa
+  /// `x-idempotency-key`: kaparehong key → kaparehong payment request id at
+  /// walang bagong Xendit call.
+  Future<Map<String, dynamic>> createXenditTestPayment({
+    required double amount,
+    required String idempotencyKey,
+    String channelCode = 'GCASH',
+  }) async {
+    final res = await _client.postWithIdempotency(
+      ApiEndpoints.paymentsXenditTestCreate,
+      data: {'amount': amount, 'channel_code': channelCode},
+      idempotencyKey: idempotencyKey,
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// Status ng test payment request, galing sa Xendit (read-only).
+  Future<Map<String, dynamic>> getXenditTestPaymentStatus({
+    required String paymentRequestId,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.paymentsXenditTestStatus,
+      data: {'payment_request_id': paymentRequestId},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
+  /// Sandbox-only payment completion (`POST /v3/payment_requests/{id}/simulate`).
+  /// Hindi ito nagpapatunay ng bayad — kailangan pa ring i-verify sa
+  /// [getXenditTestPaymentStatus].
+  Future<Map<String, dynamic>> simulateXenditTestPayment({
+    required String paymentRequestId,
+    double? amount,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.paymentsXenditTestSimulate,
+      data: {
+        'payment_request_id': paymentRequestId,
+        if (amount != null) 'amount': amount,
+      },
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<void> reversePayment({
     required String paymentId,
     required String reason,

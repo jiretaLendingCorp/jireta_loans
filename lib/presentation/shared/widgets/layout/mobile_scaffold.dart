@@ -5,11 +5,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../features/lender/notifications/providers/lender_notification_provider.dart';
 import '../../../features/rider/notifications/providers/rider_notification_provider.dart';
 import '../notification_badge.dart';
+import 'web_scaffold.dart';
 
 /// Distansya ng floating bottom nav pill mula sa ilalim ng SafeArea.
 const double kFloatingNavFloatGap = 36;
@@ -91,6 +93,8 @@ class MobileScaffold extends ConsumerWidget {
       (item) => path == item.route || path.startsWith('${item.route}/'),
     );
 
+    // Saan nanggaling ang path na ito — hindi sa auth state, kaya gumagana rin
+    // ito sa mga lender screen na hindi pa kumpirmado ang role (hal. onboarding).
     final isLender = path.startsWith('/lender');
     final isRider = path.startsWith('/rider');
     final notificationsRoute = isLender
@@ -99,6 +103,26 @@ class MobileScaffold extends ConsumerWidget {
     final unreadCount = isLender
         ? ref.watch(lenderNotificationProvider).unreadCount
         : ref.watch(riderNotificationProvider).unreadCount;
+
+    // ── Desktop layout (lender) ─────────────────────────────────────────────
+    // Sa desktop, ang lender role ay gumagamit ng KAPAREHONG desktop chrome ng
+    // head manager / employee (sidebar + top bar) — ang mobile na app bar at
+    // floating bottom nav ay para lang sa makitid na screen. Hindi na kailangang
+    // baguhin ang body ng bawat lender screen: dito lang sa shell naka-centralize
+    // ang switch, kaya isang layout lang ang pinapanatili sa lahat ng screen.
+    if (isLender && MediaQuery.sizeOf(context).width >= kDesktopBreakpoint) {
+      return WebScaffold(
+        title: title,
+        // Pinipilit ang lender navigation kahit hindi pa kumpirmado ang role sa
+        // auth state (hal. account upgrade / onboarding).
+        roleOverride: AppConstants.roleLender,
+        leading: appBarLeading ??
+            (showBackButton ? _buildDesktopBackButton(context) : null),
+        actions: _desktopTopBarActions(),
+        floatingActionButton: floatingActionButton,
+        body: body,
+      );
+    }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -196,6 +220,46 @@ class MobileScaffold extends ConsumerWidget {
               ),
       ),
     );
+  }
+
+  /// Back button ng desktop top bar — kapareho ng gawi ng mobile app bar: pop
+  /// kung may maaaring balikan, kung wala ay sa lender dashboard.
+  Widget _buildDesktopBackButton(BuildContext context) {
+    return IconButton(
+      tooltip: 'Back',
+      icon: const Icon(
+        Icons.arrow_back_rounded,
+        color: AppColors.textSecondary,
+        size: 20,
+      ),
+      onPressed: () {
+        if (Navigator.of(context).canPop()) {
+          Navigator.of(context).pop();
+        } else {
+          context.go(RouteConstants.lenderDashboard);
+        }
+      },
+    );
+  }
+
+  /// Ang `appBarActions` ng mga lender screen ay naka-puting icon/text para sa
+  /// navy na mobile app bar. Sa puting desktop top bar, isang navy pill ang
+  /// nagbibigay ng contrast — hindi na kailangang baguhin ang mga action widget
+  /// ng bawat screen.
+  List<Widget>? _desktopTopBarActions() {
+    final actions = appBarActions;
+    if (actions == null || actions.isEmpty) return null;
+    return [
+      Container(
+        margin: const EdgeInsets.only(right: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        decoration: BoxDecoration(
+          color: AppColors.deepNavy,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: actions),
+      ),
+    ];
   }
 }
 

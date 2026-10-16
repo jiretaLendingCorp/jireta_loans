@@ -40,12 +40,18 @@ class ErrorInterceptor extends Interceptor {
               type: err.type,
             ));
           }
+          // Ang server's 429 message ay ipinapasa (hindi pinapalitan) — iyon
+          // ang may "try again in N minute(s)" na kailangan ng user. Ang
+          // fallback lang ang ginagamit kapag blangko/placeholder ang body.
+          const rateLimitFallback = 'Too many requests. Please try again later.';
+          final rateLimitMessage = (message.isEmpty ||
+                  message == 'An error occurred')
+              ? rateLimitFallback
+              : message;
           return handler.reject(DioException(
             requestOptions: err.requestOptions,
-            message: message.isNotEmpty
-                ? message
-                : 'Too many requests. Please try again later.',
-            error: const RateLimitException(),
+            message: rateLimitMessage,
+            error: RateLimitException(rateLimitMessage, code ?? 'RATE_LIMITED'),
             response: response,
             type: err.type,
           ));

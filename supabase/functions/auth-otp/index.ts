@@ -25,6 +25,7 @@ import {
   sessionIdentifierFromToken,
   syncAuthUserIdentity,
 } from '../_shared/auth.ts';
+import { fetchUserMfaState } from '../_shared/mfa.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
@@ -677,6 +678,20 @@ async function handleVerifyOtp(req: Request) {
     console.warn('[auth-verify-otp] claimActiveSession failed', e);
   }
 
+  // ── MFA (TOTP) state ng account ──────────────────────────────────────────
+  // Ang `signInWithPassword` na session sa itaas ay `aal1` pa KAHIT may
+  // naka-enroll na authenticator app (standard GoTrue behavior) — kaya dito
+  // lang ipinapaalam sa app na kailangan pa ng `mfa.challenge` + `mfa.verify`.
+  // Server-side ito (service-role admin API), hindi galing sa client.
+  //
+  // `enabled: null` = HINDI matukoy (hal. error sa admin API) — hindi ito
+  // "wala": sa ganoong kaso, ang app ay may sariling fallback (Supabase Auth
+  // `getUser().factors`) at ang mga sensitibong aksyon ay fail-closed.
+  const mfaState = await fetchUserMfaState(db, user.id);
+  const verifiedFactors = mfaState.factors.filter(
+    (factor) => factor.status === 'verified',
+  );
+
   return jsonResponse({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
@@ -688,6 +703,17 @@ async function handleVerifyOtp(req: Request) {
       last_name: user?.last_name ?? '',
       phone_number: user?.phone_number ?? phone,
       force_password_change: user?.force_password_change,
+    },
+    // Non-secret na metadata lang (id + pangalan) — walang TOTP secret, walang
+    // QR, walang setup key na dumadaan sa login response.
+    mfa: {
+      enabled: mfaState.ok ? verifiedFactors.length > 0 : null,
+      factors: mfaState.ok
+        ? verifiedFactors.map((factor) => ({
+          id: factor.id,
+          friendly_name: factor.friendly_name,
+        }))
+        : [],
     },
   });
 }

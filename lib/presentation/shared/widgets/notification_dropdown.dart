@@ -13,6 +13,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../features/employee/notifications/providers/emp_notification_provider.dart';
 import '../../features/head_manager/notifications/providers/hm_notification_provider.dart';
+import '../../features/lender/notifications/providers/lender_notification_provider.dart';
 import '../providers/auth_state_provider.dart';
 import 'notification_badge.dart';
 
@@ -217,6 +218,8 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
       router.go(RouteConstants.hmNotifications);
     } else if (role == AppConstants.roleEmployee) {
       router.go(RouteConstants.empNotifications);
+    } else if (role == AppConstants.roleLender) {
+      router.go(RouteConstants.lenderNotifications);
     }
   }
 
@@ -245,7 +248,9 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
         ? ref.watch(hmNotificationProvider).unreadCount
         : role == AppConstants.roleEmployee
             ? ref.watch(empNotificationProvider).unreadCount
-            : 0;
+            : role == AppConstants.roleLender
+                ? ref.watch(lenderNotificationProvider).unreadCount
+                : 0;
     _maybeWiggle(unread);
 
     return IconButton(
@@ -442,6 +447,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
     final role = ref.watch(authStateProvider).role ?? '';
     final isHm = role == AppConstants.roleHeadManager;
     final isEmp = role == AppConstants.roleEmployee;
+    final isLender = role == AppConstants.roleLender;
 
     final List<NotificationModel> notifications;
     final int unread;
@@ -475,6 +481,18 @@ class NotificationDropdownPanel extends ConsumerWidget {
           () => ref.read(empNotificationProvider.notifier).markAllRead();
       onMarkRead = (id) =>
           ref.read(empNotificationProvider.notifier).markRead(id: id);
+    } else if (isLender) {
+      final state = ref.watch(lenderNotificationProvider);
+      notifications = state.notifications;
+      unread = state.unreadCount;
+      isLoading = state.isLoading;
+      error = state.error;
+      onRefresh =
+          () => ref.read(lenderNotificationProvider.notifier).load();
+      onMarkAllRead =
+          () => ref.read(lenderNotificationProvider.notifier).markAllRead();
+      onMarkRead = (id) =>
+          ref.read(lenderNotificationProvider.notifier).markRead(id);
     } else {
       notifications = const [];
       unread = 0;

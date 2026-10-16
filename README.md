@@ -1834,7 +1834,7 @@ Triggers: notification to Lender. │ │ │ ├──
 payments-generate-xendit-link/index.ts │ │ # POST: Lender requests GCash payment
 link. │ │ # Body: { loan_id, loan_schedule_id }. │ │ # Enforces: installment not
 already paid, loan active. │ │ # Calls: Xendit Create Invoice API (sandbox or
-live per ENV). │ │ # Returns: xendit_invoice_url, xendit_payment_id. │ │ #
+live per ENV). │ │ # Returns: invoice_url, xendit_invoice_id, payment_id. │ │ #
 Writes: payments(status=pending), xendit_logs. │ │ │ ├──
 payments-xendit-webhook/index.ts │ │ # POST: Xendit payment webhook receiver. │
 │ # Verifies: webhook signature header (X-CALLBACK-TOKEN). │ │ # Updates:

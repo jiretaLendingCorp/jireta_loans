@@ -9,6 +9,7 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../providers/hm_settings_provider.dart';
+import '../widgets/xendit_diagnostics_card.dart';
 
 class HmSettingsScreen extends StatelessWidget {
   const HmSettingsScreen({super.key});
@@ -164,6 +165,11 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
               ],
             ),
           ),
+          const SizedBox(height: 20),
+          // HEAD MANAGER-only: Xendit sandbox diagnostics (connectivity check +
+          // hiwalay na test payment request). Hindi ito humihipo sa loan,
+          // payment, o disbursement records.
+          const XenditDiagnosticsCard(),
         ],
       ),
     );

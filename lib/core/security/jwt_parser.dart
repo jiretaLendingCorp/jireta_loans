@@ -20,6 +20,21 @@ class JwtParser {
     }
   }
 
+  /// Authenticator Assurance Level (`aal`) claim ng token: `aal1` (OTP lang) o
+  /// `aal2` (OTP + authenticator code). `null` kapag wala ito sa token.
+  ///
+  /// Ito ang PATUNAY ng MFA na sinusunod ng app: hindi ito kayang itakda ng UI
+  /// o ng SecureStorage — ang GoTrue (at ang server-side na `requireAuth` /
+  /// `_shared/mfa.ts`) lang ang naglalagay nito kapag may matagumpay na
+  /// `mfa.verify`.
+  static String? aal(String? token) {
+    final value = decodePayload(token)?['aal'];
+    return value is String ? value : null;
+  }
+
+  /// True kapag `aal2` ang token (nakumpleto ang MFA challenge).
+  static bool isAal2(String? token) => aal(token) == 'aal2';
+
   /// Expiry claim (`exp`, seconds since epoch) as a UTC [DateTime], or null.
   static DateTime? expiry(String? token) {
     final exp = decodePayload(token)?['exp'];

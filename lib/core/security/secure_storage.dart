@@ -59,6 +59,7 @@ class SecureStorage {
     AppConstants.sessionStartedAtKey,
     AppConstants.lastActivityKey,
     AppConstants.sessionIdKey,
+    AppConstants.mfaPendingKey,
   ];
 
   static Future<void> saveTokens({
@@ -337,6 +338,29 @@ class SecureStorage {
       try {
         await _storage.delete(key: key);
       } catch (_) {}
+    }
+  }
+
+  // ── MFA (TOTP) pending marker ────────────────────────────────────────────
+  // Isang FLAG lang (walang secret) na nagsasabing may nakabinbing challenge
+  // para sa kasalukuyang login. Kasama ito sa [_allKeys] dahil bahagi ito ng
+  // session: nawawala ito sa logout / expired session (at sa tagumpay na
+  // pag-verify). Hindi ito nagbibigay ng access — ang `aal2` claim ng token at
+  // ang server-side na tseke ang nagbibigay niyon.
+  static Future<void> saveMfaPending(bool pending) => _withQueue(() async {
+        try {
+          await _storage.write(
+            key: AppConstants.mfaPendingKey,
+            value: pending ? '1' : '0',
+          );
+        } catch (_) {}
+      });
+
+  static Future<bool> isMfaPending() async {
+    try {
+      return (await _storage.read(key: AppConstants.mfaPendingKey)) == '1';
+    } catch (_) {
+      return false;
     }
   }
 

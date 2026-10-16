@@ -17,6 +17,7 @@ import {
   requireAuth,
   syncAuthUserIdentity,
 } from '../_shared/auth.ts';
+import { requireMfaIfEnrolled } from '../_shared/mfa.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType, credentialEmailFor, phoneCredentialEmail } from '../_shared/validators.ts';
@@ -104,6 +105,20 @@ async function handleUpdateProfile(req: Request) {
   // Accept both so edited phone numbers are actually saved.
   const newPhone = body.phone_number ?? body.phone;
   if (newPhone !== undefined && newPhone !== null && String(newPhone).trim() !== (existing.phone_number ?? '')) {
+    // ── MFA policy: pagpapalit ng REHISTRADONG numero ────────────────────
+    // Ito ang credential ng OTP login, kaya sensitibo ito. Kapag may VERIFIED
+    // TOTP factor ang SARILING account ng nagbabago, kailangan ang `aal2`
+    // (natapos na ang authenticator challenge sa session na ito) — hindi
+    // sapat ang `aal1` na OTP session. Ang `aal` ay galing sa NAKAPIRMANG
+    // token (tingnan ang `requireAuth`), kaya hindi ito maipapasa ng client.
+    //
+    // Ang HM na nag-e-edit ng IBANG account ay hindi hinihigpitan dito: ang
+    // sariling assurance ng HM ang sinusuri ng kanyang session, at may
+    // hiwalay (naka-audit) na path para sa mga account na hindi maabot.
+    if (targetId === user.id) {
+      const mfaGuard = await requireMfaIfEnrolled(db, user);
+      if (mfaGuard) return mfaGuard;
+    }
     if (!validatePhone(sanitizeString(newPhone))) return errorResponse('Invalid phone', 400, 'VALIDATION_ERROR');
     const { data: taken } = await db.from('users').select('id').eq('phone_number', String(newPhone).trim()).neq('id', targetId).maybeSingle();
     if (taken) return errorResponse('Phone already used', 409, 'DUPLICATE');

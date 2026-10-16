@@ -59,6 +59,17 @@ class AppConstants {
   static const String sessionIdKey = 'session_id';
   static const String sessionIdHeaderName = 'X-Session-Id';
 
+  /// Sinusubaybayan ng app kung MAY nakabinbing authenticator (TOTP) challenge
+  /// para sa kasalukuyang login — hal. pinatay ang app habang nasa "Verify it's
+  /// you" screen.
+  ///
+  /// HINDI ito patunay ng MFA: hindi ito nagbibigay ng access, pumipigil lang
+  /// (nag-uutos na dumaan sa challenge). Ang tanging patunay ay ang `aal: aal2`
+  /// claim ng access token, at ang server-side na pagsusuri sa `_shared/mfa.ts`.
+  /// Isang simpleng bool lang ito (hindi secret), kaya hindi ito sensitibo sa
+  /// storage.
+  static const String mfaPendingKey = 'mfa_pending';
+
   static const String authRefreshPath = 'auth-session?fn=refresh-session';
 
   /// Session heartbeat: validates + bumps last_seen_at while the app is open.

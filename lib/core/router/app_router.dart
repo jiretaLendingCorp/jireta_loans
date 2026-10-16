@@ -13,6 +13,7 @@ import '../../presentation/features/rider/live_tracking/screens/rider_live_track
 import '../../presentation/features/auth/screens/force_change_password_screen.dart';
 import '../../presentation/features/auth/screens/forgot_password_screen.dart';
 import '../../presentation/features/auth/screens/mobile_login_screen.dart';
+import '../../presentation/features/auth/screens/mfa_verify_screen.dart';
 import '../../presentation/features/auth/screens/mpin_setup_screen.dart';
 import '../../presentation/features/auth/screens/otp_verify_screen.dart';
 import '../../presentation/features/auth/screens/reset_password_screen.dart';
@@ -164,6 +165,44 @@ String? offlineRedirect({
   return authenticatedTarget;
 }
 
+/// Pasya ng MFA gate: kung saan dapat pumunta ang user habang may nakabinbing
+/// authenticator (TOTP) challenge.
+///
+/// Ito ang pumipigil sa DIRECT NAVIGATION / DEEP LINK na makalampas sa MFA:
+/// kahit `ctx.go('/lender/dashboard')` pa ang gawin (o i-paste ang URL), ang
+/// redirect ng router ang magdadala sa `/mfa-verify` hangga't
+/// `authState.mfaRequired`.
+///
+/// MAHALAGA: ang gate na ito ay UX lamang — HINDI ito ang security boundary.
+/// Ang tunay na hangganan ay ang `aal: aal2` claim ng access token (na
+/// sinusuri ng bawat Edge Function na sensitibo via `_shared/mfa.ts`), kaya
+/// hindi mapapalakas ng sino man ang access sa pamamagitan ng pag-edit ng
+/// anumang client-side flag.
+///
+/// * `null` — walang ipinag-uutos (hayaan ang dating redirect logic).
+/// * `RouteConstants.mfaVerify` — kailangan munang dumaan sa challenge.
+/// * [fallbackWhenNotRequired] — nasa `/mfa-verify` pero wala nang nakabinbing
+///   challenge (hal. natapos na ito o naalis ang factor): hindi na dapat
+///   manatili roon ang user.
+String? mfaRedirect({
+  required bool isAuthenticated,
+  required bool mfaRequired,
+  required bool isMfaRoute,
+  required bool isPublicRoute,
+  String? fallbackWhenNotRequired,
+}) {
+  if (!isAuthenticated) return null;
+  if (mfaRequired) {
+    if (isMfaRoute) return null;
+    // Ang mga pampublikong pahina (splash / marketing / forgot-reset password)
+    // ay hindi binara para hindi masira ang mga recovery link.
+    if (isPublicRoute) return null;
+    return RouteConstants.mfaVerify;
+  }
+  if (isMfaRoute) return fallbackWhenNotRequired;
+  return null;
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // NOTE: The GoRouter instance is created ONCE and kept stable. Auth state is
   // read LIVE inside `redirect` (never captured — a captured value goes stale
@@ -243,6 +282,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.landing,
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
+        // Ang MFA screen ay may sariling offline/error handling — huwag itong
+        // itapon sa splash kapag may saglit na network blip habang nagta-type
+        // ang user ng 6-digit code.
+        RouteConstants.mfaVerify,
       ];
       final isAuthenticated = authState.isAuthenticated;
 
@@ -269,6 +312,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.terms,
         RouteConstants.mpinSetup,
         RouteConstants.verifyEmail,
+        // Ang authenticator challenge ay bahagi pa rin ng pag-login: hindi ito
+        // dapat lampasan ng "naka-authenticated → dashboard" na panuntunan.
+        RouteConstants.mfaVerify,
       ];
 
       if (!connLoading && connVal == false && !offlineExempt.contains(path)) {
@@ -301,6 +347,21 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // Both /login (email) and /mobile-login (OTP) are public on all
       // platforms so users can switch via the "Mobile Login" button on the
       // web login page (and vice versa).
+
+      // ── MFA gate (authenticator / TOTP) ─────────────────────────────────
+      // Hinihigpitan ito BAGO ang bloke ng "naka-authenticated" sa ibaba, para
+      // hindi maabot ng deep link ang dashboard ng role habang may nakabinbing
+      // challenge. Ang `/mfa-verify` mismo ay pinapayagan (setupRoutes).
+      final mfaTarget = mfaRedirect(
+        isAuthenticated: isAuthenticated,
+        mfaRequired: authState.mfaRequired,
+        isMfaRoute: path == RouteConstants.mfaVerify,
+        isPublicRoute: publicRoutes.contains(path),
+        fallbackWhenNotRequired: isAuthenticated
+            ? redirectForRole(RouteConstants.mfaVerify, authState.role)
+            : null,
+      );
+      if (mfaTarget != null) return mfaTarget;
 
       if (isAuthenticated) {
         if (authState.forcePasswordChange &&
@@ -433,6 +494,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.mpinSetup,
           builder: (ctx, s) => const MpinSetupScreen()),
+      GoRoute(
+          path: RouteConstants.mfaVerify,
+          builder: (ctx, s) => MfaVerifyScreen(
+                // `extra` ay [MfaVerifyArgs] (factor id + ang numerong ginamit
+                // sa login). Ang factor id ay hindi secret — ito ang
+                // identifier ng factor sa GoTrue, hindi ang TOTP secret.
+                args: s.extra is MfaVerifyArgs ? s.extra as MfaVerifyArgs : null,
+              )),
       GoRoute(
           path: RouteConstants.forceChangePassword,
           builder: (ctx, s) => const ForceChangePasswordScreen()),

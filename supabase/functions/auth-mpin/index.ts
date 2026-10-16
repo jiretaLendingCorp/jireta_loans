@@ -22,6 +22,11 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { writeAuditLog, sanitizeIpAddress } from "../_shared/audit.ts";
 import { isAuthUser, requireAuth } from "../_shared/auth.ts";
+// MFA policy: ang pag-set/palit (at pag-reset) ng MPIN ay sensitibo — kapag may
+// VERIFIED TOTP factor ang account, kailangan ang `aal2` session (authenticator
+// code na napatunayan na). Ang `status` at `verify` ay hindi hinihigpitan: hindi
+// nagbabago ng credential ang mga ito (ang verify ang mismong MPIN check).
+import { requireMfaIfEnrolled } from "../_shared/mfa.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient } from "../_shared/db.ts";
 import { hashPassword } from "../_shared/password_hash.ts";
@@ -200,6 +205,13 @@ async function handleSet(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
 
+  // Kapag naka-2FA (may verified TOTP factor) ang account, kailangan ang
+  // `aal2` bago mabago ang MPIN — hindi sapat ang OTP session. Ang account na
+  // WALANG authenticator app ay hindi hinaharang (hindi pa naman siya
+  // naka-enroll, kaya wala siyang paraan para umabot sa aal2).
+  const mfaGuard = await requireMfaIfEnrolled(getAdminClient(), authResult);
+  if (mfaGuard) return mfaGuard;
+
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const mpin = sanitizeString(body["mpin"]);
   const currentMpin = sanitizeString(body["current_mpin"]);
@@ -362,6 +374,11 @@ async function handleVerify(req: Request) {
 async function handleReset(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+
+  // Kaparehong patakaran ng `set`: ang naka-2FA na account ay kailangang
+  // nagpatunay na ng authenticator code (`aal2`) bago mabura ang MPIN.
+  const mfaGuard = await requireMfaIfEnrolled(getAdminClient(), authResult);
+  if (mfaGuard) return mfaGuard;
 
   const db = getAdminClient();
   const { error } = await db.from("user_mpins").delete().eq("user_id", authResult.id);

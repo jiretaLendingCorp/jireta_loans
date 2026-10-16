@@ -118,6 +118,20 @@ class ApiEndpoints {
   static const String paymentsGenerateXenditLink =
       'payments-xendit-link?fn=generate';
   static const String paymentsXenditWebhook = 'payments-xendit-webhook';
+  // Xendit SANDBOX diagnostics (Head Manager only). Walang action dito na
+  // nagbabago ng loan/payment record — test-only at server-side gated.
+  // Connectivity check: read-only, walang payment na nagagawa.
+  static const String paymentsXenditDiagnostics =
+      'payments-xendit-link?fn=diagnostics';
+  // Paggawa ng test (sandbox) payment request — kailangan ng
+  // `x-idempotency-key` header para hindi madoble.
+  static const String paymentsXenditTestCreate =
+      'payments-xendit-link?fn=create-test-payment';
+  static const String paymentsXenditTestStatus =
+      'payments-xendit-link?fn=test-payment-status';
+  // Test-mode only (documented `POST /v3/payment_requests/{id}/simulate`).
+  static const String paymentsXenditTestSimulate =
+      'payments-xendit-link?fn=simulate-test-payment';
   static const String paymentsReverse = 'payments-manage?fn=reverse';
   static const String paymentsGetReceipt = 'payments-view?fn=get-receipt';
   static const String paymentsGetList = 'payments-view?fn=get-list';

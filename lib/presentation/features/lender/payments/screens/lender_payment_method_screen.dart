@@ -1,14 +1,19 @@
 // lib/presentation/features/lender/payments/screens/lender_payment_method_screen.dart
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/logger.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../loans/providers/lender_loan_provider.dart';
 import '../../collections/providers/lender_collection_provider.dart';
 import '../providers/lender_payment_provider.dart';
@@ -51,7 +56,9 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
-  /// Napiling payment method via radio ('rider' | 'office'). GCash disabled.
+  /// Napiling payment method via radio ('rider' | 'office' | 'gcash').
+  /// Default pa rin ang Cash on Delivery — ang GCash (Xendit) ay pwedeng
+  /// piliin ng lender at pumupunta sa `/lender/pay-gcash`.
   String _selected = 'rider';
   /// True habang nire-resolve ang installment (galing loan_id lang ang extra).
   /// Habang true, disabled ang Pay para hindi mag-toast ng "Missing...".
@@ -384,6 +391,17 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   /// pumapasok bilang collection request na nakikita ni HM/employee.
   void _onPay() {
     if (_requesting) return;
+    if (_selected == 'gcash') {
+      // GCash (Xendit): ang `payments-xendit-link?fn=generate` ang gumagawa ng
+      // invoice, at ang webhook ang nagre-record ng bayad. Hindi ito dumadaan sa
+      // collection request (rider/office), kaya walang `_hasPendingLocally()`
+      // guard dito.
+      //
+      // ISANG TAP LANG: processing sa button → deretso sa Xendit checkout.
+      // Walang intermediate na "Generating payment link..." screen.
+      unawaited(_payViaGcash());
+      return;
+    }
     if (_selected == 'office') {
       if (_hasPendingLocally()) {
         _showPendingDialog();
@@ -400,12 +418,84 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
     _requestCashCollection();
   }
 
+  /// GCash checkout sa ISANG tap: habang tumatakbo ang request, processing
+  /// (spinner) ang Pay button mismo — walang hiwalay na loading screen. Kapag
+  /// nabuo ang invoice, agad na binubuksan ang hosted Xendit checkout page.
+  Future<void> _payViaGcash() async {
+    if (_requesting) return;
+    if (_scheduleId.isEmpty) {
+      _showInfo(
+          'Missing installment information. Please go back to the Payment Schedule and tap Pay again.');
+      return;
+    }
+    setState(() => _requesting = true);
+    try {
+      final url =
+          await ref.read(lenderPaymentProvider.notifier).generateGcashLink(
+                loanId: widget.extra['loan_id'] as String? ?? '',
+                loanScheduleId: _scheduleId,
+              );
+      if (!mounted) return;
+      if (url == null || url.isEmpty) {
+        // Ang provider ay naglalagay ng sanitized na dahilan mula sa Edge
+        // Function (hal. "Loan is not in a payable status", "Installment
+        // already paid", o ang GCash attempt limit) — iyon ang ipakita.
+        final providerError = ref.read(lenderPaymentProvider).error?.trim();
+        _showInfo((providerError != null && providerError.isNotEmpty)
+            ? providerError
+            : 'Failed to generate payment link. Please try again.');
+        return;
+      }
+
+      // DERETSO SA CHECKOUT — hindi na kailangan pang pindutin sa iba pang
+      // screen ang "Open GCash".
+      final launched = await _launchCheckout(url);
+      if (!mounted) return;
+      if (launched) {
+        _showInfo(
+            'Xendit checkout opened. Please complete your GCash payment there.');
+        return;
+      }
+      // Hinarang ng browser (popup blocker — hindi na kasama ang orihinal na
+      // tap) o walang app na makakabukas: ipakita ang link nang manwal. NAGAWA
+      // na ang invoice, kaya ipinapasa na ang `payment_url` — hindi na ito
+      // mag-ge-generate ng panibagong invoice/bayad.
+      context.push(RouteConstants.lenderPayViaGcash, extra: {
+        'loan_id': widget.extra['loan_id'],
+        'schedule_id': _scheduleId,
+        'amount': _amount,
+        'due_date': _dueDate,
+        'payment_url': url,
+      });
+    } finally {
+      if (mounted) setState(() => _requesting = false);
+    }
+  }
+
+  /// Bubuksan ang Xendit checkout sa labas ng app (browser / GCash app).
+  Future<bool> _launchCheckout(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+    } catch (e) {
+      AppLogger.w('[LenderPayment] checkout launch failed: $e');
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     // Walang installment (naglo-load pa o walang nahanap) → disabled ang Pay
     // para hindi mag-toast ng "Missing installment information".
     final payDisabled =
         _requesting || _resolving || _scheduleId.isEmpty;
+    // Sa desktop (walang floating bottom nav), makitid at naka-center na form
+    // column ang content — hindi nakaunat sa buong browser. Mobile: buong lapad
+    // pa rin (walang binago).
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final maxContentWidth = isDesktop ? 640.0 : double.infinity;
     return MobileScaffold(
       title: 'Payment Method',
       accentColor: AppColors.lenderBlue,
@@ -414,58 +504,84 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
       body: Column(
         children: [
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
-              children: [
-                const Text('Pay this installment via Cash on Delivery:',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary)),
-                const SizedBox(height: 26),
-                _MethodCard(
-                  value: 'rider',
-                  groupValue: _selected,
-                  onSelect: _requesting
-                      ? null
-                      : (v) => setState(() => _selected = v),
-                  icon: Icons.delivery_dining_outlined,
-                  assetPath: 'assets/icons/paywithrider.jpg',
-                  color: AppColors.riderGreen,
-                  title: 'Cash on Delivery',
-                  badge: null,
+            child: Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: maxContentWidth),
+                child: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                  children: [
+                    // ── Halagang babayaran ──
+                    // Nasa PINAKATAAS ito (bago ang mga paraan ng pagbabayad):
+                    // ito ang halagang ipapataw ng rider / ipapasok sa office,
+                    // kaya dapat nakikita na ito bago pa pumili ng method.
+                    // Label sa itaas, halaga sa ibaba nito — walang card/box.
+                    _AmountDue(
+                      amount: _amount,
+                      dueDate: _dueDate,
+                      resolving: _resolving,
+                    ),
+                    const SizedBox(height: 22),
+                    // Pangkalahatan ang label — dalawang paraan na ang
+                    // pwedeng piliin (Cash on Delivery at GCash via Xendit).
+                    const Text('Choose how to pay this installment:',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.textPrimary)),
+                    const SizedBox(height: 18),
+                    _MethodCard(
+                      value: 'rider',
+                      groupValue: _selected,
+                      onSelect: _requesting
+                          ? null
+                          : (v) => setState(() => _selected = v),
+                      icon: Icons.delivery_dining_outlined,
+                      assetPath: 'assets/icons/paywithrider.jpg',
+                      color: AppColors.riderGreen,
+                      title: 'Cash on Delivery',
+                      badge: null,
+                    ),
+                    // HIDDEN: "Office" option — hindi ito ipinapakita. Nasa code
+                    // pa rin ang handler (`_onPay` → `/lender/pay-office`) kung
+                    // ibabalik ito.
+                    const SizedBox(height: 14),
+                    // GCash (Xendit) — SELECTABLE na. Ang napiling GCash ay
+                    // pumupunta sa `/lender/pay-gcash`, kung saan bubuo ang
+                    // `payments-xendit-link?fn=generate` ng invoice at
+                    // mag-o-open ng GCash. Walang "Coming Soon" badge.
+                    _MethodCard(
+                      value: 'gcash',
+                      groupValue: _selected,
+                      onSelect: _requesting
+                          ? null
+                          : (v) => setState(() => _selected = v),
+                      icon: Icons.account_balance_wallet,
+                      color: const Color(0xFF007DFF),
+                      title: 'GCash',
+                      badge: null,
+                    ),
+                    if (!_resolving && _scheduleId.isEmpty) ...[
+                      const SizedBox(height: 20),
+                      const Text(
+                        'No payable installment found. Please return to Payment Schedule and tap Pay again.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                    // Desktop: dito na ang Pay button — sa ilalim mismo ng mga
+                    // method, sa loob ng parehong column.
+                    if (isDesktop) ...[
+                      const SizedBox(height: 28),
+                      _buildPayButton(payDisabled),
+                    ],
+                  ],
                 ),
-                // HIDDEN: "Office" option — Cash on Delivery lang ang
-                // ipinapakita ngayon. Nasa code pa rin ang handler
-                // (`_onPay` → `/lender/pay-office`) kung ibabalik ito.
-                const SizedBox(height: 14),
-                // COMING SOON: ang GCash ay hindi pa available — hindi
-                // selectable at may "Coming Soon" chip para malinaw sa user
-                // na hindi ito bug kundi darating pang feature.
-                const _MethodCard(
-                  value: 'gcash',
-                  groupValue: 'rider',
-                  onSelect: null,
-                  icon: Icons.account_balance_wallet,
-                  color: Color(0xFF007DFF),
-                  title: 'GCash',
-                  badge: 'Coming Soon',
-                  disabled: true,
-                ),
-                if (!_resolving && _scheduleId.isEmpty) ...[
-                  const SizedBox(height: 20),
-                  const Text(
-                    'No payable installment found. Please return to Payment Schedule and tap Pay again.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 12, color: AppColors.textSecondary),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-          // Naka-pin sa baba ng mobile view — hindi na kailangang mag-scroll
+          // Naka-pin sa baba ng MOBILE view — hindi na kailangang mag-scroll
           // para makita ang Pay button. Nakaangat sa TAAS ng floating bottom
           // nav.
           //
@@ -475,50 +591,153 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
           // safe area lang (0 pa nga sa mga Android na walang home indicator).
           // Ang `mobileBottomNavHeight` ang nagdadagdag ng float gap + pill
           // height, kaya eksaktong nasa itaas ng pill ang button.
-          Padding(
-            padding: EdgeInsets.fromLTRB(
-              16,
-              8,
-              16,
-              mobileBottomNavHeight(context) + 8,
-            ),
-            child: SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                onPressed: payDisabled ? null : _onPay,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.lenderBlue,
-                  foregroundColor: Colors.white,
-                  disabledBackgroundColor:
-                      AppColors.lenderBlue.withValues(alpha: 0.5),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
+          //
+          // Sa DESKTOP, hindi ito nakapin: nasa loob na ng listahan ang button
+          // (sa ilalim mismo ng mga method) — kung nakapin pa rin ito, maiiwang
+          // nag-iisa ito sa ilalim ng screen na may malaking blangkong espasyo
+          // sa gitna.
+          if (!isDesktop)
+            Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                8,
+                16,
+                mobileBottomNavHeight(context) + 8,
+              ),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: maxContentWidth),
+                  child: _buildPayButton(payDisabled),
                 ),
-                child: (_requesting || _resolving)
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text(
-                        _selected == 'office'
-                            ? 'Pay via Office'
-                            : 'Pay via Cash on Delivery',
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w700)),
               ),
             ),
-          ),
         ],
+      ),
+    );
+  }
+
+  /// Ang Pay button — isang pinagmumulan ito para sa mobile (naka-pin sa ibaba)
+  /// at desktop (nasa loob ng listahan, sa ilalim ng mga method).
+  Widget _buildPayButton(bool payDisabled) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: payDisabled ? null : _onPay,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.lenderBlue,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.lenderBlue.withValues(alpha: 0.5),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+        child: (_requesting || _resolving)
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              )
+            : Text(
+                _selected == 'office'
+                    ? 'Pay via Office'
+                    : _selected == 'gcash'
+                        ? 'Pay via GCash'
+                        : 'Pay via Cash on Delivery',
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              ),
       ),
     );
   }
 }
 
+/// Halagang babayaran para sa installment na ito — maliit na block na WALANG
+/// card/box, nasa itaas ng mga paraan ng pagbabayad: nasa TAAS ang label
+/// ("Amount to Pay") at nasa ILALIM nito ang halaga, tapos ang due date at isang
+/// manipis na divider.
+class _AmountDue extends StatelessWidget {
+  final double amount;
+  final String dueDate;
+  final bool resolving;
+
+  const _AmountDue({
+    required this.amount,
+    required this.dueDate,
+    required this.resolving,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Amount to Pay',
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            letterSpacing: 0.3,
+            color: AppColors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        if (resolving)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 4),
+            child: SizedBox(
+              height: 20,
+              width: 20,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: AppColors.lenderBlue),
+            ),
+          )
+        else
+          // FittedBox: kahit napakalaki ng halaga (o malaki ang font scale ng
+          // device) ay liliit ito imbes na umapaw sa gilid.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                amount.toPeso(),
+                maxLines: 1,
+                style: const TextStyle(
+                  fontFamily: 'PlayfairDisplay',
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.lenderBlue,
+                  height: 1.15,
+                ),
+              ),
+            ),
+          ),
+        if (dueDate.isNotEmpty && !resolving) ...[
+          const SizedBox(height: 2),
+          Text(
+            'Due $dueDate',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: context.cTextTertiary,
+            ),
+          ),
+        ],
+        const SizedBox(height: 14),
+        // Manipis na linya lang ang naghihiwalay nito sa mga paraan ng
+        // pagbabayad — hindi ito card.
+        Divider(height: 1, thickness: 1, color: context.cBorder),
+      ],
+    );
+  }
+}
+
+/// Isang paraan ng pagbabayad. Selectable ito kapag may `onSelect` (ang tanging
+/// non-selectable noon ay ang dating "Coming Soon" na GCash — enabled na ito
+/// ngayon, kaya walang natitirang disabled state).
 class _MethodCard extends StatelessWidget {
   final String value;
   final String groupValue;
@@ -528,7 +747,6 @@ class _MethodCard extends StatelessWidget {
   final Color color;
   final String title;
   final String? badge;
-  final bool disabled;
 
   const _MethodCard({
     required this.value,
@@ -539,19 +757,17 @@ class _MethodCard extends StatelessWidget {
     required this.color,
     required this.title,
     required this.badge,
-    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveColor = disabled ? AppColors.textTertiary : color;
-    final selected = !disabled && value == groupValue;
+    final selected = value == groupValue;
     return Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
-        onTap: disabled || onSelect == null ? null : () => onSelect!(value),
+        onTap: onSelect == null ? null : () => onSelect!(value),
         child: Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -575,12 +791,10 @@ class _MethodCard extends StatelessWidget {
                       filterQuality: FilterQuality.high,
                       errorBuilder: (_, __, ___) => Container(
                         decoration: BoxDecoration(
-                          color:
-                              effectiveColor.withValues(alpha: 0.1),
+                          color: color.withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child:
-                            Icon(icon, color: effectiveColor, size: 24),
+                        child: Icon(icon, color: color, size: 24),
                       ),
                     ),
                   ),
@@ -590,10 +804,10 @@ class _MethodCard extends StatelessWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: effectiveColor.withValues(alpha: 0.1),
+                    color: color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(icon, color: effectiveColor, size: 24),
+                  child: Icon(icon, color: color, size: 24),
                 ),
               const SizedBox(width: 14),
               Expanded(
@@ -601,12 +815,10 @@ class _MethodCard extends StatelessWidget {
                   children: [
                     Flexible(
                       child: Text(title,
-                          style: TextStyle(
+                          style: const TextStyle(
                               fontWeight: FontWeight.w700,
                               fontSize: 14,
-                              color: disabled
-                                  ? AppColors.textTertiary
-                                  : AppColors.textPrimary)),
+                              color: AppColors.textPrimary)),
                     ),
                     if (badge != null) ...[
                       const SizedBox(width: 8),
@@ -627,7 +839,7 @@ class _MethodCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _RadioDot(selected: selected, disabled: disabled),
+              _RadioDot(selected: selected),
             ],
           ),
         ),
@@ -639,13 +851,11 @@ class _MethodCard extends StatelessWidget {
 /// Custom radio dot — iwas sa deprecated Radio groupValue/onChanged API.
 class _RadioDot extends StatelessWidget {
   final bool selected;
-  final bool disabled;
-  const _RadioDot({required this.selected, this.disabled = false});
+  const _RadioDot({required this.selected});
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        disabled ? AppColors.textTertiary : AppColors.lenderBlue;
+    const color = AppColors.lenderBlue;
     return Container(
       width: 22,
       height: 22,
@@ -657,13 +867,15 @@ class _RadioDot extends StatelessWidget {
         ),
       ),
       child: selected
-          ? Center(
-              child: Container(
+          ? const Center(
+              child: SizedBox(
                 width: 12,
                 height: 12,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: color,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color,
+                  ),
                 ),
               ),
             )

@@ -30,6 +30,8 @@ import { validatePagination } from '../_shared/validators.ts';
 import { hashPassword } from '../_shared/password_hash.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { embedAsObject } from '../_shared/types.ts';
+import { fetchUserMfaState } from '../_shared/mfa.ts';
+import { guardRateLimit } from '../_shared/rate_limiter.ts';
 
 // Same default password used by users-create for newly created accounts.
 const DEFAULT_PASSWORD = '12345678';
@@ -63,6 +65,9 @@ serve(async (req) => {
       case 'reset-password':
         // ── Head Manager resets another user's password ────────────────
         return await handleResetPassword(req);
+      case 'reset-mfa':
+        // ── Head Manager-assisted 2FA (TOTP) reset — RECOVERY path ─────
+        return await handleResetMfa(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -307,6 +312,119 @@ async function handleResetPassword(req: Request) {
   });
 
   return jsonResponse({ message: 'Password reset successfully' });
+}
+
+// ── HEAD MANAGER-ASSISTED 2FA RESET (RECOVERY) ─────────────────────────
+// Kapag nawala ng lender ang authenticator app (nasira ang phone, na-uninstall
+// ang app), wala nang paraan para makapag-`mfa.verify` — kaya hindi rin niya
+// ma-disable ang sariling 2FA (ang `unenroll` ng verified factor ay `aal2`
+// LANG sa GoTrue). Ito ang tanging recovery path:
+//
+//   * HEAD MANAGER lang (may pananagutan sa identity check; naka-audit);
+//   * hindi maaaring i-reset ang SARILING account sa daang ito (ang sariling
+//     2FA ay dapat i-off gamit ang authenticator code);
+//   * lahat ng factor (verified + unverified) ay inaalis, kaya walang natirang
+//     half-enrolled factor na haharang sa susunod na enrollment;
+//   * naka-log sa `audit_logs` (sino ang HM, sino ang target, kailan);
+//   * may rate limit para hindi ito magamit na mabilisang pang-lusot.
+async function handleResetMfa(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
+  if (roleCheck) return roleCheck;
+
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const userId = typeof body.user_id === 'string' ? body.user_id.trim() : '';
+  if (!userId) return errorResponse('user_id is required', 400, 'VALIDATION_ERROR');
+
+  // Hindi maaaring i-reset ang sarili: kung may access pa sa authenticator,
+  // dapat i-off ito nang tama (code) — hindi sa pamamagitan ng "recovery".
+  if (userId === user.id) {
+    return errorResponse(
+      'Disable your own 2FA with your authenticator code instead.',
+      400,
+      'SELF_RESET_NOT_ALLOWED',
+    );
+  }
+
+  const limit = await guardRateLimit({
+    key: `users-admin:reset-mfa:${user.id}`,
+    maxAttempts: 10,
+    windowMinutes: 60,
+    blockMinutes: 30,
+    blockReason: 'too many MFA resets',
+    eventType: 'mfa_reset_rate_limited',
+    userId: user.id,
+    ipAddress: req.headers.get('x-forwarded-for') ?? null,
+  });
+  if (!limit.allowed) {
+    return errorResponse(
+      'Too many 2FA resets. Please try again later.',
+      429,
+      'RATE_LIMITED',
+      { retry_after_seconds: limit.block?.retryAfterSeconds ?? 0 },
+    );
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const { data: target } = await db
+    .from('users')
+    .select('id, account_status, roles!users_role_id_fkey(name)')
+    .eq('id', userId)
+    .maybeSingle();
+  if (!target) return errorResponse('User not found', 404, 'NOT_FOUND');
+
+  const state = await fetchUserMfaState(db, userId);
+  if (!state.ok) {
+    return errorResponse(
+      'Could not load this account\'s two-factor status. Please try again.',
+      503,
+      'MFA_CHECK_FAILED',
+    );
+  }
+  if (!state.enrolled) {
+    return jsonResponse({
+      message: 'This account has no verified authenticator app.',
+      removed: 0,
+    });
+  }
+
+  let removed = 0;
+  for (const factor of state.factors) {
+    try {
+      const { error } = await db.auth.admin.mfa.deleteFactor({
+        id: factor.id,
+        userId,
+      });
+      if (error) {
+        console.error('[users-admin] deleteFactor failed', factor.id, String(error));
+        continue;
+      }
+      removed += 1;
+    } catch (e) {
+      console.error('[users-admin] deleteFactor threw', factor.id, e);
+    }
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'mfa_reset',
+    tableName: 'auth.mfa_factors',
+    recordId: userId,
+    newValues: { removed, factors_total: state.factors.length },
+    ipAddress: ip,
+  });
+
+  return jsonResponse({
+    message:
+      'Two-factor authentication reset. The account can sign in with the '
+      + 'mobile number and SMS OTP until 2FA is set up again.',
+    removed,
+  });
 }
 
 // ── UNARCHIVE / RESTORE USER ───────────────────────────────────────────

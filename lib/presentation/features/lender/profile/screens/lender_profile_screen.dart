@@ -13,7 +13,11 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+// `kDesktopBreakpoint` — isang breakpoint lang ang buong app para sa desktop
+// chrome (sidebar + top bar), kaya dito rin ito sinasalalay ng layout ng body.
+import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
+import '../../../../shared/widgets/security/mfa_settings_card.dart';
 import '../../../../shared/widgets/security/mpin_settings_card.dart';
 import '../../../../shared/providers/app_settings_provider.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
@@ -140,15 +144,15 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         (userModel?.accountUpgradeStatus ?? 'not_submitted').toLowerCase();
     final isVerified = accountUpgradeStatus == 'verified';
     final status = _statusStyle(accountStatus);
+    // Desktop: dalawang column — kaliwang rail ang identity + account actions,
+    // kanang column ang mga section. Mobile: isang column pa rin.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
 
-    return SingleChildScrollView(
-      // Laging naka-scrollable: kapag mas maikli sa screen ang profile, walang
-      // overscroll kaya hindi gagana ang pull-to-refresh.
-      physics: const AlwaysScrollableScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    // ── Identity (header + verification) — ISANG pinagmumulan lang ito, at ang
+    // pagkaka-ayos lang ang pinag-iba ng mobile at desktop. ──
+    final identity = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           ModernProfileHeader(
             name: fullName,
             subtitles: [phone],
@@ -181,6 +185,13 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             _buildWalkInNote(userModel?.inOfficeApplication,
                 isVerified: isVerified),
           ],
+      ],
+    );
+
+    // ── Mga section ng profile (sa desktop, ito ang kanang column) ──
+    final sections = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
           if (isVerified) ...[
             const SizedBox(height: 20),
             const ModernSectionLabel('Personal'),
@@ -301,6 +312,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           // walang password o biometrics ang phone.
           const ModernSectionLabel('Security'),
           const MpinSettingsCard(),
+          const SizedBox(height: 12),
+          // Google Authenticator (TOTP) — second factor sa login. Ang status,
+          // enrollment (QR + manual key) at disable ay dito; ang pagsusuri ng
+          // code ay Supabase Auth (`mfa.challenge` / `mfa.verify`).
+          const MfaSettingsCard(),
           const SizedBox(height: 20),
           const ModernSectionLabel('General'),
           ModernMenuCard(items: [
@@ -397,6 +413,13 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               ),
             ),
           ]),
+      ],
+    );
+
+    // ── Account actions (bersyon + logout) ──
+    final footer = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           const SizedBox(height: 16),
           const Center(
             child: Text(
@@ -406,6 +429,52 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
           ),
           const SizedBox(height: 8),
           _buildLogoutButton(),
+      ],
+    );
+
+    if (isDesktop) {
+      // DESKTOP: kaliwang rail (identity + account actions) at kanang column
+      // (mga section) — kaparehong sukat ng dashboard (maxWidth 1240).
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1240),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 360,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      identity,
+                      footer,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                Expanded(child: sections),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // MOBILE: isang column pa lang (walang binago sa phone).
+    return SingleChildScrollView(
+      // Laging naka-scrollable: kapag mas maikli sa screen ang profile, walang
+      // overscroll kaya hindi gagana ang pull-to-refresh.
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          identity,
+          sections,
+          footer,
         ],
       ),
     );

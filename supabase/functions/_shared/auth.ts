@@ -4,6 +4,7 @@ import { errorResponse } from './cors.ts';
 import { singleWithObjectEmbeds } from './types.ts';
 import { nowManilaISO } from './timezone.ts';
 import { phoneToE164 } from './validators.ts';
+import { tokenAal, tokenAmr } from './mfa.ts';
 
 export interface AuthUser {
   id: string;
@@ -11,6 +12,16 @@ export interface AuthUser {
   email?: string;
   phone?: string;
   sessionIdentifier: string;
+
+  /**
+   * Ang `aal` claim ng VERIFIED na access token: `aal1` (password/OTP lang) o
+   * `aal2` (may authenticator code na). Ito ang batayan ng MFA policy sa
+   * `_shared/mfa.ts` — hindi ito kailanman galing sa client payload.
+   */
+  aal?: string | null;
+
+  /** Ang `amr` claims (hal. `password`, `otp`, `totp`) ng token. */
+  amr?: string[];
 }
 
 /**
@@ -389,6 +400,10 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     email: user.email,
     phone: user.phone,
     sessionIdentifier,
+    // Assurance level ng session — galing sa NAKAPIRMANG token (GoTrue), hindi
+    // sa client. Ginagamit ng `requireMfaIfEnrolled` sa mga sensitibong aksyon.
+    aal: tokenAal(token),
+    amr: tokenAmr(token),
   };
 }
 
