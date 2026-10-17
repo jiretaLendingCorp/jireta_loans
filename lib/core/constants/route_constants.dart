@@ -50,8 +50,30 @@ class RouteConstants {
   static const String hmLenders = '/hm/lenders';
   static const String hmLenderDetails = '/hm/lenders/:id';
   static const String hmArchived = '/hm/archived';
-  static const String hmLoanApplications = '/hm/loan-applications';
-  static const String hmLoanApplicationDetails = '/hm/loan-applications/:id';
+  // Ang pahina ay "Loan Records" sa UI, kaya `/hm/loan-records` ang URI nito
+  // (dating `/hm/loan-applications`). May redirect ang lumang path sa router
+  // para hindi mabreak ang lumang bookmark/link.
+  static const String hmLoanApplications = '/hm/loan-records';
+  // Mga embedded tab ng Loan Records na may SARILING URI — deep-linkable at
+  // tama pa rin ang tab pagkatapos ng refresh/bookmark/browser back.
+  static const String hmLoanApplicationsInOffice =
+      '/hm/loan-records/in-office';
+  static const String hmLoanApplicationsDisbursements =
+      '/hm/loan-records/disbursements';
+  static const String hmLoanApplicationsHistory = '/hm/loan-records/history';
+  // Base pill tabs at pipeline statuses — bawat isa may sariling URI.
+  static const String hmLoanRecordsOngoing = '/hm/loan-records/ongoing';
+  static const String hmLoanRecordsCompleted = '/hm/loan-records/completed';
+  static const String hmLoanRecordsPipeline =
+      '/hm/loan-records/pipeline/:status';
+  // `:id` ay UUID, kaya hindi ito mag-collide sa tatlong static path sa itaas
+  // (naka-register sila bago ito sa router).
+  static const String hmLoanApplicationDetails = '/hm/loan-records/:id';
+
+  // Legacy paths (bago ang rename papuntang /hm/loan-records) — redirect lang.
+  static const String hmLoanApplicationsLegacy = '/hm/loan-applications';
+  static const String hmLoanApplicationDetailsLegacy =
+      '/hm/loan-applications/:id';
   static const String hmLoans = '/hm/loans';
   static const String hmLoanDetails = '/hm/loans/:id';
   static const String hmAccountUpgrade = '/hm/account-upgrade';
@@ -59,6 +81,12 @@ class RouteConstants {
   static const String hmCi = '/hm/ci';
   static const String hmCiDetails = '/hm/ci/:id';
   static const String hmCollections = '/hm/collections';
+  // Tabs ng Collections ay may SARILING URI — deep-linkable at nabubuksan
+  // muli (refresh / bookmark / browser back) nang tama ang tab.
+  static const String hmCollectionPayments = '/hm/collections/payments';
+  static const String hmCollectionEarlyPayers = '/hm/collections/early-payers';
+  // `:id` ay UUID, kaya hindi ito mag-collide sa dalawang static path sa itaas
+  // (naka-register sila bago ito sa router).
   static const String hmCollectionDetails = '/hm/collections/:id';
   static const String hmDisbursements = '/hm/disbursements';
   static const String hmDisbursementDetails = '/hm/disbursements/:id';
@@ -79,8 +107,20 @@ class RouteConstants {
   static const String empLenderDetails = '/employee/lenders/:id';
   static const String empRiders = '/employee/riders';
   static const String empRiderDetails = '/employee/riders/:id';
-  static const String empLoans = '/employee/loans';
-  static const String empLoanApplicationDetails = '/employee/loans/:id';
+  // Employee Loan Records — kapareho ng HM scheme (sariling URI kada tab).
+  static const String empLoans = '/employee/loan-records';
+  static const String empLoanApplicationDetails = '/employee/loan-records/:id';
+  static const String empLoansInOffice = '/employee/loan-records/in-office';
+  static const String empLoansDisbursements =
+      '/employee/loan-records/disbursements';
+  static const String empLoansHistory = '/employee/loan-records/history';
+  static const String empLoansOngoing = '/employee/loan-records/ongoing';
+  static const String empLoansCompleted = '/employee/loan-records/completed';
+  static const String empLoansPipeline =
+      '/employee/loan-records/pipeline/:status';
+  // Legacy employee paths — redirect lang sa bagong `/employee/loan-records`.
+  static const String empLoansLegacy = '/employee/loans';
+  static const String empLoanApplicationDetailsLegacy = '/employee/loans/:id';
   static const String empActiveLoans = '/employee/active-loans';
   static const String empLoanDetails = '/employee/loan-details/:id';
   static const String empAccountUpgrade = '/employee/account-upgrade';

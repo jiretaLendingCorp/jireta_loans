@@ -105,12 +105,57 @@ class AuditActionCatalog {
     'settings_changed': 'system_config_updated / sms_template_updated',
   };
 
+  /// Mga salitang may sariling spelling / brand / acronym — kung wala ito,
+  /// lumalabas ang "Gcash", "Xendit" (tama), "Ci", "Mfa" na mali ang itsura
+  /// sa UI (Recent Activity, audit filter, audit log list).
+  static const Map<String, String> _specialTokens = {
+    'gcash': 'GCash',
+    'xendit': 'Xendit',
+    'ci': 'CI',
+    'mfa': 'MFA',
+    'sms': 'SMS',
+    'ai': 'AI',
+  };
+
   static String label(String action) {
     if (action.isEmpty) return action;
     return action
         .split('_')
         .where((w) => w.isNotEmpty)
-        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
+        .map((w) =>
+            _specialTokens[w] ?? '${w[0].toUpperCase()}${w.substring(1)}')
         .join(' ');
+  }
+
+  /// Label para sa MGA ROW/GENAGGAMIT na display (Audit Logs table, mobile
+  /// card, Recent Activity) — mas madaling basahin kaysa `label()`.
+  ///
+  /// HINDI ito ginagamit sa filter dropdown: doon kailangan **natatangi** ang
+  /// bawat action (`xendit_payment_verified` vs `xendit_payment_synced`), at
+  /// pareho silang "GCash payment paid" dito.
+  static String displayLabel(String action) {
+    switch (action) {
+      case 'generate_gcash_link':
+        // Hindi "link generated": ito ang sandaling nag-umpisa ang lender ng
+        // GCash payment.
+        return 'GCash payment initiated';
+      case 'payment_recorded':
+        return 'Payment recorded';
+      case 'payment_reverse':
+        return 'Payment reversed';
+      case 'xendit_payment_verified':
+      case 'xendit_payment_synced':
+        // Bayad na — "Paid" ang status na ginagamit sa buong app, hindi
+        // "verified" / "confirmed".
+        return 'GCash payment paid';
+      case 'xendit_test_payment_created':
+        return 'GCash test payment created';
+      case 'xendit_test_payment_simulated':
+        return 'GCash test payment paid';
+      case 'disburse_gcash':
+        return 'GCash disbursement sent';
+      default:
+        return label(action);
+    }
   }
 }

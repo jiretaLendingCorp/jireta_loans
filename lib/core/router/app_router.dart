@@ -570,10 +570,43 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmLoanApplications,
           builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      // Mga tab ng Loan Records na may sariling URL. Kailangang MAUNA sa
+      // `hmLoanApplicationDetails` (`/hm/loan-applications/:id`) para ang static
+      // paths ang manalo sa route matching.
+      GoRoute(
+          path: RouteConstants.hmLoanApplicationsInOffice,
+          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      GoRoute(
+          path: RouteConstants.hmLoanApplicationsDisbursements,
+          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      GoRoute(
+          path: RouteConstants.hmLoanApplicationsHistory,
+          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      GoRoute(
+          path: RouteConstants.hmLoanRecordsOngoing,
+          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      GoRoute(
+          path: RouteConstants.hmLoanRecordsCompleted,
+          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      GoRoute(
+          path: RouteConstants.hmLoanRecordsPipeline,
+          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
       GoRoute(
           path: RouteConstants.hmLoanApplicationDetails,
           builder: (ctx, s) =>
               HmLoanApplicationDetailsScreen(loanId: s.pathParameters['id']!)),
+      // Legacy URL ng Loan Records (`/hm/loan-applications`) — redirect sa
+      // bagong `/hm/loan-records` para hindi mabreak ang lumang bookmark/app
+      // link at ang mga existing browser history entry.
+      GoRoute(
+        path: RouteConstants.hmLoanApplicationsLegacy,
+        redirect: (ctx, s) => RouteConstants.hmLoanApplications,
+      ),
+      GoRoute(
+        path: RouteConstants.hmLoanApplicationDetailsLegacy,
+        redirect: (ctx, s) => RouteConstants.hmLoanApplicationDetails
+            .replaceFirst(':id', s.pathParameters['id'] ?? ''),
+      ),
       GoRoute(
           path: RouteConstants.hmLoans,
           builder: (ctx, s) => const HmLoanListScreen()),
@@ -597,6 +630,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               HmCiDetailsScreen(ciId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.hmCollections,
+          builder: (ctx, s) => const HmCollectionListScreen()),
+      // Mga tab ng Collections na may sariling URL. Kailangang MAUNA ito sa
+      // `hmCollectionDetails` (`/hm/collections/:id`) para ang static paths ang
+      // manalo sa route matching.
+      GoRoute(
+          path: RouteConstants.hmCollectionPayments,
+          builder: (ctx, s) => const HmCollectionListScreen()),
+      GoRoute(
+          path: RouteConstants.hmCollectionEarlyPayers,
           builder: (ctx, s) => const HmCollectionListScreen()),
       GoRoute(
           path: RouteConstants.hmCollectionDetails,
@@ -665,6 +707,26 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.empLoans,
           builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      // Mga tab ng Loan Records (Employee) — sariling URL bawat isa; MAUNA sa
+      // `empLoanApplicationDetails` (`/employee/loan-records/:id`).
+      GoRoute(
+          path: RouteConstants.empLoansOngoing,
+          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      GoRoute(
+          path: RouteConstants.empLoansCompleted,
+          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      GoRoute(
+          path: RouteConstants.empLoansPipeline,
+          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      GoRoute(
+          path: RouteConstants.empLoansInOffice,
+          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      GoRoute(
+          path: RouteConstants.empLoansDisbursements,
+          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      GoRoute(
+          path: RouteConstants.empLoansHistory,
+          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
       GoRoute(
           path: RouteConstants.empActiveLoans,
           builder: (ctx, s) => const EmpLoanListScreen()),
@@ -672,6 +734,16 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.empLoanApplicationDetails,
           builder: (ctx, s) =>
               EmpLoanApplicationDetailsScreen(loanId: s.pathParameters['id']!)),
+      // Legacy employee URLs — redirect lang sa bagong path.
+      GoRoute(
+        path: RouteConstants.empLoansLegacy,
+        redirect: (ctx, s) => RouteConstants.empLoans,
+      ),
+      GoRoute(
+        path: RouteConstants.empLoanApplicationDetailsLegacy,
+        redirect: (ctx, s) => RouteConstants.empLoanApplicationDetails
+            .replaceFirst(':id', s.pathParameters['id'] ?? ''),
+      ),
       GoRoute(
           path: RouteConstants.empLoanDetails,
           builder: (ctx, s) =>

@@ -14,7 +14,6 @@ import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/status_badge.dart';
-import '../../../../shared/widgets/pending_payments_table.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/early_payer_badge.dart';
@@ -145,7 +144,14 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
-  String _activeTab = 'all'; // all, payments, requested, assigned, in_progress, completed
+
+  /// Status ng COLLECTIONS dropdown (all, requested, assigned, ...). Ang
+  /// Payments / Early Payers ay hindi na local state — galing na sa URL
+  /// (`/hm/collections/payments`, `/hm/collections/early-payers`).
+  String _activeTab = 'all';
+
+  /// Huling na-load na tab — para hindi umulit ang fetch sa bawat rebuild.
+  String? _lastRouteTab;
 
   final _dropdownTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
@@ -165,18 +171,13 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
 
   final _paymentMethodTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
-    // Lahat ng HINDI pa bayad/na-kolekta na installment (kasama ang office) —
-    // dito pwedeng i-mark na "Paid in Office" ang mga office request.
-    FilterTabDef('pending_payments', 'All Pending Payment',
-        Icons.pending_actions_rounded),
     FilterTabDef('office_cash', 'Office', Icons.storefront_rounded),
     FilterTabDef('rider_collection', 'Cash on Delivery', Icons.delivery_dining_rounded),
-    FilterTabDef('gcash', 'GCash', Icons.phone_android_rounded),
+    // `gcash_xendit` ang aktwal na `payment_method` ng Xendit payments sa DB —
+    // kung `gcash` lang ang ipapasa, walang tugmang row at "No matching
+    // payments" ang lumalabas kahit may bayad na.
+    FilterTabDef('gcash_xendit', 'GCash', Icons.phone_android_rounded),
   ];
-
-  /// True kapag "All Pending Payment" ang naka-select sa payment pills — ang
-  /// table na ipinapakita ay galing sa collections (hindi sa payments list).
-  bool _pendingPayments = false;
 
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
@@ -193,22 +194,49 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     super.dispose();
   }
 
-  void _onTabTap(String key) {
-    if (key == _activeTab) return;
-    setState(() {
-      _activeTab = key;
-      _pendingPayments = false;
-    });
+  /// Tab mula sa kasalukuyang URL — ang URL ang source of truth.
+  static String _tabFromPath(String path) {
+    if (path == RouteConstants.hmCollectionPayments) return 'payments';
+    if (path == RouteConstants.hmCollectionEarlyPayers) return 'early_payers';
+    return 'all';
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tab = _tabFromPath(GoRouterState.of(context).uri.path);
+    if (tab == _lastRouteTab) return;
+    final isFirst = _lastRouteTab == null;
+    _lastRouteTab = tab;
+    // Unang build: may sariling initial fetch ang bawat provider, kaya huwag
+    // nang mag-doble. Sa pagpalit ng tab (URL), dito naglo-load ng tamang data.
+    if (isFirst) return;
     _searchCtrl.clear();
-    if (key == 'payments') {
+    if (tab == 'payments') {
       ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(method: 'all');
-    } else if (key == 'early_payers') {
+    } else if (tab == 'early_payers') {
       // Lender list na may `is_early_payer` insight — client-side na search.
       ref.read(hmLenderProvider.notifier).load(silent: true);
-    } else {
-      ref.read(hmCollectionProvider.notifier).setSearch('');
-      ref.read(hmCollectionProvider.notifier).setStatus(key);
     }
+  }
+
+  void _onTabTap(String key) {
+    // Payments / Early Payers: URL ang nagbibiyahe sa tab.
+    if (key == 'payments' || key == 'early_payers') {
+      final target = key == 'payments'
+          ? RouteConstants.hmCollectionPayments
+          : RouteConstants.hmCollectionEarlyPayers;
+      if (GoRouterState.of(context).uri.path == target) return;
+      _searchCtrl.clear();
+      context.go(target);
+      return;
+    }
+
+    if (key == _activeTab) return;
+    setState(() => _activeTab = key);
+    _searchCtrl.clear();
+    ref.read(hmCollectionProvider.notifier).setSearch('');
+    ref.read(hmCollectionProvider.notifier).setStatus(key);
   }
 
   @override
@@ -216,8 +244,9 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     final collectionState = ref.watch(hmCollectionProvider);
     final paymentsState = ref.watch(_hmPaymentsInCollectionProvider);
     final lenderState = ref.watch(hmLenderProvider);
-    final isPayments = _activeTab == 'payments';
-    final isEarlyPayers = _activeTab == 'early_payers';
+    final tab = _tabFromPath(GoRouterState.of(context).uri.path);
+    final isPayments = tab == 'payments';
+    final isEarlyPayers = tab == 'early_payers';
 
     return WebScaffold(
       title: 'Collections',
@@ -229,59 +258,28 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTabPills(),
+              _buildTabPills(tab),
               const SizedBox(height: 16),
-              _buildToolbar(collectionState, paymentsState, isPayments),
+              _buildToolbar(
+                  collectionState, paymentsState, isPayments, isEarlyPayers),
               const SizedBox(height: 16),
               if (isPayments) ...[
                 _buildPaymentMethodFilter(paymentsState),
                 const SizedBox(height: 12),
-                if (_pendingPayments) ...[
-                  if (collectionState.isLoading)
-                    _buildLoadingShimmer()
-                  else if (collectionState.error != null &&
-                      collectionState.items.isEmpty)
-                    _buildError(collectionState.error!)
-                  else if (collectionState.items.isEmpty)
-                    _buildPendingEmpty()
-                  else
-                    _Entrance(
-                      child: PendingPaymentsTable(
-                        items: collectionState.items,
-                        onView: (c) => context.go(RouteConstants
-                            .hmCollectionDetails
-                            .replaceFirst(':id', c.id)),
-                        onRefresh: () async {
-                          await ref
-                              .read(hmCollectionProvider.notifier)
-                              .fetch(silent: true);
-                          await ref
-                              .read(_hmPaymentsInCollectionProvider.notifier)
-                              .fetch(silent: true);
-                        },
-                      ),
-                    ),
-                  if (!collectionState.isLoading &&
-                      collectionState.totalPages > 1) ...[
-                    const SizedBox(height: 16),
-                    _buildCollectionPagination(collectionState),
-                  ],
-                ] else ...[
-                  if (paymentsState.isLoading)
-                    _buildLoadingShimmer()
-                  else if (paymentsState.error != null &&
-                      paymentsState.payments.isEmpty)
-                    _buildPaymentError(paymentsState.error!)
-                  else if (_filteredPayments(paymentsState.payments).isEmpty)
-                    _buildPaymentEmpty(paymentsState)
-                  else
-                    _Entrance(
-                        child: _buildPaymentsTable(
-                            _filteredPayments(paymentsState.payments))),
-                  if (paymentsState.totalPages > 1) ...[
-                    const SizedBox(height: 16),
-                    _buildPaymentPagination(paymentsState),
-                  ],
+                if (paymentsState.isLoading)
+                  _buildLoadingShimmer()
+                else if (paymentsState.error != null &&
+                    paymentsState.payments.isEmpty)
+                  _buildPaymentError(paymentsState.error!)
+                else if (_filteredPayments(paymentsState.payments).isEmpty)
+                  _buildPaymentEmpty(paymentsState)
+                else
+                  _Entrance(
+                      child: _buildPaymentsTable(
+                          _filteredPayments(paymentsState.payments))),
+                if (paymentsState.totalPages > 1) ...[
+                  const SizedBox(height: 16),
+                  _buildPaymentPagination(paymentsState),
                 ],
               ] else if (isEarlyPayers) ...[
                 _buildEarlyPayers(lenderState),
@@ -306,10 +304,12 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   // ── Tabs: dropdown for All/Requested/etc (like Loan Records Pipeline) + Payments pill beside it ──
-  Widget _buildTabPills() {
+  Widget _buildTabPills(String tab) {
     final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
-    final isDropdownActive = dropdownKeys.contains(_activeTab);
-    final dropdownValue = isDropdownActive ? _activeTab : null;
+    // Sa Payments / Early Payers tab, walang value ang Collections dropdown.
+    final dropdownValue = tab == 'all' && dropdownKeys.contains(_activeTab)
+        ? _activeTab
+        : null;
 
     return FilterTabBar(
       dropdownLabel: 'Collections',
@@ -317,7 +317,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
       dropdownValue: dropdownValue,
       onDropdownChanged: (v) => _onTabTap(v),
       pills: _pillTabs.map((t) {
-        final isActive = t.key == _activeTab;
+        final isActive = t.key == tab;
         return Padding(
           padding: const EdgeInsets.only(right: 8),
           child: FilterPillTab(def: t, active: isActive, onTap: () => _onTabTap(t.key)),
@@ -485,27 +485,14 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
       scrollDirection: Axis.horizontal,
       child: Row(
         children: _paymentMethodTabs.map((t) {
-          final isPendingPill = t.key == 'pending_payments';
-          final isActive = isPendingPill
-              ? _pendingPayments
-              : (!_pendingPayments && t.key == state.methodFilter);
           return Padding(
             padding: const EdgeInsets.only(right: 8),
             child: FilterPillTab(
               def: t,
-              active: isActive,
-              onTap: () {
-                if (isPendingPill) {
-                  setState(() => _pendingPayments = true);
-                  // `status=pending` → lahat ng hindi pa bayad (server-side).
-                  ref.read(hmCollectionProvider.notifier).setStatus('pending');
-                } else {
-                  setState(() => _pendingPayments = false);
-                  ref
-                      .read(_hmPaymentsInCollectionProvider.notifier)
-                      .setMethod(t.key);
-                }
-              },
+              active: t.key == state.methodFilter,
+              onTap: () => ref
+                  .read(_hmPaymentsInCollectionProvider.notifier)
+                  .setMethod(t.key),
             ),
           );
         }).toList(),
@@ -514,19 +501,19 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   // ── Toolbar: single outer box with Search (hint "Search"), refresh, results badge ──
-  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState, bool isPayments) => Padding(
+  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState,
+          bool isPayments, bool isEarlyPayers) =>
+      Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ResponsiveSearchToolbar(
           searchField: TextField(
             controller: _searchCtrl,
             decoration: InputDecoration(
-              hintText: isPayments && !_pendingPayments
+              hintText: isPayments
                 ? 'Search payments...'
-                : _activeTab == 'early_payers'
+                : isEarlyPayers
                     ? 'Search early payers...'
-                    : _pendingPayments
-                        ? 'Search pending payments...'
-                        : 'Search collections...',
+                    : 'Search collections...',
               prefixIcon: const Icon(Icons.search, size: 20),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -535,8 +522,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
             onChanged: (v) {
-              if ((isPayments && !_pendingPayments) ||
-                  _activeTab == 'early_payers') {
+              if (isPayments || isEarlyPayers) {
                 setState(() {});
               } else {
                 ref.read(hmCollectionProvider.notifier).setSearch(v);
@@ -546,13 +532,13 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           trailing: [
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(
-              count: isPayments && !_pendingPayments
+              count: isPayments
                   // No search text -> true server total; while searching the
                   // box filters client-side so the chip matches what is shown.
                   ? (_searchCtrl.text.trim().isEmpty
                       ? pState.totalCount
                       : _filteredPayments(pState.payments).length)
-                  : _activeTab == 'early_payers'
+                  : isEarlyPayers
                       ? _earlyPayerLenders(ref.read(hmLenderProvider)).length
                       : cState.totalCount,
             ),
@@ -839,41 +825,6 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           const SizedBox(height: 16),
           ElevatedButton.icon(onPressed: () => ref.read(_hmPaymentsInCollectionProvider.notifier).fetch(), icon: const Icon(Icons.refresh_rounded, size: 18), label: const Text('Retry'), style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white)),
         ]),
-      ),
-    );
-  }
-
-  /// Walang pending na babayaran — lahat ng koleksyon ay tapos na.
-  Widget _buildPendingEmpty() {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Icon(Icons.task_alt_rounded,
-              size: 64, color: AppColors.textTertiary),
-          const SizedBox(height: 16),
-          const Text(
-            'No pending payments',
-            style: TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 16,
-                fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'All installments are paid, or there is no open collection request.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.textTertiary, fontSize: 13),
-          ),
-          const SizedBox(height: 18),
-          OutlinedButton.icon(
-            onPressed: () => ref
-                .read(hmCollectionProvider.notifier)
-                .fetch(),
-            icon: const Icon(Icons.refresh_rounded, size: 16),
-            label: const Text('Refresh'),
-          ),
-        ],
       ),
     );
   }

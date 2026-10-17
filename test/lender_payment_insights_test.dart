@@ -329,5 +329,47 @@ void main() {
         expect(src, contains('_buildEarlyPayers'));
       }
     });
+
+    test('HM Collections: GCash filter = `gcash_xendit`, walang "All Pending Payment"',
+        () async {
+      final src = readNormalized(
+          'lib/presentation/features/head_manager/collections/screens/hm_collection_list_screen.dart');
+
+      // `gcash_xendit` ang aktwal na payment_method sa DB — kung `gcash`, walang
+      // tugmang row at laging "No matching payments".
+      expect(src, contains("FilterTabDef('gcash_xendit', 'GCash'"));
+      // Hiniling na alisin/huwag ipakita ang pending-payments pill.
+      expect(src, isNot(contains('pending_payments')));
+    });
+
+    test('Collections tabs (Payments / Early Payers) ay may sariling URI', () {
+      final routes =
+          readNormalized('lib/core/constants/route_constants.dart');
+      expect(routes,
+          contains("hmCollectionPayments = '/hm/collections/payments'"));
+      expect(
+          routes,
+          contains(
+              "hmCollectionEarlyPayers = '/hm/collections/early-payers'"));
+
+      // Ang mga static path ay dapat MAUNA sa `:id` route sa router, kung hindi
+      // mapapatungan sila ng collection-details route.
+      final router = readNormalized('lib/core/router/app_router.dart');
+      final paymentsIdx = router.indexOf('RouteConstants.hmCollectionPayments');
+      final earlyIdx = router.indexOf('RouteConstants.hmCollectionEarlyPayers');
+      final detailsIdx = router.indexOf('RouteConstants.hmCollectionDetails');
+      expect(paymentsIdx, greaterThan(-1));
+      expect(earlyIdx, greaterThan(-1));
+      expect(detailsIdx, greaterThan(-1));
+      expect(paymentsIdx, lessThan(detailsIdx));
+      expect(earlyIdx, lessThan(detailsIdx));
+
+      // Ang screen mismo ay nagbabasa ng tab mula sa URL.
+      final screen = readNormalized(
+          'lib/presentation/features/head_manager/collections/screens/hm_collection_list_screen.dart');
+      expect(screen, contains('_tabFromPath'));
+      expect(screen, contains('RouteConstants.hmCollectionPayments'));
+      expect(screen, contains('RouteConstants.hmCollectionEarlyPayers'));
+    });
   });
 }

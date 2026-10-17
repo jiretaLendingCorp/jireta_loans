@@ -16,6 +16,7 @@ import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../audit_action_catalog.dart';
+import '../audit_diff_format.dart';
 
 class _AuditState {
   final List<Map<String, dynamic>> logs;
@@ -385,7 +386,9 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                 children: [
                   Expanded(
                     child: Text(
-                      AuditActionCatalog.label(action),
+                      // Friendly na label ("GCash payment paid", etc.) — pareho
+                      // sa Recent Activity. Hindi na raw action name.
+                      AuditActionCatalog.displayLabel(action),
                       style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w700,
@@ -473,22 +476,10 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
 
   /// Ang mga field na TALAGANG nagbago, sa AYOS ng AFTER at saka ang mga
   /// lumang field na wala na sa bago — para magkatugma ang keys at posisyon ng
-  /// dalawang column. Walang laman kapag kulang ang isang panig.
+  /// dalawang column. Nasa `audit_diff_format.dart` ang rules (tested).
   List<String> _changedKeys(
-      Map<String, dynamic>? before, Map<String, dynamic>? after) {
-    if (before == null || after == null) return const [];
-    final keys = <String>[];
-    after.forEach((key, value) {
-      if (!before.containsKey(key) ||
-          _formatValue(before[key]) != _formatValue(value)) {
-        keys.add(key);
-      }
-    });
-    before.forEach((key, _) {
-      if (!after.containsKey(key)) keys.add(key);
-    });
-    return keys;
-  }
+          Map<String, dynamic>? before, Map<String, dynamic>? after) =>
+      changedAuditKeys(before, after);
 
   /// BEFORE / AFTER diff section shared by the desktop expandable row and the
   /// mobile card layout.
@@ -652,32 +643,9 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
     return const [];
   }
 
-  String _humanizeKey(String key) {
-    if (key.isEmpty) return key;
-    if (key.toLowerCase() == 'id') return 'ID';
-    return key
-        .split(RegExp(r'[_\-\s]+'))
-        .where((w) => w.isNotEmpty)
-        .map((w) => '${w[0].toUpperCase()}${w.substring(1)}')
-        .join(' ');
-  }
+  String _humanizeKey(String key) => humanizeAuditKey(key);
 
-  String _formatValue(dynamic value) {
-    if (value == null) return '—';
-    if (value is bool) return value ? 'Yes' : 'No';
-    if (value is List) {
-      if (value.isEmpty) return '—';
-      return value.map(_formatValue).join(', ');
-    }
-    if (value is Map) {
-      return value.entries
-          .map((e) =>
-              '${_humanizeKey(e.key.toString())}: ${_formatValue(e.value)}')
-          .join(', ');
-    }
-    final text = value.toString().trim();
-    return text.isEmpty ? '—' : text;
-  }
+  String _formatValue(dynamic value) => formatAuditValue(value);
 
   Widget _buildHeader() {
     const s = TextStyle(
@@ -725,7 +693,9 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
                 Expanded(
                   flex: 2,
                   child: Text(
-                    AuditActionCatalog.label(action),
+                    // Friendly na label ("GCash payment paid", etc.) — pareho
+                    // sa Recent Activity at sa mobile card.
+                    AuditActionCatalog.displayLabel(action),
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,

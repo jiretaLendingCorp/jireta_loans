@@ -116,6 +116,38 @@ void main() {
       }
     });
 
+    test('brand at acronym tokens ay tama ang spelling', () {
+      // Dati: "Generate Gcash Link", "Ci Assigned", "Mfa Reset" — mali ang
+      // itsura sa Recent Activity at sa audit filter.
+      expect(AuditActionCatalog.label('generate_gcash_link'),
+          'Generate GCash Link');
+      expect(AuditActionCatalog.label('xendit_payment_synced'),
+          'Xendit Payment Synced');
+      expect(AuditActionCatalog.label('ci_assigned'), 'CI Assigned');
+      expect(AuditActionCatalog.label('mfa_reset'), 'MFA Reset');
+      expect(AuditActionCatalog.label('sms_template_updated'),
+          'SMS Template Updated');
+      expect(AuditActionCatalog.label('ai_ask'), 'AI Ask');
+    });
+
+    test('displayLabel: friendly na GCash wording para sa rows', () {
+      // Ginagamit sa Audit Logs table at Recent Activity — hindi na
+      // "Xendit Payment Synced" / "Generate GCash Link" / "confirmed".
+      expect(AuditActionCatalog.displayLabel('generate_gcash_link'),
+          'GCash payment initiated');
+      expect(AuditActionCatalog.displayLabel('xendit_payment_synced'),
+          'GCash payment paid');
+      expect(AuditActionCatalog.displayLabel('xendit_payment_verified'),
+          'GCash payment paid');
+      expect(AuditActionCatalog.displayLabel('disburse_gcash'),
+          'GCash disbursement sent');
+      // Non-GCash actions: pareho sa `label()`.
+      expect(AuditActionCatalog.displayLabel('loan_approve'),
+          AuditActionCatalog.label('loan_approve'));
+      expect(AuditActionCatalog.displayLabel('collection_approve'),
+          'Collection Approve');
+    });
+
     test('legacyMappings documents the correct replacements', () {
       expect(AuditActionCatalog.legacyMappings['login'],
           contains('auth_logs'));

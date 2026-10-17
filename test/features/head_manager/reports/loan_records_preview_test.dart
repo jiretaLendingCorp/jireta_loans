@@ -192,6 +192,25 @@ void main() {
       expect(find.text('₱10,000.00'), findsNWidgets(10));
     });
 
+    testWidgets('footer ("Showing …" + arrows) ay nasa KANAN',
+        (tester) async {
+      await pumpPreview(tester, apiRows(124), width: 1200);
+
+      final showing = tester.getRect(find.text('Showing 1–10 of 124 records'));
+      final nextBtn = tester.getCenter(find.byIcon(Icons.chevron_right_rounded).last);
+      // Sa widget test, bawat glyph ay isang em box — kaya mas mahaba ang
+      // label kaysa sa totoong app. Sapat na ang relative na pagsusuri.
+
+      // Pati "Showing x–y of n records" ay naka-right, hindi naka-pin sa kaliwa.
+      expect(showing.left, greaterThan(400),
+          reason: 'dapat nasa kanang bahagi din ang label (hindi naka-pin sa kaliwa)');
+      // Nasa dulong kanan pa rin ang mga page button.
+      expect(nextBtn.dx, greaterThan(1000),
+          reason: 'dapat nasa kanan ang pagination');
+      expect(nextBtn.dx - showing.right, lessThan(400),
+          reason: 'magkasama sa kanan ang label at pager');
+    });
+
     testWidgets('search filter ay nagfi-filter sa table at totals',
         (tester) async {
       await pumpPreview(tester, apiRows(10));

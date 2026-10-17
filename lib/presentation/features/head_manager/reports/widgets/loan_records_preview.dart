@@ -683,7 +683,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     ];
   }
 
-  /// "Showing 1–10 of 124 records" sa kaliwa, numbered pages sa kanan —
+  /// "Showing 1–10 of 124 records" sa kaliwa, numbered pages sa **KANAN** —
   /// nasa loob ng table card, tulad ng mockup.
   Widget _buildPagination(int page, int totalPages, int total) {
     final from = (page - 1) * _pageSize + 1;
@@ -691,65 +691,92 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     final to = rawTo > total ? total : rawTo;
     final window =
         totalPages > 1 ? _pageWindow(page, totalPages) : const <int?>[];
+
+    final label = Text('Showing $from–$to of $total records',
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(
+            fontSize: 12, color: AppColors.textSecondary));
+
+    // Naka-scroll pahalang kapag marami ang page number, `reverse: true` para
+    // nakadikit sa KANAN ang content sa loob ng bounded na lapad nito.
+    final pager = SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      reverse: true,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _PageButton(
+            icon: Icons.chevron_left_rounded,
+            onTap: page > 1 ? () => setState(() => _page = page - 1) : null,
+          ),
+          for (final p in window) ...[
+            const SizedBox(width: 6),
+            if (p == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 2),
+                child: Text('…',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textTertiary)),
+              )
+            else
+              _PageButton(
+                label: '$p',
+                active: p == page,
+                onTap: p == page ? null : () => setState(() => _page = p),
+              ),
+          ],
+          const SizedBox(width: 6),
+          _PageButton(
+            icon: Icons.chevron_right_rounded,
+            onTap: page < totalPages
+                ? () => setState(() => _page = page + 1)
+                : null,
+          ),
+        ],
+      ),
+    );
+
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
       decoration: const BoxDecoration(
         color: AppColors.surfaceVariant,
         border: Border(top: BorderSide(color: AppColors.divider)),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text('Showing $from–$to of $total records',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 12, color: AppColors.textSecondary)),
-          ),
-          const SizedBox(width: 8),
-          // Naka-scroll pahalang kapag marami ang page number — hindi umaapaw
-          // sa maliit na dialog.
-          Flexible(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  _PageButton(
-                    icon: Icons.chevron_left_rounded,
-                    onTap: page > 1
-                        ? () => setState(() => _page = page - 1)
-                        : null,
-                  ),
-                  for (final p in window) ...[
-                    const SizedBox(width: 6),
-                    if (p == null)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 2),
-                        child: Text('…',
-                            style: TextStyle(
-                                fontSize: 12, color: AppColors.textTertiary)),
-                      )
-                    else
-                      _PageButton(
-                        label: '$p',
-                        active: p == page,
-                        onTap:
-                            p == page ? null : () => setState(() => _page = p),
-                      ),
-                  ],
-                  const SizedBox(width: 6),
-                  _PageButton(
-                    icon: Icons.chevron_right_rounded,
-                    onTap: page < totalPages
-                        ? () => setState(() => _page = page + 1)
-                        : null,
-                  ),
-                ],
+      child: LayoutBuilder(builder: (context, constraints) {
+        // Makitid (mobile/dialog): label sa taas, pager sa ibaba — parehong
+        // NAKA-RIGHT.
+        if (constraints.maxWidth < 520) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              label,
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: pager,
               ),
-            ),
+            ],
+          );
+        }
+        // Desktop: NAKA-RIGHT ang buong footer — magkasama at dikit ang
+        // "Showing …" text at ang pager. `Align` + `MainAxisSize.min` para
+        // hindi lumawak (at kumalat) ang label box pauwi sa kanan.
+        return Align(
+          alignment: Alignment.centerRight,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              label,
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: pager,
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      }),
     );
   }
 }

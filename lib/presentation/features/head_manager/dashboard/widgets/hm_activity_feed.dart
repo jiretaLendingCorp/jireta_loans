@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/audit_remote_datasource.dart';
 import '../../audit/audit_action_catalog.dart';
@@ -26,7 +27,9 @@ class ActivityEvent {
 }
 
 /// Maps a raw audit log entry into a feed event.
-ActivityEvent _mapAuditLog(Map<String, dynamic> log) {
+///
+/// Public para masubukan (unit test) nang walang network.
+ActivityEvent activityEventFromAuditLog(Map<String, dynamic> log) {
   final action = log['action'] as String? ?? '';
   final user = log['performed_by_user'];
   final name = user is Map<String, dynamic>
@@ -36,10 +39,30 @@ ActivityEvent _mapAuditLog(Map<String, dynamic> log) {
       ? (log['performed_by'] == null ? 'System' : 'Staff')
       : name;
   final table = (log['table_name'] as String? ?? '').replaceAll('_', ' ');
-  final label = AuditActionCatalog.label(action);
+  // `displayLabel` — friendly na pamagat ("GCash payment paid", etc.); pareho
+  // ang gamit sa Audit Logs table para hindi magkaiba ang wording sa dalawang
+  // screen.
+  final label = AuditActionCatalog.displayLabel(action);
+
+  // `xendit_payment_verified` / `_synced` rows carry the confirmed amount in
+  // `new_values`; ipakita ito para may saysay ang activity (hal. “System • ₱200.00
+  // • GCash”) sa halip na “System • payments”.
+  final values = log['new_values'];
+  final amount = values is Map ? (values['amount'] as num?)?.toDouble() : null;
+  // Sa GCash payments, nasa PAMAGAT na ang "GCash" — huwag nang ulitin sa
+  // subtitle. Sa ibang action, ang table ang context.
+  final isGcashPayment = action.startsWith('xendit_') ||
+      action == 'generate_gcash_link' ||
+      action == 'disburse_gcash';
+  final context = isGcashPayment ? '' : (table.isEmpty ? '' : table);
+
   return ActivityEvent(
     title: label.isEmpty ? 'Action' : label,
-    subtitle: performer + (table.isEmpty ? '' : ' • $table'),
+    subtitle: [
+      performer,
+      if (amount != null) amount.toCurrency,
+      if (context.isNotEmpty) context,
+    ].join(' • '),
     timestamp: parseManila(log['created_at']) ?? nowManila(),
     type: action,
   );
@@ -50,7 +73,9 @@ final hmRecentActivityProvider =
     FutureProvider<List<ActivityEvent>>((ref) async {
   final res = await sl<AuditRemoteDataSource>().getLogs(limit: 10);
   final items = (res['data'] as List?) ?? [];
-  return items.map((raw) => _mapAuditLog(raw as Map<String, dynamic>)).toList();
+  return items
+      .map((raw) => activityEventFromAuditLog(raw as Map<String, dynamic>))
+      .toList();
 });
 
 /// All audit entries (paginated through) for the "View All" modal.
@@ -62,11 +87,11 @@ final hmAllActivityProvider =
   final meta = (first['meta'] as Map<String, dynamic>?) ?? {};
   final totalPages = (meta['total_pages'] as num?)?.toInt() ?? 1;
   all.addAll((first['data'] as List? ?? [])
-      .map((raw) => _mapAuditLog(raw as Map<String, dynamic>)));
+      .map((raw) => activityEventFromAuditLog(raw as Map<String, dynamic>)));
   for (var page = 2; page <= totalPages; page++) {
     final res = await ds.getLogs(page: page, limit: 100);
     all.addAll((res['data'] as List? ?? [])
-        .map((raw) => _mapAuditLog(raw as Map<String, dynamic>)));
+        .map((raw) => activityEventFromAuditLog(raw as Map<String, dynamic>)));
   }
   return all;
 });

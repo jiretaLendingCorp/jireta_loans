@@ -43,9 +43,10 @@ class _EmpLoanApplicationsScreenState
   final _searchCtrl = TextEditingController();
   DateTimeRange? _dateRange;
   final _scrollCtrl = ScrollController();
-  // Keeps In-Office selected locally while staying on /hm/loan-applications
-  // so WebScaffold continues to highlight "Loan Records" in the side nav.
-  String? _overrideTab;
+  // Bawat tab ay may SARILING URI (`/employee/loan-records/...`) — ang URL ang
+  // source of truth, kaya tama pa rin ang tab pagkatapos ng refresh/bookmark at
+  // hindi nawawala ang highlight ng "Loan Records" sa side nav.
+  String? _lastRouteTab;
   String _inOfficeSearch = '';
 
   // Pipeline tabs become dropdown; Active & In-Office remain as pills per request
@@ -77,21 +78,80 @@ class _EmpLoanApplicationsScreenState
   String? get _dateToParam =>
       _dateRange == null ? null : SearchDateFilter.toParam(_dateRange!.end);
 
+  /// Tab mula sa URL — `null` kapag nasa base `/employee/loan-records`.
+  static String? _tabFromPath(GoRouterState state) {
+    final path = state.uri.path;
+    if (path == RouteConstants.empLoansInOffice) return 'in_office';
+    if (path == RouteConstants.empLoansDisbursements) return 'disbursements';
+    if (path == RouteConstants.empLoansHistory) return 'loan_history';
+    if (path == RouteConstants.empLoansOngoing) return 'active';
+    if (path == RouteConstants.empLoansCompleted) return 'completed';
+    if (path.startsWith('/employee/loan-records/pipeline/')) {
+      return state.pathParameters['status'];
+    }
+    return null;
+  }
+
+  static String _pipelinePath(String status) =>
+      RouteConstants.empLoansPipeline.replaceFirst(':status', status);
+
+  static String _pathForTab(String tab) {
+    switch (tab) {
+      case 'active':
+        return RouteConstants.empLoansOngoing;
+      case 'completed':
+        return RouteConstants.empLoansCompleted;
+      case 'in_office':
+        return RouteConstants.empLoansInOffice;
+      case 'disbursements':
+        return RouteConstants.empLoansDisbursements;
+      case 'loan_history':
+        return RouteConstants.empLoansHistory;
+      default:
+        // Pipeline dropdown statuses (all, pending, under_review, ...).
+        return _pipelinePath(tab);
+    }
+  }
+
   void _onDateRangeChanged(DateTimeRange? r) {
     setState(() => _dateRange = r);
     final from = _dateFromParam;
     final to = _dateToParam;
+    final routeTab = _tabFromPath(GoRouterState.of(context));
     // Naka-wire sa KASALUKUYANG tab: dati, ang loan list lang ang tumatanggap ng
     // date range kaya WALANG nangyayari sa In-Office at Disbursements tabs
     // kahit may napiling petsa. Sinasabayan pa rin ang loan list para hindi
     // stale ang pipeline/active/completed kapag lumipat pabalik.
     ref.read(hmLoanProvider.notifier).setDateRange(from, to);
-    if (_overrideTab == 'in_office') {
+    if (routeTab == 'in_office') {
       ref.read(hmInOfficeProvider.notifier).setDateRange(from, to);
-    } else if (_overrideTab == 'disbursements') {
+    } else if (routeTab == 'disbursements') {
       ref.read(hmDisbursementProvider.notifier).setDateRange(from, to);
-    } else if (_overrideTab == 'loan_history') {
+    } else if (routeTab == 'loan_history') {
       ref.read(hmLoanHistoryProvider.notifier).setDateRange(from, to);
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tab = _tabFromPath(GoRouterState.of(context));
+    if (tab == _lastRouteTab) return;
+    final isFirst = _lastRouteTab == null;
+    _lastRouteTab = tab;
+    // Unang build: may sariling initial fetch ang providers — huwag mag-doble.
+    if (isFirst) return;
+    final from = _dateFromParam;
+    final to = _dateToParam;
+    if (tab == null) return; // base path
+    if (tab == 'in_office') {
+      ref.read(hmInOfficeProvider.notifier).setDateRange(from, to);
+    } else if (tab == 'disbursements') {
+      ref.read(hmDisbursementProvider.notifier).setDateRange(from, to);
+    } else if (tab == 'loan_history') {
+      ref.read(hmLoanHistoryProvider.notifier).setDateRange(from, to);
+    } else {
+      ref.read(hmLoanProvider.notifier).setTab(tab);
     }
   }
 
@@ -108,7 +168,8 @@ class _EmpLoanApplicationsScreenState
     final inOfficeState = ref.watch(hmInOfficeProvider);
     final disbState = ref.watch(hmDisbursementProvider);
     final historyState = ref.watch(hmLoanHistoryProvider);
-    final effectiveTab = _overrideTab ?? loanState.tabFilter;
+    final effectiveTab =
+        _tabFromPath(GoRouterState.of(context)) ?? loanState.tabFilter;
     final isInOffice = effectiveTab == 'in_office';
     final isDisbursements = effectiveTab == 'disbursements';
     final isLoanHistory = effectiveTab == 'loan_history';
@@ -173,8 +234,13 @@ class _EmpLoanApplicationsScreenState
       dropdownOptions: _dropdownTabs,
       dropdownValue: dropdownValue,
       onDropdownChanged: (v) {
-        if (_overrideTab != null) setState(() => _overrideTab = null);
-        ref.read(hmLoanProvider.notifier).setTab(v);
+        // Sariling URL ang bawat pipeline status.
+        final target = _pipelinePath(v);
+        if (GoRouterState.of(context).uri.path == target) {
+          ref.read(hmLoanProvider.notifier).setTab(v);
+        } else {
+          context.go(target);
+        }
       },
       // Pill tabs for Active & In-Office
       pills: _pillTabs.map((t) {
@@ -185,32 +251,14 @@ class _EmpLoanApplicationsScreenState
             def: t,
             active: isActive,
             onTap: () {
-              if (t.key == 'in_office') {
-                setState(() => _overrideTab = 'in_office');
-                // Isinasama ang date filter ng screen (ito ang source of truth)
-                // para kapag pinili ang range habang nasa ibang tab, tama pa
-                // rin ang mga lalabas na application.
-                ref
-                    .read(hmInOfficeProvider.notifier)
-                    .setDateRange(_dateFromParam, _dateToParam);
-                return;
+              // Lahat ng pill ay may sariling URI; `didChangeDependencies` ang
+              // naglo-load ng data ng napiling tab.
+              final target = _pathForTab(t.key);
+              if (GoRouterState.of(context).uri.path == target) {
+                ref.read(hmLoanProvider.notifier).setTab(t.key);
+              } else {
+                context.go(target);
               }
-              if (t.key == 'disbursements') {
-                setState(() => _overrideTab = 'disbursements');
-                ref
-                    .read(hmDisbursementProvider.notifier)
-                    .setDateRange(_dateFromParam, _dateToParam);
-                return;
-              }
-              if (t.key == 'loan_history') {
-                setState(() => _overrideTab = 'loan_history');
-                ref
-                    .read(hmLoanHistoryProvider.notifier)
-                    .setDateRange(_dateFromParam, _dateToParam);
-                return;
-              }
-              if (_overrideTab != null) setState(() => _overrideTab = null);
-              ref.read(hmLoanProvider.notifier).setTab(t.key);
             },
           ),
         );
