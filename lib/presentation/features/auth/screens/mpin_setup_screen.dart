@@ -126,14 +126,15 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
       await Future.delayed(const Duration(milliseconds: 900));
       hideLoading();
       if (!mounted) return;
-      // Success modal — kailangan munang i-tap ng user ang button bago
-      // magpatuloy, para malinaw na tagumpay ang pag-create ng MPIN.
-      await SuccessDialog.show(
+      // Success modal — kusang nawawala pagkalipas ng 1 segundo (o agad kapag
+      // i-tinap ang "Continue") bago magpatuloy sa login page.
+      await SuccessDialog.showAutoDismiss(
         context,
         title: 'Successfully Created PIN',
         message: 'Your 4-digit MPIN has been created. '
             'Use it to log in next time.',
         buttonText: 'Continue',
+        duration: const Duration(seconds: 1),
       );
       if (!mounted) return;
       // Naka-save na ang MPIN. Hindi deretso sa dashboard: inilalagay muna ang

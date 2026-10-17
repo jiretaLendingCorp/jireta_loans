@@ -65,6 +65,19 @@ class PaymentRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  /// Kinukumpirma sa server (at sa Xendit) ang tunay na status ng isang GCash
+  /// payment. Ginagamit kapag `pending` pa rin ang row kahit bayad na sa
+  /// checkout — hindi umaasa lang sa webhook callback.
+  Future<Map<String, dynamic>> syncXenditPayment({
+    required String paymentId,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.paymentsXenditSync,
+      data: {'payment_id': paymentId},
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   // ── Xendit SANDBOX diagnostics (Head Manager only) ──────────────────────
   // Ang secret key ay nasa Supabase Edge Function secret store — HINDI
   // kailanman dito at hindi kailanman nasa request/response ng client.

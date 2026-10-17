@@ -13,6 +13,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/pending_payments_table.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
@@ -718,7 +719,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
             Row(mainAxisSize: MainAxisSize.min, children: [
               Container(width: 7, height: 7, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
               const SizedBox(width: 6),
-              Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
+              Flexible(child: Text(paymentStatusLabel(status), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
             ]),
           ],
           actions: status == 'verified'

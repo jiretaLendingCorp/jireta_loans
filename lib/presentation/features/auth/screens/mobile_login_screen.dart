@@ -386,10 +386,17 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     hideLoading();
     if (!mounted) return;
     setState(() => _mpinBusy = false);
-    // `resetMpin: true` → ipapakita sa Verify OTP screen na pag-reset ng MPIN
-    // ang ginagawa, hindi ordinaryong login.
+    // Sariling URI ang reset flow — `/reset-mpin/verify-otp?s=<token>` — kaya
+    // kitang iba ito sa ordinaryong login OTP. Opaque na token lang ang nasa
+    // URL; nasa secure storage ang numero (security: huwag ilagay ang numero
+    // sa address bar / browser history).
+    final sessionToken = await SecureStorage.createResetOtpSession(phone);
+    if (!mounted) return;
     context.go(
-      RouteConstants.otpVerify,
+      Uri(
+        path: RouteConstants.resetMpinOtpVerify,
+        queryParameters: {'s': sessionToken},
+      ).toString(),
       extra: OtpFlowArgs(phone: phone, resetMpin: true),
     );
   }

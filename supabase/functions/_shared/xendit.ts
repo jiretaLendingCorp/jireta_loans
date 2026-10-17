@@ -49,6 +49,32 @@ export const XENDIT_PROBE_PAYMENT_REQUEST_ID = 'pr-00000000-0000-0000-0000-00000
 // LEGACY — invoices + disbursements (ginagamit pa rin ng existing flows)
 // ════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Maikli at UNIQUE na `external_id` para sa Xendit invoice — hal.
+ * `JR-K3M9X2P1A4B`.
+ *
+ * DATI (sa `payments-xendit-link?fn=generate`):
+ * `${loan_number}-SCHED-${loan_schedule_id}-${Date.now()}` — ~100 characters.
+ * Iyon mismo ang lumalabas na "Reference No." sa receipt at ang
+ * "Your order #..." sa Xendit checkout, kaya mahirap basahin.
+ *
+ * Ang base36 timestamp (ms) ang nagsisiguro ng uniqueness sa paglipas ng
+ * oras; ang maikling random na suffix ay para hindi magbangga ang dalawang
+ * invoice na nagawa sa parehong millisecond.
+ */
+export function shortInvoiceReference(
+  prefix = 'JR',
+  now: number = Date.now(),
+): string {
+  const ts = now.toString(36).toUpperCase();
+  const rnd = new Uint8Array(2);
+  crypto.getRandomValues(rnd);
+  const suffix = Array.from(rnd)
+    .map((b) => (b % 36).toString(36).toUpperCase())
+    .join('');
+  return `${prefix}-${ts}${suffix}`;
+}
+
 function getXenditHeaders(): HeadersInit {
   const secretKey = Deno.env.get('XENDIT_SECRET_KEY')!;
   const encoded = btoa(`${secretKey}:`);
@@ -86,6 +112,44 @@ export async function createInvoice(params: {
 
   const data = await res.json();
   return { invoiceUrl: data.invoice_url, id: data.id, status: data.status };
+}
+
+/**
+ * `GET /v2/invoices/{id}` — status ng legacy invoice (read-only).
+ *
+ * Ginagamit ito ng reconciliation (`payments-xendit-link?fn=sync-payment`):
+ * kapag hindi umabot ang webhook callback, dito tinatanong mismo sa Xendit kung
+ * bayad na ang invoice bago i-verify ang `payments` row.
+ */
+export async function getInvoice(
+  invoiceId: string,
+  secretKey?: string | null,
+): Promise<XenditCallResult> {
+  return await xenditRequest(`/v2/invoices/${encodeURIComponent(invoiceId)}`, {
+    method: 'GET',
+    secretKey,
+  });
+}
+
+/**
+ * Ang halagang binayad kapag ang invoice ay PAID/SETTLED na — `null` kapag
+ * hindi pa bayad (PENDING/EXPIRED) o walang valid na amount sa sagot.
+ *
+ * Prefers `paid_amount` (aktwal na natanggap) bago ang `amount` (invoice
+ * amount), at tinatanggap din ang `SETTLED` dahil may mga channel na iyon ang
+ * huling status na ipinapadala.
+ */
+export function paidInvoiceAmount(
+  data: Record<string, unknown> | null,
+): number | null {
+  if (!data) return null;
+  const status = typeof data.status === 'string'
+    ? data.status.trim().toUpperCase()
+    : '';
+  if (status !== 'PAID' && status !== 'SETTLED') return null;
+  const raw = data.paid_amount ?? data.amount;
+  const amount = Number(raw);
+  return Number.isFinite(amount) ? amount : null;
 }
 
 export async function createDisbursement(params: {

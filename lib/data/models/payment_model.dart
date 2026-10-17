@@ -133,7 +133,8 @@ class PaymentModel {
       case 'pending':
         return 'Pending';
       case 'verified':
-        return 'Verified';
+        // Bayad na — hindi "verified" na dokumento/account.
+        return 'Paid';
       case 'failed':
         return 'Failed';
       case 'reversed':

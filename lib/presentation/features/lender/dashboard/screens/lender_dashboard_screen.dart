@@ -358,8 +358,17 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
           ? [
               IconButton(
                 tooltip: 'Refresh',
-                icon: const Icon(Icons.refresh_rounded, color: Colors.white),
-                onPressed: _silentRefresh,
+                // Habang tumatakbo, spinner ang icon — para kitang-kita na may
+                // nangyayari talaga sa bawat pindot.
+                onPressed: _refreshing ? null : _onRefreshTap,
+                icon: _refreshing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.refresh_rounded, color: Colors.white),
               ),
             ]
           : null,
@@ -401,11 +410,49 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
     );
   }
 
+  /// `true` habang tumatakbo ang refresh — spinner sa Refresh button at
+  /// hindi na doble-doble ang pindot.
+  bool _refreshing = false;
+
+  /// Pindot sa Refresh button (desktop top bar). May nakikitang feedback
+  /// pagkatapos, kaya malinaw na gumagana ito.
+  Future<void> _onRefreshTap() async {
+    await _silentRefresh();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Refreshed'),
+      duration: Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
   /// Silent refresh para sa pull-down at sa Refresh button ng desktop top bar —
   /// hindi ito nagpapalit ng screen sa skeleton.
+  ///
+  /// Kailangang i-refresh ang LAHAT ng pinagmumulan ng dashboard, hindi lang
+  /// ang KPI at loans: ang Recent Activity ay binubuo rin mula sa payments,
+  /// collections, at account-upgrade status. Dati, hindi kasama ang payments —
+  /// kaya kahit bayad na at naging "Paid" sa server, nananatiling "Payment
+  /// pending" sa Recent Activity kahit pindutin ang Refresh.
   Future<void> _silentRefresh() async {
-    await ref.read(lenderDashboardProvider.notifier).load(silent: true);
-    await ref.read(lenderLoanProvider.notifier).loadLoans(silent: true);
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final paymentNotifier = ref.read(lenderPaymentProvider.notifier);
+      await Future.wait([
+        ref.read(lenderDashboardProvider.notifier).load(silent: true),
+        ref.read(lenderLoanProvider.notifier).loadLoans(silent: true),
+        paymentNotifier.loadPayments(silent: true),
+        ref.read(lenderCollectionProvider.notifier).loadList(silent: true),
+        ref.read(lenderAccountUpgradeProvider.notifier).loadStatus(silent: true),
+      ]);
+      if (!mounted) return;
+      // Manual refresh = "check now": huwag hintayin ang 3-minutong throttle ng
+      // Xendit reconciliation (pending GCash → Paid).
+      await paymentNotifier.syncPendingXenditPayments(force: true);
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
   }
 
   /// MOBILE na ayos: isang column lang, nakadikit sa floating bottom nav pill.
@@ -1680,7 +1727,10 @@ class _RecentActivitySection extends StatelessWidget {
             : reversed
                 ? AppColors.error
                 : AppColors.warning,
-        title: 'Payment ${p.statusLabel.toLowerCase()}',
+        // `verified` → "Payment paid" (dating "Payment verified").
+        title: verified
+            ? 'Payment paid'
+            : 'Payment ${p.statusLabel.toLowerCase()}',
         body: '${p.methodLabel} • ${p.amount.toCurrency}',
         onTap: p.id.isEmpty
             ? null

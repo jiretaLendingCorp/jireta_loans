@@ -6,11 +6,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
+import '../../../../core/security/secure_storage.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../auth_post_login.dart';
 import '../providers/auth_provider.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../shared/widgets/layout/web_scaffold.dart' show kDesktopBreakpoint;
 import 'mfa_verify_screen.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -19,6 +21,11 @@ import 'package:jireta_loans/core/extensions/context_extensions.dart';
 /// Ang `resetMpin` ay para sa "Reset MPIN" mula sa MPIN screen ng login page —
 /// ipinapakita nito ang label na iyon dito sa OTP screen para malinaw sa user
 /// na hindi ito ordinaryong login kundi pag-reset ng MPIN.
+///
+/// Ang reset flow ay may sariling URI ngayon
+/// ([RouteConstants.resetMpinOtpVerify] — `/reset-mpin/verify-otp?s=<token>`),
+/// kaya `resetMpin: true` dito ay fallback lang para sa lumang `/otp-verify`
+/// na paglipat.
 class OtpFlowArgs {
   const OtpFlowArgs({required this.phone, this.resetMpin = false});
 
@@ -32,10 +39,17 @@ class OtpVerifyScreen extends ConsumerStatefulWidget {
   /// True kapag galing sa "Reset MPIN" — nagbabago ang titulo/label ng screen.
   final bool resetMpin;
 
+  /// Opaque na token mula sa URL ng reset flow (`?s=…`). Kapag walang
+  /// ipinasang [phone] (hal. na-refresh ang web page, kung saan nawawala ang
+  /// `extra`), dito kinukuha ang numero — nasa secure storage ito, hindi sa
+  /// address bar.
+  final String? resetSessionToken;
+
   const OtpVerifyScreen({
     super.key,
     required this.phone,
     this.resetMpin = false,
+    this.resetSessionToken,
   });
 
   @override
@@ -56,6 +70,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   bool _loading = false;
   String _otp = '';
   String? _error;
+
+  /// Ang numerong ginagamit ng screen. Karaniwang galing sa [widget.phone]; sa
+  /// reset flow ay maaaring ma-resolve pa lang mula sa secure storage kapag
+  /// na-refresh ang page.
+  String _phone = '';
+
+  /// True habang hinahanap pa ang numero ng reset flow sa secure storage.
+  bool _resolvingSession = false;
   // Wrong-OTP attempts for this verification session (reset when a new code
   // is requested). The server additionally locks the phone after 3 failures.
   int _attemptsUsed = 0;
@@ -82,9 +104,40 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     );
     _fadeController.forward();
     _startTimer();
+    _phone = widget.phone;
+    if (_phone.isEmpty && widget.resetMpin) {
+      if (widget.resetSessionToken == null ||
+          widget.resetSessionToken!.isEmpty) {
+        // Bukas na link na walang session: huwag hayaang mag-render ang OTP
+        // screen na blangko ang numero.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) context.go(RouteConstants.mobileLogin);
+        });
+      } else {
+        _resolvingSession = true;
+        _resolveResetSession();
+      }
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNodes[0].requestFocus();
     });
+  }
+
+  /// Kinukuha ang numero ng reset flow mula sa secure storage (naka-key sa
+  /// opaque na token ng URL). Kapag wala/iba ang token, ibinabalik sa login -
+  /// hindi puwedeng mag-verify ng OTP na walang numero.
+  Future<void> _resolveResetSession() async {
+    final phone = await SecureStorage.readResetOtpPhone(widget.resetSessionToken);
+    if (!mounted) return;
+    if (phone == null || phone.isEmpty) {
+      context.go(RouteConstants.mobileLogin);
+      return;
+    }
+    setState(() {
+      _phone = phone;
+      _resolvingSession = false;
+    });
+    _focusNodes[0].requestFocus();
   }
 
   void _startTimer() {
@@ -169,7 +222,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     });
     final ok = await ref
         .read(authProvider.notifier)
-        .verifyOtp(phone: widget.phone, otp: otp);
+        .verifyOtp(phone: _phone, otp: otp);
     if (!mounted) return;
     setState(() => _loading = false);
     if (ok) {
@@ -186,7 +239,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           RouteConstants.mfaVerify,
           extra: MfaVerifyArgs(
             factorId: loginMfa.factorId,
-            phone: widget.phone,
+            phone: _phone,
             resetMpin: widget.resetMpin,
           ),
           title: 'OTP verified',
@@ -220,12 +273,23 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           });
           return;
         }
+        // Isang beses lang dapat gamitin ang reset link/token na nasa URL.
+        await SecureStorage.clearResetOtpSession();
+        if (!mounted) return;
         // Malinaw sa user kung ano ang nangyari sa MPIN niya — hindi lang
         // "verified" ang nakalagay kundi pati ang naburang lumang MPIN.
+        // Dito muna ito sa Verify OTP screen at kusang nawawala pagkalipas ng
+        // 2 segundo (`_showSuccessAndGo` → `SuccessDialog.showAutoDismiss`),
+        // bago lumipat sa "Create Your MPIN".
         await _showSuccessAndGo(
           RouteConstants.mpinSetup,
+          title: 'Successfully Reset MPIN',
           message: 'Your OTP has been verified and your old MPIN has been '
               'reset. Create your new MPIN now.',
+          // Dito muna sa Verify OTP screen: 2 segundo ang dialog, tapos
+          // deretso sa "Create Your MPIN".
+          waitForDialog: true,
+          dialogDuration: const Duration(seconds: 2),
         );
         return;
       }
@@ -237,7 +301,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       // na lang (`resolvePostAuthDestination`) dahil ginagamit din ito ng MFA
       // screen.
       final destination =
-          await resolvePostAuthDestination(ref, phone: widget.phone);
+          await resolvePostAuthDestination(ref, phone: _phone);
       if (!mounted) return;
       await _showSuccessAndGo(
         destination.location,
@@ -287,17 +351,35 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   /// habang umiiral pa ang modal). Ang modal ay nasa ROOT navigator, kaya
   /// nananatili itong nakapatong sa bagong screen at kusang nagsasara
   /// pagkatapos ng 1 segundo.
+  ///
+  /// Kapag [waitForDialog] ang `true`, dito muna sa OTP screen lumalabas ang
+  /// modal — kailangan ito ng reset flow, para makita ng user ang
+  /// "Successfully Reset MPIN" sa mismong screen na pinag-verify niya, bago
+  /// siya lumipat sa create-new-MPIN.
   Future<void> _showSuccessAndGo(
     String location, {
     Object? extra,
     String title = 'Successfully verified',
     String message = 'Your OTP has been verified.',
+    bool waitForDialog = false,
+    Duration dialogDuration = const Duration(seconds: 1),
   }) async {
+    if (waitForDialog) {
+      await SuccessDialog.showAutoDismiss(
+        context,
+        title: title,
+        message: message,
+        duration: dialogDuration,
+      );
+      if (!mounted) return;
+      context.go(location, extra: extra);
+      return;
+    }
     final dialogDone = SuccessDialog.showAutoDismiss(
       context,
       title: title,
       message: message,
-      duration: const Duration(seconds: 1),
+      duration: dialogDuration,
     );
     context.go(location, extra: extra);
     await dialogDone;
@@ -307,7 +389,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   Future<void> _resend() async {
     if (_secondsLeft > 0 || _lockSecondsLeft > 0) return;
     final ok =
-        await ref.read(authProvider.notifier).sendOtp(phone: widget.phone);
+        await ref.read(authProvider.notifier).sendOtp(phone: _phone);
     if (!mounted) return;
     if (ok) {
       _startTimer();
@@ -357,11 +439,20 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
 
   @override
   Widget build(BuildContext context) {
-    final maskedPhone = widget.phone.length == 11
-        ? '${widget.phone.substring(0, 4)} \u2022\u2022\u2022\u2022 ${widget.phone.substring(7)}'
-        : widget.phone;
+    if (_resolvingSession) {
+      // Sandali lang ito — hinahanap pa ang numero ng reset flow sa secure
+      // storage bago ipakita ang card, para hindi lumitaw itong blangko.
+      return const Scaffold(
+        backgroundColor: Color(0xFFF7F8FA),
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final maskedPhone = _phone.length == 11
+        ? '${_phone.substring(0, 4)} \u2022\u2022\u2022\u2022 ${_phone.substring(7)}'
+        : _phone;
     final canVerify = _otp.length == 6 && !_loading && _lockSecondsLeft == 0;
     final canResend = _secondsLeft == 0 && _lockSecondsLeft == 0 && !_loading;
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -373,13 +464,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       ),
       child: Scaffold(
         resizeToAvoidBottomInset: true,
-        backgroundColor: const Color(0xFFF7F8FA),
+        backgroundColor:
+            isDesktop ? const Color(0xFFFCFCFE) : const Color(0xFFF7F8FA),
         body: SafeArea(
           child: FadeTransition(
             opacity: _fadeAnim,
             child: SlideTransition(
               position: _slideAnim,
-              child: Column(
+              child: _desktopFrame(Column(
                 children: [
                   // Top bar: back button pinned top-left
                   Padding(
@@ -985,10 +1077,24 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                       ),
                     ),
                 ],
-              ),
+              )),
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Desktop (≥ [kDesktopBreakpoint]) na balot ng OTP page: isang naka-center
+  /// na makitid na column sa malawak na panel — kapareho ng login at MFA
+  /// verification pages — imbes na isang card na nakaunat sa buong browser.
+  /// Walang binabago sa mobile: doon ay buo pa rin ang lapad ng screen.
+  Widget _desktopFrame(Widget child) {
+    if (MediaQuery.sizeOf(context).width < kDesktopBreakpoint) return child;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: child,
       ),
     );
   }

@@ -51,8 +51,20 @@ class LenderPaymentMethodScreen extends ConsumerStatefulWidget {
   ConsumerState<LenderPaymentMethodScreen> createState() => _State();
 }
 
-class _State extends ConsumerState<LenderPaymentMethodScreen> {
+class _State extends ConsumerState<LenderPaymentMethodScreen>
+    with WidgetsBindingObserver {
   bool _requesting = false;
+
+  /// Pinapanatiling buhay ang (autoDispose) payment provider habang bukas ang
+  /// screen — kailangan ito para may `lastXenditPaymentId` na kokonfirmahan
+  /// pagbalik mula sa Xendit checkout.
+  ProviderSubscription<LenderPaymentState>? _paymentSub;
+
+  /// Ang GCash payment na hinihintay ng kumpirmasyon (ang invoice na binuksan
+  /// sa Xendit checkout).
+  String? _gcashPaymentId;
+  bool _gcashChecking = false;
+  bool _gcashVerified = false;
   late String _scheduleId;
   late double _amount;
   late String _dueDate;
@@ -73,6 +85,9 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
   void initState() {
     super.initState();
     _collectionSub = ref.listenManual(lenderCollectionProvider, (_, __) {});
+    _paymentSub = ref.listenManual(lenderPaymentProvider, (_, __) {});
+    _gcashPaymentId = widget.extra['payment_id'] as String?;
+    WidgetsBinding.instance.addObserver(this);
     _scheduleId = widget.extra['schedule_id'] as String? ?? '';
     _amount = (widget.extra['amount'] as num?)?.toDouble() ?? 0.0;
     _dueDate = widget.extra['due_date'] as String? ?? '';
@@ -89,8 +104,45 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _paymentSub?.close();
     _collectionSub?.close();
     super.dispose();
+  }
+
+  /// Bumalik ang lender mula sa Xendit checkout (bagong tab sa web, o GCash app
+  /// sa mobile) — kumpirmahin agad ang bayad sa Xendit para bumaba ang balance.
+  /// Ito ang dating kulang: ang `payments.status` ay nagiging `verified` lang
+  /// kapag dumating ang webhook callback, kaya nananatiling Pending kahit
+  /// "successfully paid" na sa checkout.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _gcashPaymentId != null &&
+        !_gcashVerified) {
+      unawaited(_checkGcashStatus(quiet: true));
+    }
+  }
+
+  /// Kinukumpirma sa server (at sa Xendit) ang eksaktong GCash payment na ito.
+  Future<void> _checkGcashStatus({bool quiet = false}) async {
+    final paymentId = _gcashPaymentId;
+    if (paymentId == null || _gcashChecking) return;
+    setState(() => _gcashChecking = true);
+    final verified = await ref
+        .read(lenderPaymentProvider.notifier)
+        .syncXenditPaymentStatus(paymentId);
+    if (!mounted) return;
+    setState(() {
+      _gcashChecking = false;
+      _gcashVerified = verified;
+    });
+    if (verified) {
+      _showInfo('GCash payment confirmed. Your balance has been updated.');
+    } else if (!quiet) {
+      _showInfo('Xendit has not confirmed this payment yet. If you just paid, '
+          'wait a few seconds and tap Check payment status again.');
+    }
   }
 
   Future<void> _resolveSchedule() async {
@@ -447,6 +499,15 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         return;
       }
 
+      // Ang payment row na ginawa ng function — ito ang kokonfirmahin sa
+      // Xendit pagbalik mula sa checkout (webhook fallback).
+      final paymentId = ref.read(lenderPaymentProvider).lastXenditPaymentId;
+      if (paymentId != null) {
+        setState(() {
+          _gcashPaymentId = paymentId;
+          _gcashVerified = false;
+        });
+      }
       // DERETSO SA CHECKOUT — hindi na kailangan pang pindutin sa iba pang
       // screen ang "Open GCash".
       final launched = await _launchCheckout(url);
@@ -466,6 +527,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
         'amount': _amount,
         'due_date': _dueDate,
         'payment_url': url,
+        'payment_id': ref.read(lenderPaymentProvider).lastXenditPaymentId,
       });
     } finally {
       if (mounted) setState(() => _requesting = false);
@@ -556,7 +618,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
                       onSelect: _requesting
                           ? null
                           : (v) => setState(() => _selected = v),
+                      // Brand asset (hindi generic na icon) — `assets/images/gcash.png`.
                       icon: Icons.account_balance_wallet,
+                      assetPath: 'assets/images/gcash.png',
+                      assetFit: BoxFit.contain,
                       color: const Color(0xFF007DFF),
                       title: 'GCash',
                       badge: null,
@@ -574,6 +639,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
                     // method, sa loob ng parehong column.
                     if (isDesktop) ...[
                       const SizedBox(height: 28),
+                      if (_gcashPaymentId != null) ...[
+                        _buildGcashStatus(),
+                        const SizedBox(height: 12),
+                      ],
                       _buildPayButton(payDisabled),
                     ],
                   ],
@@ -607,10 +676,76 @@ class _State extends ConsumerState<LenderPaymentMethodScreen> {
               child: Center(
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxWidth: maxContentWidth),
-                  child: _buildPayButton(payDisabled),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_gcashPaymentId != null) ...[
+                        _buildGcashStatus(),
+                        const SizedBox(height: 10),
+                      ],
+                      _buildPayButton(payDisabled),
+                    ],
+                  ),
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+
+  /// Status ng huling GCash checkout: habang hinihintay ang kumpirmasyon ng
+  /// Xendit, may "Check payment status" na pindutan; kapag verified, success
+  /// na ang nakalagay.
+  Widget _buildGcashStatus() {
+    if (_gcashVerified) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.successLight,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.check_circle_outline,
+                size: 18, color: AppColors.success),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'GCash payment confirmed. Your balance has been updated.',
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.success),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF2F3F7),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Paid in the Xendit checkout already? We will confirm it here.',
+            style: TextStyle(
+                fontSize: 12.5, height: 1.4, color: AppColors.textSecondary),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _gcashChecking ? null : () => _checkGcashStatus(),
+              child: Text(_gcashChecking ? 'Checking…' : 'Check payment status'),
+            ),
+          ),
         ],
       ),
     );
@@ -744,6 +879,10 @@ class _MethodCard extends StatelessWidget {
   final ValueChanged<String>? onSelect;
   final IconData icon;
   final String? assetPath;
+
+  /// `BoxFit.cover` para sa illustrations (rider), `contain` para sa logo na
+  /// hindi dapat ma-crop (GCash).
+  final BoxFit assetFit;
   final Color color;
   final String title;
   final String? badge;
@@ -754,6 +893,7 @@ class _MethodCard extends StatelessWidget {
     required this.onSelect,
     required this.icon,
     this.assetPath,
+    this.assetFit = BoxFit.cover,
     required this.color,
     required this.title,
     required this.badge,
@@ -787,7 +927,7 @@ class _MethodCard extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                     child: Image.asset(
                       assetPath!,
-                      fit: BoxFit.cover,
+                      fit: assetFit,
                       filterQuality: FilterQuality.high,
                       errorBuilder: (_, __, ___) => Container(
                         decoration: BoxDecoration(

@@ -16,14 +16,17 @@ import { getAdminClient } from '../_shared/db.ts';
 import {
   createInvoice,
   createPaymentRequest,
+  getInvoice,
   getPaymentRequest,
   getXenditSecretKey,
+  paidInvoiceAmount,
   isTerminalPaymentRequestStatus,
   isTestSecretKey,
   isValidPaymentRequestId,
   normalizeIdempotencyKey,
   probeXenditConnectivity,
   sanitizePaymentRequest,
+  shortInvoiceReference,
   simulatePaymentRequest,
   xenditEnvironmentOf,
   xenditErrorCode,
@@ -32,7 +35,12 @@ import {
   XENDIT_TEST_MAX_AMOUNT,
 } from '../_shared/xendit.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { getSchedulePayment, scheduleStatus } from '../_shared/loan_financials.ts';
+import {
+  getPaymentLoanId,
+  getSchedulePayment,
+  scheduleStatus,
+} from '../_shared/loan_financials.ts';
+import { settlePaidXenditPayment } from '../_shared/payment_settlement.ts';
 import {
   checkBlock,
   checkRateLimit,
@@ -86,6 +94,12 @@ serve(async (req) => {
       case 'generate':
         // ── [moved from functions/payments-generate-xendit-link/index.ts] ─
         return await handleGenerate(req);
+      // ── Reconciliation ng GCash payment ─────────────────────────────────
+      // Kapag bayad na sa Xendit pero `pending` pa rin sa app (hindi umabot
+      // ang webhook), dito tinatanong mismo sa Xendit ang invoice at doon
+      // ibinabase ang pag-verify — hindi sa client.
+      case 'sync-payment':
+        return await handleSyncPayment(req);
       // ── Sandbox (test) diagnostics — HEAD MANAGER lang ──────────────────
       // Test-only surface: WALANG binabago sa `payments`, `loans`,
       // `loan_schedules` o `disbursements`; hindi rin nagpapalabas ng pondo.
@@ -194,7 +208,10 @@ async function handleGenerate(req: Request) {
   }
 
   const { data: userInfo } = await db.from('users').select('email, first_name, last_name').eq('id', user.id).single();
-  const externalId = `${loan.loan_number}-SCHED-${loan_schedule_id}-${Date.now()}`;
+  // Maikli at unique na reference (`JR-...`): ito ang nasa "Reference No." ng
+  // receipt at nasa "Your order #..." ng Xendit checkout. Dating ~100 chars
+  // dahil sa `loan_number-SCHED-<uuid>-<timestamp>`.
+  const externalId = shortInvoiceReference();
   // Ang `createInvoice` (legacy /v2/invoices) ay naghahagis kapag hindi 2xx ang
   // Xendit — hindi dapat maging generic 500 iyon, at hindi rin dapat lumabas
   // ang raw upstream body sa client. 502 lang na may sanitized na mensahe.
@@ -217,6 +234,184 @@ async function handleGenerate(req: Request) {
   await db.from('xendit_logs').insert({ loan_id, payment_id: payment.id, event_type: 'payment', xendit_id: invoice.id, payload: invoice, status: 'created' });
   await writeAuditLog({ performedBy: user.id, action: 'generate_gcash_link', tableName: 'payments', recordId: payment.id, ipAddress: ip });
   return jsonResponse({ invoice_url: invoice.invoiceUrl, xendit_invoice_id: invoice.id, payment_id: payment.id });
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// RECONCILIATION — `?fn=sync-payment`
+//
+// BAKIT KAILANGAN: ang `payments.status` ay nagiging `verified` lamang kapag
+// dumating ang Xendit webhook (`payments-xendit-webhook`). Kapag HINDI
+// naka-configure ang callback URL ng Xendit (lalo na sa sandbox/test mode),
+// mali ang `XENDIT_WEBHOOK_TOKEN`, o na-drop ang delivery, nananatiling
+// `pending` ang bayad kahit "successfully paid" na sa checkout page — at dahil
+// `verified` lang ang binibilang sa balance, hindi bumababa ang utang ng lender.
+//
+// Dito tinatanong mismo sa Xendit (`GET /v2/invoices/{id}`) ang tunay na status
+// ng invoice, at dito lang sa server nanggagaling ang "bayad na" — hindi ito
+// pinapaniwalaan ang sasabihin ng client.
+// ════════════════════════════════════════════════════════════════════════════
+async function handleSyncPayment(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+  const roleCheck = requireRole(user, ROLES.LENDER);
+  if (roleCheck) return roleCheck;
+
+  const body = await readJsonBody(req);
+  const paymentId = typeof body.payment_id === 'string'
+    ? body.payment_id.trim()
+    : '';
+  if (!paymentId) {
+    return errorResponse('payment_id is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const { data: payment } = await db
+    .from('payments')
+    .select('id, loan_schedule_id, collection_assignment_id, status, payment_method, xendit_payment_id')
+    .eq('id', paymentId)
+    .single();
+  if (!payment || payment.payment_method !== 'gcash_xendit') {
+    return errorResponse('GCash payment not found', 404, 'NOT_FOUND');
+  }
+
+  // Pagmamay-ari: lender lang ang pwedeng mag-sync ng sariling bayad.
+  const loanId = await getPaymentLoanId(db, payment);
+  if (!loanId) return errorResponse('GCash payment not found', 404, 'NOT_FOUND');
+  const { data: loan } = await db
+    .from('loans')
+    .select('lender_id')
+    .eq('id', loanId)
+    .single();
+  if (!loan || loan.lender_id !== user.id) {
+    return errorResponse('GCash payment not found', 404, 'NOT_FOUND');
+  }
+
+  // Verified na — wala nang kailangang tanungin sa Xendit.
+  if (payment.status === 'verified') {
+    return jsonResponse({
+      payment_status: 'verified',
+      invoice_status: 'PAID',
+      updated: false,
+      already_verified: true,
+    });
+  }
+
+  const invoiceId = payment.xendit_payment_id as string | null;
+  if (!invoiceId) {
+    return errorResponse(
+      'This payment has no Xendit invoice to check. Please contact the office.',
+      400,
+      'VALIDATION_ERROR',
+    );
+  }
+
+  const secretKey = getXenditSecretKey();
+  if (!secretKey) {
+    return errorResponse(
+      'GCash payments are not configured for this project right now.',
+      503,
+      'XENDIT_NOT_CONFIGURED',
+    );
+  }
+
+  // Ang UI ay maaaring mag-refresh nang paulit-ulit habang naghihintay ng
+  // kumpirmasyon — i-cap ito para hindi maging libreng Xendit poller.
+  const rate = await checkRateLimit({
+    key: `xendit:sync:${user.id}`,
+    maxAttempts: 20,
+    windowMinutes: 5,
+  });
+  if (!rate.allowed) {
+    return errorResponse(
+      'Too many payment status checks. Please wait a minute and try again.',
+      429,
+      'RATE_LIMITED',
+    );
+  }
+
+  const result = await getInvoice(invoiceId, secretKey);
+  if (result.failure) {
+    return errorResponse(
+      xenditErrorMessage(result),
+      502,
+      result.failure === 'timeout' ? 'XENDIT_TIMEOUT' : 'XENDIT_UNREACHABLE',
+    );
+  }
+  if (!result.ok) {
+    // Hindi na kilala ng Xendit ang invoice (hal. na-expire at na-purge):
+    // `pending` pa rin ito at walang maitutulong ang error sa UI.
+    if (result.httpStatus === 404) {
+      return jsonResponse({
+        payment_status: payment.status,
+        invoice_status: null,
+        updated: false,
+      });
+    }
+    return errorResponse(
+      xenditErrorMessage(result),
+      422,
+      xenditErrorCode(result.data) ?? 'XENDIT_ERROR',
+    );
+  }
+
+  const invoiceStatus = typeof result.data?.status === 'string'
+    ? result.data.status
+    : null;
+  const paidAmount = paidInvoiceAmount(result.data);
+  if (paidAmount === null) {
+    // PENDING / EXPIRED — huwag galawin ang `payments` row.
+    return jsonResponse({
+      payment_status: payment.status,
+      invoice_status: invoiceStatus,
+      updated: false,
+    });
+  }
+
+  const settled = await settlePaidXenditPayment(db, {
+    paymentId: payment.id,
+    xenditId: invoiceId,
+    amount: paidAmount,
+    source: 'sync',
+  });
+  if (!settled.ok) {
+    await db.from('xendit_logs').insert({
+      event_type: 'payment',
+      xendit_id: invoiceId,
+      payment_id: payment.id,
+      status: 'sync_amount_mismatch',
+      payload: {
+        invoice_status: invoiceStatus,
+        paid_amount: paidAmount,
+        expected_amount: settled.expectedAmount,
+      },
+    });
+    return errorResponse(
+      'The amount paid does not match this installment. Please contact the office.',
+      422,
+      'AMOUNT_MISMATCH',
+    );
+  }
+
+  await db.from('xendit_logs').insert({
+    event_type: 'payment',
+    xendit_id: invoiceId,
+    payment_id: payment.id,
+    status: 'reconciled',
+    payload: {
+      invoice_status: invoiceStatus,
+      paid_amount: paidAmount,
+      source: 'sync-payment',
+      already_verified: settled.alreadyVerified,
+    },
+  });
+
+  return jsonResponse({
+    payment_status: 'verified',
+    invoice_status: invoiceStatus,
+    updated: !settled.alreadyVerified,
+    new_balance: settled.newBalance,
+  });
 }
 
 // ════════════════════════════════════════════════════════════════════════════

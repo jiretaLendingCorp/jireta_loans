@@ -1,5 +1,6 @@
 // lib/core/security/secure_storage.dart
 import 'dart:async';
+import 'dart:math' show Random;
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
@@ -362,6 +363,54 @@ class SecureStorage {
     } catch (_) {
       return false;
     }
+  }
+
+  // ── Reset MPIN → Verify OTP: opaque na session ─────────────────────────────
+  // Ang numero ay HINDI dapat lumabas sa URL ng reset flow
+  // (`/reset-mpin/verify-otp?phone=09XXXXXXXXX`): napupunta ito sa browser
+  // history, sa screenshots, at sa server/proxy logs. Sa halip, random na
+  // token lang ang nasa URL (`?s=…`, mukhang hash) at ang numero ay nananatili
+  // sa secure storage. Kapag na-refresh ang page, binabasa ito pabalik ng OTP
+  // screen, kaya tuloy pa rin ang flow nang walang PII sa address bar.
+  static const _resetOtpTokenKey = 'reset_mpin_otp_token';
+  static const _resetOtpPhoneKey = 'reset_mpin_otp_phone';
+
+  /// Gumagawa ng bagong opaque na token para sa "Reset MPIN" → Verify OTP at
+  /// itinatago ang numero kasama nito. Ang token lang ang ipinapasa sa URL.
+  static Future<String> createResetOtpSession(String phone) async {
+    final rnd = Random.secure();
+    final token = List.generate(16, (_) => rnd.nextInt(256))
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
+    try {
+      await _storage.write(key: _resetOtpTokenKey, value: token);
+      await _storage.write(key: _resetOtpPhoneKey, value: phone);
+    } catch (_) {}
+    return token;
+  }
+
+  /// Ang numero para sa [token]; `null` kung wala ito, iba ang token (lumang
+  /// link / ibang device), o natapos nang session.
+  static Future<String?> readResetOtpPhone(String? token) async {
+    if (token == null || token.isEmpty) return null;
+    try {
+      final saved = await _storage.read(key: _resetOtpTokenKey);
+      if (saved == null || saved != token) return null;
+      final phone = await _storage.read(key: _resetOtpPhoneKey);
+      if (phone == null || phone.trim().isEmpty) return null;
+      return phone.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Binubura ang token at ang numero pagkatapos ng matagumpay na reset — hindi
+  /// na magagamit muli ang link.
+  static Future<void> clearResetOtpSession() async {
+    try {
+      await _storage.delete(key: _resetOtpTokenKey);
+      await _storage.delete(key: _resetOtpPhoneKey);
+    } catch (_) {}
   }
 
   // ── Backwards-compat shims (old callers still invoke these) ───────────────

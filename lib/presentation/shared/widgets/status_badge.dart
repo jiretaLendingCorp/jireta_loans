@@ -2,6 +2,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 
+/// Label ng `payments.status`. Ang `verified` ay **"Paid"** — bayad na ang
+/// ibig sabihin nito, hindi ang "Verified" ng account / KYC documents.
+String paymentStatusLabel(String status) {
+  if (status.toLowerCase() == 'verified') return 'Paid';
+  return StatusBadge._config(status).$2;
+}
+
 class StatusBadge extends StatelessWidget {
   final String status;
   final bool small;
@@ -12,6 +19,11 @@ class StatusBadge extends StatelessWidget {
   /// statuses that fall back to [AppColors.textSecondary] (like `assigned`)
   /// become unreadable on top of the colored bar.
   final bool onDark;
+
+  /// Pansamantalang palit ng label — hal. `verified` → "Paid" sa payment
+  /// receipt, kung saan ang ibig sabihin ay BAYAD NA, hindi verification ng
+  /// account o dokumento. `null` = gamitin ang default na label.
+  final String? labelOverride;
 
   /// Override ng label color kapag hindi visible ang default na semantic color
   /// sa ilalim nito — hal. ang `overdue` (#B71C1C) sa dark header (#5C6370)
@@ -25,6 +37,7 @@ class StatusBadge extends StatelessWidget {
     this.large = false,
     this.onDark = false,
     this.colorOverride,
+    this.labelOverride,
   });
 
   @override
@@ -34,7 +47,7 @@ class StatusBadge extends StatelessWidget {
 
     // Plain text lang — hindi button, kaya walang background/border/pill.
     return Text(
-      cfg.$2,
+      labelOverride ?? cfg.$2,
       style: TextStyle(
         fontSize: fs,
         fontWeight: onDark ? FontWeight.w700 : FontWeight.w600,

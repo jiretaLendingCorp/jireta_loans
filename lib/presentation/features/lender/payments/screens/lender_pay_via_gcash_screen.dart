@@ -1,4 +1,6 @@
 // lib/presentation/features/lender/payments/screens/lender_pay_via_gcash_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -40,8 +42,20 @@ class LenderPayViaGcashScreen extends ConsumerStatefulWidget {
   ConsumerState<LenderPayViaGcashScreen> createState() => _State();
 }
 
-class _State extends ConsumerState<LenderPayViaGcashScreen> {
+class _State extends ConsumerState<LenderPayViaGcashScreen>
+    with WidgetsBindingObserver {
   String? _paymentUrl;
+
+  /// Ang `payment_id` ng invoice — kokonfirmahin ito sa Xendit pagbalik mula sa
+  /// checkout, para hindi manatiling `pending` ang bayad kapag hindi umabot ang
+  /// webhook callback.
+  String? _paymentId;
+  bool _checkingPayment = false;
+  bool _paymentVerified = false;
+
+  /// Paalala lang kapag hindi pa nakumpirma ng Xendit — HIWALAY sa `_error`,
+  /// para hindi lumabas ang "Retry" (na gumagawa ng bagong invoice).
+  String? _checkMessage;
   bool _isGenerating = false;
   bool _paymentInitiated = false;
 
@@ -54,6 +68,8 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _paymentId = widget.extra['payment_id'] as String?;
     // MANWAL NA LANDAS: kapag ang `payment_url` ay ipinasa na (nagawa na ang
     // invoice sa Payment Method screen pero hinarang ang pagbukas), huwag nang
     // mag-generate ng panibago — doble ang invoice at `payments` row kung ganoon.
@@ -65,6 +81,43 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
       return;
     }
     Future.microtask(_generateLink);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Bumalik ang lender mula sa Xendit checkout — kumpirmahin agad ang bayad.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        _paymentId != null &&
+        !_paymentVerified) {
+      unawaited(_checkPayment(quiet: true));
+    }
+  }
+
+  Future<void> _checkPayment({bool quiet = false}) async {
+    final paymentId = _paymentId;
+    if (paymentId == null || _checkingPayment) return;
+    setState(() => _checkingPayment = true);
+    final verified = await ref
+        .read(lenderPaymentProvider.notifier)
+        .syncXenditPaymentStatus(paymentId);
+    if (!mounted) return;
+    setState(() {
+      _checkingPayment = false;
+      _paymentVerified = verified;
+    });
+    if (!verified && !quiet) {
+      setState(() => _checkMessage =
+          'Xendit has not confirmed this payment yet. Please wait a few '
+          'seconds and check again.');
+    } else if (verified) {
+      setState(() => _checkMessage = null);
+    }
   }
 
   Future<void> _generateLink() async {
@@ -92,6 +145,7 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
     setState(() {
       _isGenerating = false;
       _paymentUrl = url;
+      _paymentId ??= ref.read(lenderPaymentProvider).lastXenditPaymentId;
       _launchFailed = false;
       _error = failed
           ? ((providerError != null && providerError.isNotEmpty)
@@ -247,6 +301,52 @@ class _State extends ConsumerState<LenderPayViaGcashScreen> {
                     color: const Color(0xFF007DFF),
                     icon: Icons.open_in_new,
                   ),
+                  if (_paymentId != null) ...[
+                    const SizedBox(height: 18),
+                    if (_paymentVerified)
+                      Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                            color: AppColors.successLight,
+                            borderRadius: BorderRadius.circular(12)),
+                        child: const Row(
+                          children: [
+                            Icon(Icons.check_circle_outline,
+                                color: AppColors.success),
+                            SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'GCash payment confirmed. Your balance has been updated.',
+                                style: TextStyle(
+                                    color: AppColors.success, fontSize: 13),
+                              ),
+                            ),
+                          ],
+                        ),
+                      )
+                    else
+                      Column(
+                        children: [
+                          TextButton(
+                            onPressed:
+                                _checkingPayment ? null : () => _checkPayment(),
+                            child: Text(_checkingPayment
+                                ? 'Checking…'
+                                : 'Already paid? Check payment status'),
+                          ),
+                          if (_checkMessage != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              _checkMessage!,
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textSecondary),
+                            ),
+                          ],
+                        ],
+                      ),
+                  ],
                   if (_launchFailed) ...[
                     const SizedBox(height: 16),
                     const Text(

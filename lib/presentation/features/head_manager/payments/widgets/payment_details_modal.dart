@@ -205,7 +205,10 @@ class _HmPaymentDetailsContentState
                     // `onDark: true` — ang hero card na ito ay `deepNavy`, kaya
                     // hindi mabasa ang status na walang sariling mapping
                     // (hal. "reversed") kapag semantic/gray ang label color.
-                    StatusBadge(status: status, onDark: true),
+                    StatusBadge(
+                        status: status,
+                        onDark: true,
+                        labelOverride: paymentStatusLabel(status)),
                     // Ang method at date ay plain metadata text lang (may dot
                     // separator) — hindi pill/chip, para malinaw na hindi ito
                     // clickable at hindi mukhang button.

@@ -98,7 +98,9 @@ class _EmpPaymentDetailsScreenState extends ConsumerState<EmpPaymentDetailsScree
                   ],
                 ),
               ),
-              StatusBadge(status: status),
+              StatusBadge(
+                  status: status,
+                  labelOverride: paymentStatusLabel(status)),
               if (status == 'verified')
                 Padding(
                   padding: const EdgeInsets.only(left: 12),

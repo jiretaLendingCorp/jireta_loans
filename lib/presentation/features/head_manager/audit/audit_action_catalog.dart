@@ -40,6 +40,8 @@ class AuditActionCatalog {
     'payment_reverse',
     'generate_gcash_link',
     'xendit_payment_verified',
+    // Hindi umabot ang webhook: kinumpirma sa Xendit mismo ang bayad
+    'xendit_payment_synced',
     // Xendit SANDBOX diagnostics (Head Manager Settings) — test-only actions;
     // walang loan/payment record na binabago.
     'xendit_test_payment_created',

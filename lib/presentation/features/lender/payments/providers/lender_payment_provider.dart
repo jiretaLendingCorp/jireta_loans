@@ -1,4 +1,5 @@
 // lib/presentation/features/lender/payments/providers/lender_payment_provider.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
@@ -16,6 +17,10 @@ class LenderPaymentState {
   final String? error;
   final bool isSubmitting;
   final String? xenditUrl;
+
+  /// Ang `payment_id` ng huling nagawang GCash invoice — para ma-sync agad ang
+  /// eksaktong bayad na ito pagbalik mula sa Xendit checkout.
+  final String? lastXenditPaymentId;
   final String statusFilter;
   final String methodFilter;
   final String searchQuery;
@@ -31,6 +36,7 @@ class LenderPaymentState {
     this.error,
     this.isSubmitting = false,
     this.xenditUrl,
+    this.lastXenditPaymentId,
     this.statusFilter = 'all',
     this.methodFilter = 'all',
     this.searchQuery = '',
@@ -59,6 +65,7 @@ class LenderPaymentState {
     String? error,
     bool? isSubmitting,
     String? xenditUrl,
+    String? lastXenditPaymentId,
     String? statusFilter,
     String? methodFilter,
     String? searchQuery,
@@ -74,6 +81,7 @@ class LenderPaymentState {
         error: error,
         isSubmitting: isSubmitting ?? this.isSubmitting,
         xenditUrl: xenditUrl ?? this.xenditUrl,
+        lastXenditPaymentId: lastXenditPaymentId ?? this.lastXenditPaymentId,
         statusFilter: statusFilter ?? this.statusFilter,
         methodFilter: methodFilter ?? this.methodFilter,
         searchQuery: searchQuery ?? this.searchQuery,
@@ -122,6 +130,10 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
         totalPaid: totalPaid,
         totalPending: totalPending,
       );
+
+      // Fallback laban sa nawawalang Xendit webhook: kung may `pending` pang
+      // GCash payment, tanungin sa server ang tunay na status nito.
+      unawaited(syncPendingXenditPayments());
     } catch (e) {
       if (silent) return;
       state = state.copyWith(
@@ -146,6 +158,79 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
 
   void setSearch(String query) {
     state = state.copyWith(searchQuery: query);
+  }
+
+  /// `true` habang may tumatakbong sync — hindi doble ang tawag sa Xendit.
+  bool _xenditSyncing = false;
+
+  /// Huling pagkakataong nag-sync — may interval para hindi maging libreng
+  /// Xendit poller ang bawat `loadPayments` (filters, realtime, pull-to-refresh).
+  DateTime? _lastXenditSyncAt;
+
+  /// Mga payment na bigong i-sync sa session na ito (hal. 422 amount mismatch o
+  /// 429) — hindi na ito paulit-ulit na subukan.
+  final Set<String> _xenditSyncSkip = <String>{};
+
+  static const _xenditSyncInterval = Duration(minutes: 3);
+
+  /// Kinukumpirma sa server (at sa Xendit) ang mga `pending` na GCash payment.
+  ///
+  /// BAKIT: ang `payments.status` ay nagiging `verified` lang kapag dumating
+  /// ang Xendit webhook. Kapag hindi naka-configure ang callback (lalo na sa
+  /// sandbox) o na-drop ang delivery, nananatiling `pending` ang bayad kahit
+  /// "successfully paid" na sa checkout — at dahil `verified` lang ang
+  /// binibilang, hindi bumababa ang balance ng lender.
+  Future<void> syncPendingXenditPayments({bool force = false}) async {
+    if (_xenditSyncing) return;
+    final last = _lastXenditSyncAt;
+    if (!force &&
+        last != null &&
+        DateTime.now().difference(last) < _xenditSyncInterval) {
+      return;
+    }
+    final pending = state.payments
+        .where((p) =>
+            p.status == 'pending' &&
+            p.method == 'gcash_xendit' &&
+            !_xenditSyncSkip.contains(p.id))
+        .toList();
+    if (pending.isEmpty) return;
+
+    _xenditSyncing = true;
+    _lastXenditSyncAt = DateTime.now();
+    var updated = 0;
+    try {
+      for (final p in pending) {
+        try {
+          final res = await _ds.syncXenditPayment(paymentId: p.id);
+          if (res['payment_status'] == 'verified') updated++;
+        } catch (_) {
+          // Offline, rate-limited, o amount mismatch — huwag paulit-ulit na
+          // subukan sa parehong session; susubukan muli sa susunod na bukas.
+          _xenditSyncSkip.add(p.id);
+        }
+      }
+    } finally {
+      _xenditSyncing = false;
+    }
+    // May nabago: i-refresh ang listahan at ang balance (verified na ang row
+    // at nabawasan na ang utang sa server).
+    if (updated > 0) await loadPayments(silent: true);
+  }
+
+  /// Kinukumpirma sa server ang ISANG partikular na GCash payment — ang
+  /// invoice na kauuwi lang galing Xendit checkout. `true` kapag verified na
+  /// (at na-refresh na ang listahan/balance).
+  Future<bool> syncXenditPaymentStatus(String paymentId) async {
+    try {
+      final res = await _ds.syncXenditPayment(paymentId: paymentId);
+      final verified = res['payment_status'] == 'verified';
+      if (verified) await loadPayments(silent: true);
+      return verified;
+    } catch (_) {
+      // Offline / rate-limited / hindi pa bayad — susubukan muli mamaya.
+      return false;
+    }
   }
 
   Future<String?> generateGcashLink({
@@ -174,7 +259,12 @@ class LenderPaymentNotifier extends StateNotifier<LenderPaymentState>
         );
         return null;
       }
-      state = state.copyWith(isSubmitting: false, xenditUrl: url);
+      state = state.copyWith(
+        isSubmitting: false,
+        xenditUrl: url,
+        // Ang `payment_id` ang kokonfirmahin sa Xendit pagbalik ng lender.
+        lastXenditPaymentId: result['payment_id'] as String?,
+      );
       return url;
     } catch (e) {
       state = state.copyWith(

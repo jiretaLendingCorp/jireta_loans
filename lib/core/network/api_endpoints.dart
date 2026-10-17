@@ -117,6 +117,10 @@ class ApiEndpoints {
   static const String paymentsRecordOffice = 'payments-manage?fn=record-office';
   static const String paymentsGenerateXenditLink =
       'payments-xendit-link?fn=generate';
+  // Reconciliation: tanungin ang Xendit kung bayad na ang invoice, para hindi
+  // manatiling `pending` ang GCash payment kapag hindi umabot ang webhook.
+  static const String paymentsXenditSync =
+      'payments-xendit-link?fn=sync-payment';
   static const String paymentsXenditWebhook = 'payments-xendit-webhook';
   // Xendit SANDBOX diagnostics (Head Manager only). Walang action dito na
   // nagbabago ng loan/payment record — test-only at server-side gated.

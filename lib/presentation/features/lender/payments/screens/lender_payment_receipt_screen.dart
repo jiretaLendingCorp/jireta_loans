@@ -9,6 +9,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/lender_payment_provider.dart';
@@ -51,41 +52,51 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_receiptProvider(paymentId));
+    // Desktop: makitid at naka-center ang receipt — hindi nakaunat ang card sa
+    // buong browser width. Mobile: buong lapad pa rin (walang binago).
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final maxContentWidth = isDesktop ? 720.0 : double.infinity;
 
     return MobileScaffold(
       title: 'Payment Receipt',
       accentColor: AppColors.lenderBlue,
       navItems: _lenderNavItems,
       showBackButton: true,
-      body: async.when(
-        loading: () => const ShimmerLoader(),
-        error: (e, _) => Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.receipt_long,
-                  size: 64, color: AppColors.textTertiary),
-              const SizedBox(height: 16),
-              Text('Unable to load receipt: $e',
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(color: AppColors.textSecondary)),
-              const SizedBox(height: 16),
-              ElevatedButton(
-                onPressed: () => ref.invalidate(_receiptProvider(paymentId)),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.lenderBlue),
-                child: const Text('Retry'),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxContentWidth),
+          child: async.when(
+            loading: () => const ShimmerLoader(),
+            error: (e, _) => Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.receipt_long,
+                      size: 64, color: AppColors.textTertiary),
+                  const SizedBox(height: 16),
+                  Text('Unable to load receipt: $e',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: AppColors.textSecondary)),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () =>
+                        ref.invalidate(_receiptProvider(paymentId)),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.lenderBlue),
+                    child: const Text('Retry'),
+                  ),
+                ],
               ),
-            ],
+            ),
+            data: (data) => _buildReceipt(context, data),
           ),
         ),
-        data: (data) => _buildReceipt(context, ref, data),
       ),
     );
   }
 
   Widget _buildReceipt(
-      BuildContext context, WidgetRef ref, Map<String, dynamic> data) {
+      BuildContext context, Map<String, dynamic> data) {
     final receiptUrl = data['receipt_url'] as String?;
     final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
     final method = data['payment_method'] as String? ?? '';
@@ -95,9 +106,36 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
     // raw string naman, doon lang dinadaan ang +8h shift.
     final paidAt = parseManilaValue(data['created_at']);
     final loanNum = data['loan_number'] as String? ?? '';
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+
+    Future<void> open(bool external) async {
+      if (receiptUrl == null) return;
+      final uri = Uri.parse(receiptUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri,
+            mode: external ? LaunchMode.externalApplication : LaunchMode.platformDefault);
+      }
+    }
+
+    final downloadBtn = AppButton(
+      label: 'Download Receipt',
+      icon: Icons.download_outlined,
+      isExpanded: isDesktop,
+      backgroundColor: AppColors.lenderBlue,
+      onPressed: () => open(true),
+    );
+    final shareBtn = AppButton(
+      label: 'Share Receipt',
+      icon: Icons.share_outlined,
+      isExpanded: isDesktop,
+      variant: AppButtonVariant.outlined,
+      outlineColor: AppColors.lenderBlue,
+      textColor: AppColors.lenderBlue,
+      onPressed: () => open(false),
+    );
 
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      padding: EdgeInsets.fromLTRB(16, isDesktop ? 32 : 16, 16, isDesktop ? 48 : 100),
       child: Column(
         children: [
           _ReceiptCard(
@@ -108,39 +146,50 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
             paidAt: paidAt,
             loanNum: loanNum,
           ),
-          const SizedBox(height: 20),
           if (receiptUrl != null) ...[
-            AppButton(
-              label: 'Download Receipt',
-              icon: Icons.download_outlined,
-              backgroundColor: AppColors.lenderBlue,
-              onPressed: () async {
-                final uri = Uri.parse(receiptUrl);
-                if (await canLaunchUrl(uri)) {
-                  await launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
-              },
-            ),
-            const SizedBox(height: 12),
-            AppButton(
-              label: 'Share Receipt',
-              icon: Icons.share_outlined,
-              variant: AppButtonVariant.outlined,
-              outlineColor: AppColors.lenderBlue,
-              textColor: AppColors.lenderBlue,
-              onPressed: () async {
-                final uri = Uri.parse(receiptUrl);
-                if (await canLaunchUrl(uri)) await launchUrl(uri);
-              },
-            ),
+            const SizedBox(height: 20),
+            if (isDesktop)
+              Row(
+                children: [
+                  Expanded(child: downloadBtn),
+                  const SizedBox(width: 12),
+                  Expanded(child: shareBtn),
+                ],
+              )
+            else ...[
+              downloadBtn,
+              const SizedBox(height: 12),
+              shareBtn,
+            ],
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: 22),
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.verified_user_outlined,
+                  size: 14, color: AppColors.textTertiary),
+              SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  'This receipt is an official record of your payment.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
   }
 }
 
+/// Receipt card — itim-na-navy na seal sa itaas, malinaw na amount block,
+/// dashed na hati, at naka-icon na detalye sa ibaba. Walay header gradient na
+/// dating kalahati lang ng card ang may kulay.
 class _ReceiptCard extends StatelessWidget {
   final double amount;
   final String method, status, refNum, loanNum;
@@ -154,83 +203,209 @@ class _ReceiptCard extends StatelessWidget {
       required this.loanNum,
       this.paidAt});
 
+  bool get _isPaid => status.toLowerCase() == 'verified';
+
+  String get _methodLabel {
+    switch (method) {
+      case 'gcash':
+      case 'gcash_xendit':
+        return 'GCash';
+      case 'office_cash':
+      case 'cash':
+        return 'Office';
+      case 'rider_collection':
+        return 'Rider Collection';
+      default:
+        return method.replaceAll('_', ' ');
+    }
+  }
+
+  IconData get _methodIcon {
+    if (method.contains('gcash')) return Icons.phone_android_rounded;
+    if (method == 'office_cash' || method == 'cash') {
+      return Icons.storefront_rounded;
+    }
+    if (method == 'rider_collection') return Icons.delivery_dining_rounded;
+    return Icons.account_balance_wallet_outlined;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Container(
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AppColors.border),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 4))
+            color: AppColors.deepNavy.withValues(alpha: 0.07),
+            blurRadius: 26,
+            offset: const Offset(0, 12),
+          ),
         ],
       ),
       child: Column(
         children: [
+          // Manipis na gold strip — premium accent, hindi kalahating card na
+          // gradient.
           Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
+            height: 4,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
-                  colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight),
-              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-            ),
-            child: Column(
-              children: [
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(28)),
-                  child: const Icon(Icons.receipt_long,
-                      color: Colors.white, size: 28),
-                ),
-                const SizedBox(height: 12),
-                const Text('Payment Receipt',
-                    style: TextStyle(color: Colors.white70, fontSize: 13)),
-                const SizedBox(height: 4),
-                Text(amount.toCurrency,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5)),
-                const SizedBox(height: 8),
-                // `onDark: true` — ang header ng receipt ay dark navy gradient
-                // (lenderBlue → lenderBlueLight). Kung wala ito, ang semantic
-                // na status color ay ginagamit as-is at ang default na gray
-                // (#555568) ay ~1.6:1 lang sa #0D1B2A — hindi mabasa ang
-                // "Reversed" (at iba pang status na walang sariling mapping).
-                StatusBadge(status: status, onDark: true),
-              ],
+                colors: [AppColors.gold, AppColors.goldLight],
+              ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.fromLTRB(24, 22, 24, 22),
+            child: Row(
+              children: [
+                Container(
+                  width: 54,
+                  height: 54,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [AppColors.lenderBlue, AppColors.lenderBlueLight],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.lenderBlue.withValues(alpha: 0.28),
+                        blurRadius: 14,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(Icons.receipt_long_rounded,
+                      color: Colors.white, size: 26),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'PAYMENT RECEIPT',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.4,
+                          color: AppColors.textTertiary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isPaid ? 'Payment Successful' : 'Payment Record',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.textPrimary,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _StatusPill(status: status),
+              ],
+            ),
+          ),
+          // Amount block — walang kahon; nakalutang lang sa puting card para
+          // malinis at parang totoong resibo.
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 2, 24, 0),
             child: Column(
               children: [
-                _Row('Loan Number', loanNum.isNotEmpty ? loanNum : '-'),
-                const Divider(height: 16),
-                _Row(
-                    'Payment Method',
-                    method == 'gcash' || method == 'gcash_xendit'
-                        ? 'GCash'
-                        : method == 'office_cash' || method == 'cash'
-                            ? 'Office'
-                            : method == 'rider_collection'
-                                ? 'Rider Collection'
-                                : method.replaceAll('_', ' ')),
-                const Divider(height: 16),
-                _Row('Reference No.', refNum.isNotEmpty ? refNum : '—'),
-                const Divider(height: 16),
+                Text(
+                  _isPaid ? 'AMOUNT PAID' : 'AMOUNT',
+                  style: const TextStyle(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.2,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    amount.toCurrency,
+                    style: const TextStyle(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                      color: AppColors.deepNavy,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                // GCash / method — plain label lang, walang chip/box.
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // GCash: brand asset mula sa `assets/images/gcash.png`.
+                    if (method.contains('gcash'))
+                      Image.asset(
+                        'assets/images/gcash.png',
+                        width: 16,
+                        height: 16,
+                        fit: BoxFit.contain,
+                        filterQuality: FilterQuality.high,
+                        errorBuilder: (_, __, ___) => Icon(_methodIcon,
+                            size: 14, color: AppColors.textSecondary),
+                      )
+                    else
+                      Icon(_methodIcon,
+                          size: 14, color: AppColors.textSecondary),
+                    const SizedBox(width: 6),
+                    Text(
+                      _methodLabel,
+                      style: const TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 22),
+          const _DashedDivider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 14, 24, 18),
+            child: Column(
+              children: [
+                _DetailRow(
+                  icon: Icons.confirmation_number_outlined,
+                  label: 'Loan Number',
+                  value: loanNum.isNotEmpty ? loanNum : '-',
+                ),
+                _DetailRow(
+                  icon: Icons.account_balance_wallet_outlined,
+                  label: 'Payment Method',
+                  value: _methodLabel,
+                ),
+                _DetailRow(
+                  icon: Icons.pin_outlined,
+                  label: 'Reference No.',
+                  value: refNum.isNotEmpty ? refNum : '—',
+                  mono: true,
+                ),
                 if (paidAt != null)
-                  _Row('Date & Time', paidAt!.formattedWithTime),
+                  _DetailRow(
+                    icon: Icons.event_outlined,
+                    label: 'Date & Time',
+                    value: paidAt!.formattedWithTime,
+                    last: true,
+                  ),
               ],
             ),
           ),
@@ -240,24 +415,118 @@ class _ReceiptCard extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  final String label, value;
-  const _Row(this.label, this.value);
+/// Semantic na status label ng bayad (`verified` → "Paid") — plain text, hindi
+/// mukhang button: walang box, border, o background.
+class _StatusPill extends StatelessWidget {
+  final String status;
+  const _StatusPill({required this.status});
 
   @override
   Widget build(BuildContext context) {
+    final low = status.toLowerCase();
+    final color = low == 'verified'
+        ? AppColors.success
+        : low == 'pending'
+            ? AppColors.warning
+            : low == 'reversed' || low == 'failed'
+                ? AppColors.error
+                : AppColors.textSecondary;
+    // Plain na label — HINDI pill/button: walang background, border, o padding.
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label,
-            style:
-                const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-        const Spacer(),
-        Text(value,
-            style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary)),
+        Icon(
+          low == 'verified' ? Icons.check_circle_rounded : Icons.circle,
+          size: low == 'verified' ? 13 : 7,
+          color: color,
+        ),
+        const SizedBox(width: 5),
+        StatusBadge(
+          status: status,
+          labelOverride: paymentStatusLabel(status),
+        ),
       ],
     );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final IconData icon;
+  final String label, value;
+  final bool mono;
+  final bool last;
+  const _DetailRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.mono = false,
+    this.last = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 11),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(icon, size: 16, color: AppColors.textTertiary),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Flexible(
+                child: Text(
+                  value,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    fontSize: mono ? 12.5 : 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary,
+                    letterSpacing: mono ? 0.3 : 0,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (!last) const Divider(height: 1, color: AppColors.divider),
+      ],
+    );
+  }
+}
+
+/// Dashed na panghati — "resibo" feel. Simpleng dashes lang, walang image.
+class _DashedDivider extends StatelessWidget {
+  const _DashedDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      const dash = 6.0;
+      const gap = 5.0;
+      final count = (constraints.maxWidth / (dash + gap)).floor();
+      return Row(
+        children: List.generate(
+          count,
+          (_) => Container(
+            width: dash,
+            height: 1,
+            margin: const EdgeInsets.only(right: gap),
+            color: AppColors.border,
+          ),
+        ),
+      );
+    });
   }
 }

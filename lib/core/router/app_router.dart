@@ -296,6 +296,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.webRegister,
         RouteConstants.mobileLogin,
         RouteConstants.otpVerify,
+        RouteConstants.resetMpinOtpVerify,
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
         // Branded na Verify Email page — buksan ito ng LINK sa email
@@ -403,7 +404,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // ang router na tumalon dito, mabubuksan ang dashboard — at doon
         // lumalabas ang Terms & Conditions — bago pa man makarating sa MPIN.
         final isMpinHandoff =
-            path == RouteConstants.otpVerify &&
+            (path == RouteConstants.otpVerify ||
+                    path == RouteConstants.resetMpinOtpVerify) &&
                 (authState.role == AppConstants.roleRider ||
                     authState.role == AppConstants.roleLender);
 
@@ -417,6 +419,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         if (publicRoutes.contains(path) &&
             !resetFlowRoutes.contains(path) &&
             path != RouteConstants.verifyEmail &&
+            // Ang "/reset-mpin/verify-otp" ay sariling handoff: hindi dapat
+            // itulak sa dashboard habang nakabitin pa ang "Successfully Reset
+            // MPIN" dialog matapos ma-verify ang OTP.
+            path != RouteConstants.resetMpinOtpVerify &&
             !authState.forcePasswordChange &&
             !isMpinHandoff) {
           final role = authState.role;
@@ -490,6 +496,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               );
             }
             return OtpVerifyScreen(phone: extra as String? ?? '');
+          }),
+      // "Reset MPIN" → Verify OTP: sariling URI (`/reset-mpin/verify-otp`)
+      // imbes na `/otp-verify` + `extra` flag, para makilala ito sa browser
+      // address bar at para hindi mawala ang flow sa refresh. Nasa URL ang
+      // OPAQUE na token (`?s=…`), HINDI ang numero — nasa secure storage ang
+      // numero at iyon ang binabasa ng screen kapag na-refresh (wala nang
+      // `extra`).
+      GoRoute(
+          path: RouteConstants.resetMpinOtpVerify,
+          builder: (ctx, s) {
+            final extra = s.extra;
+            return OtpVerifyScreen(
+              resetMpin: true,
+              resetSessionToken: s.uri.queryParameters['s'],
+              phone: extra is OtpFlowArgs
+                  ? extra.phone
+                  : (extra as String? ?? ''),
+            );
           }),
       GoRoute(
           path: RouteConstants.mpinSetup,

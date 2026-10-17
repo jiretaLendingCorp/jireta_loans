@@ -25,8 +25,10 @@ import {
   isValidPaymentRequestId,
   maskSecretKey,
   normalizeIdempotencyKey,
+  paidInvoiceAmount,
   probeXenditConnectivity,
   sanitizePaymentRequest,
+  shortInvoiceReference,
   timingSafeEqual,
   xenditEnvironmentOf,
   xenditErrorCode,
@@ -153,6 +155,41 @@ Deno.test("probe classification: network/timeout/server errors are unverified", 
     assertEquals(result.status, "unverified", JSON.stringify(input));
     assertFalse(result.authenticated, JSON.stringify(input));
   }
+});
+
+Deno.test("shortInvoiceReference: maikli, JR- prefix, at unique bawat oras", () => {
+  const ref = shortInvoiceReference("JR", 1_700_000_000_000);
+  assert(ref.startsWith("JR-"), ref);
+  assertMatch(ref, /^JR-[0-9A-Z]+$/);
+  // Dati ~100 chars (loan number + schedule uuid + timestamp); ngayon maikli.
+  assert(ref.length <= 20, `masyadong mahaba: ${ref} (${ref.length})`);
+  assert(
+    shortInvoiceReference("JR", 1_700_000_000_000) !==
+      shortInvoiceReference("JR", 1_700_000_001_000),
+    "iba ang timestamp pero pareho ang reference",
+  );
+});
+
+// ── invoice reconciliation (paid status) ──────────────────────────────────
+
+Deno.test("paidInvoiceAmount: PAID at SETTLED lang ang itinuturing na bayad", () => {
+  assertEquals(paidInvoiceAmount({ status: "PAID", amount: 9120 }), 9120);
+  assertEquals(
+    paidInvoiceAmount({ status: "settled", paid_amount: 9120, amount: 9120 }),
+    9120,
+  );
+  // Aktwal na natanggap ang mas mahalaga kaysa invoice amount.
+  assertEquals(
+    paidInvoiceAmount({ status: "PAID", paid_amount: 9000, amount: 9120 }),
+    9000,
+  );
+});
+
+Deno.test("paidInvoiceAmount: PENDING / EXPIRED / blangko ay walang bayad", () => {
+  assertEquals(paidInvoiceAmount({ status: "PENDING", amount: 9120 }), null);
+  assertEquals(paidInvoiceAmount({ status: "EXPIRED", amount: 9120 }), null);
+  assertEquals(paidInvoiceAmount({ status: "PAID" }), null);
+  assertEquals(paidInvoiceAmount(null), null);
 });
 
 Deno.test("the probe id satisfies Xendit's documented 39-char path param", () => {

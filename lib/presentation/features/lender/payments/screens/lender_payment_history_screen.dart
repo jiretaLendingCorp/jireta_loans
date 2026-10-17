@@ -8,6 +8,7 @@ import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/tables/table_pagination.dart';
 import '../providers/lender_payment_provider.dart';
@@ -71,6 +72,11 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
     final state = ref.watch(lenderPaymentProvider);
     final notifier = ref.read(lenderPaymentProvider.notifier);
     final filtered = state.filteredPayments;
+    // Desktop: makitid at naka-center na column ang content — hindi nakaunat
+    // ang mga transaction card sa buong browser width. Mobile: buong lapad
+    // pa rin (walang binago).
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final maxContentWidth = isDesktop ? 720.0 : double.infinity;
 
     return MobileScaffold(
       title: 'Transaction',
@@ -84,73 +90,78 @@ class _State extends ConsumerState<LenderPaymentHistoryScreen> {
           tooltip: 'Refresh',
         ),
       ],
-      body: Column(
-        children: [
-          // Search + filters (simplified: only All / Office / Rider)
-          _FilterBar(
-            state: state,
-            searchCtrl: _searchCtrl,
-            onMethod: notifier.setMethodFilter,
-            onSearch: notifier.setSearch,
-          ),
-          Expanded(
-            child: state.isLoading
-                ? const ShimmerLoader()
-                : state.error != null
-                    ? Center(
-                        child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.error_outline, color: AppColors.error, size: 40),
-                            const SizedBox(height: 12),
-                            Text('Error: ${state.error}', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
-                            const SizedBox(height: 16),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(backgroundColor: AppColors.lenderBlue),
-                              onPressed: () => notifier.loadPaymentHistory(),
-                              icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
-                              label: const Text('Retry', style: TextStyle(color: Colors.white)),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxContentWidth),
+          child: Column(
+            children: [
+              // Filters: All / Office / Cash on Delivery / GCash.
+              _FilterBar(
+                state: state,
+                searchCtrl: _searchCtrl,
+                onMethod: notifier.setMethodFilter,
+                onSearch: notifier.setSearch,
+              ),
+              Expanded(
+                child: state.isLoading
+                    ? const ShimmerLoader()
+                    : state.error != null
+                        ? Center(
+                            child: Padding(
+                            padding: const EdgeInsets.all(24),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.error_outline, color: AppColors.error, size: 40),
+                                const SizedBox(height: 12),
+                                Text('Error: ${state.error}', textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
+                                const SizedBox(height: 16),
+                                ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.lenderBlue),
+                                  onPressed: () => notifier.loadPaymentHistory(),
+                                  icon: const Icon(Icons.refresh, color: Colors.white, size: 18),
+                                  label: const Text('Retry', style: TextStyle(color: Colors.white)),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
-                      ))
-                    // Empty at error: naka-scroll para may magawang pull-down
-                    // kahit walang laman ang listahan.
-                    : filtered.isEmpty
-                        ? MobileRefresh(
-                            color: AppColors.lenderBlue,
-                            fill: true,
-                            onRefresh: _refresh,
-                            child: state.payments.isEmpty
-                                ? const _NoTransactionsState()
-                                : _EmptyFiltered(onClear: () {
-                                    _searchCtrl.clear();
-                                    notifier.setSearch('');
-                                    notifier.setMethodFilter('all');
-                                  }),
-                          )
-                        : MobileRefresh(
-                            color: AppColors.lenderBlue,
-                            onRefresh: _refresh,
-                            child: ListView.builder(
-                              physics: const AlwaysScrollableScrollPhysics(),
-                              padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
-                              itemCount: filtered.length,
-                              itemBuilder: (ctx, i) => _PaymentCard(
-                                  key: ValueKey(filtered[i].id), item: filtered[i]),
-                            ),
-                          ),
+                          ))
+                        // Empty at error: naka-scroll para may magawang pull-down
+                        // kahit walang laman ang listahan.
+                        : filtered.isEmpty
+                            ? MobileRefresh(
+                                color: AppColors.lenderBlue,
+                                fill: true,
+                                onRefresh: _refresh,
+                                child: state.payments.isEmpty
+                                    ? const _NoTransactionsState()
+                                    : _EmptyFiltered(onClear: () {
+                                        _searchCtrl.clear();
+                                        notifier.setSearch('');
+                                        notifier.setMethodFilter('all');
+                                      }),
+                              )
+                            : MobileRefresh(
+                                color: AppColors.lenderBlue,
+                                onRefresh: _refresh,
+                                child: ListView.builder(
+                                  physics: const AlwaysScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+                                  itemCount: filtered.length,
+                                  itemBuilder: (ctx, i) => _PaymentCard(
+                                      key: ValueKey(filtered[i].id), item: filtered[i]),
+                                ),
+                              ),
+              ),
+              if (state.totalPages > 1)
+                TablePagination(
+                  currentPage: state.currentPage,
+                  totalPages: state.totalPages,
+                  totalCount: state.totalCount,
+                  onPageChange: (p) => notifier.loadPayments(page: p),
+                ),
+            ],
           ),
-          if (state.totalPages > 1)
-            TablePagination(
-              currentPage: state.currentPage,
-              totalPages: state.totalPages,
-              totalCount: state.totalCount,
-              onPageChange: (p) => notifier.loadPayments(page: p),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -180,6 +191,9 @@ class _FilterBar extends StatelessWidget {
               _Pill(label: 'Office', selected: state.methodFilter == 'office_cash', onTap: () => onMethod('office_cash')),
               const SizedBox(width: 6),
               _Pill(label: 'Cash on Delivery', selected: state.methodFilter == 'rider_collection', onTap: () => onMethod('rider_collection')),
+              const SizedBox(width: 6),
+              // GCash (Xendit) — `gcash_xendit` ang payment_method sa DB.
+              _Pill(label: 'GCash', selected: state.methodFilter == 'gcash_xendit', onTap: () => onMethod('gcash_xendit')),
             ]),
           ),
         ],
@@ -328,6 +342,85 @@ class _EmptyFiltered extends StatelessWidget {
   }
 }
 
+/// Avatar ng payment method: GCash logo kung GCash, icon tile kung hindi.
+class _MethodAvatar extends StatelessWidget {
+  static const double size = 44;
+
+  final String method;
+  final IconData icon;
+  final Color accent;
+  const _MethodAvatar({
+    required this.method,
+    required this.icon,
+    required this.accent,
+  });
+
+  bool get _isGcash => method.contains('gcash');
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(size * 0.29);
+
+    if (_isGcash) {
+      // `cover` — 500×500 square logo, kaya hindi ito made-deform.
+      return ClipRRect(
+        borderRadius: radius,
+        child: Image.asset(
+          'assets/images/gcash.png',
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          errorBuilder: (_, __, ___) => _iconTile(radius),
+        ),
+      );
+    }
+    return _iconTile(radius);
+  }
+
+  Widget _iconTile(BorderRadius radius) => Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: accent.withValues(alpha: 0.10),
+          borderRadius: radius,
+        ),
+        child: Icon(icon, color: accent, size: size * 0.48),
+      );
+}
+
+/// Maliit na icon + text na meta (loan number / reference) — walang box.
+class _MetaTag extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  const _MetaTag({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    // `Flexible` + ellipsis: kahit gaano kahaba ang reference, hindi
+    // mag-ooverflow ang card.
+    return Row(
+      children: [
+        Icon(icon, size: 12, color: AppColors.textTertiary),
+        const SizedBox(width: 4),
+        Flexible(
+          child: Text(
+            text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textTertiary,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _PaymentCard extends StatelessWidget {
   final PaymentModel item;
   const _PaymentCard({super.key, required this.item});
@@ -358,121 +451,110 @@ class _PaymentCard extends StatelessWidget {
     // maipakitang patunay ng bayad kapag paid na ang transaction.
     final refText = referenceNum.trim().isNotEmpty ? referenceNum.trim() : '—';
 
+    // Isang compact na row per transaction: method + petsa sa kaliwa, amount at
+    // status sa kanan, at chevron para malinaw na buksan ang receipt. Walang
+    // divider/box sa loob — mas madaling i-scan ang listahan.
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 12, offset: const Offset(0, 4))],
+        border: Border.all(color: AppColors.border),
+        boxShadow: [
+          BoxShadow(
+              color: AppColors.deepNavy.withValues(alpha: 0.04),
+              blurRadius: 14,
+              offset: const Offset(0, 6)),
+        ],
       ),
-      child: InkWell(
-        onTap: () => context.push(RouteConstants.lenderPaymentReceipt.replaceAll(':id', paymentId)),
-        borderRadius: BorderRadius.circular(16),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header: paraan ng bayad + status.
-              Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(color: accent.withValues(alpha: 0.10), borderRadius: BorderRadius.circular(12), border: Border.all(color: accent.withValues(alpha: 0.15))),
-                    child: Icon(methodIcon, color: accent, size: 20),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(methodLabel, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
-                      const SizedBox(height: 2),
-                      Text(item.createdAt.toShortDate, style: const TextStyle(fontSize: 11.5, color: AppColors.textTertiary)),
-                    ]),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(color: accent.withValues(alpha: 0.08), borderRadius: BorderRadius.circular(8)),
-                    child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(isVerified ? Icons.check_circle_rounded : isReversed ? Icons.undo_rounded : Icons.schedule_rounded, size: 13, color: accent),
-                      const SizedBox(width: 4),
-                      Text(item.statusLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent)),
-                    ]),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const Divider(height: 1, color: AppColors.divider),
-              const SizedBox(height: 14),
-              // Amount (malaki) + reference number.
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Amount Paid',
-                            style: TextStyle(
-                                fontSize: 11.5,
-                                color: AppColors.textTertiary,
-                                fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
-                        Text(
-                          amount.toCurrency,
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 24,
-                            height: 1.1,
-                            color: isReversed ? AppColors.error : AppColors.textPrimary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => context.push(
+              RouteConstants.lenderPaymentReceipt.replaceAll(':id', paymentId)),
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+            child: Row(
+              children: [
+                // GCash: tunay na logo (`assets/images/gcash.png`) — hindi
+                // tinted na box na may phone icon. Ibang method: icon tile.
+                _MethodAvatar(method: method, icon: methodIcon, accent: accent),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Reference No.',
-                          style: TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.textTertiary,
-                              fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 2),
                       Text(
-                        refText,
+                        methodLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 13,
-                            color: AppColors.textPrimary,
-                            letterSpacing: 0.4),
+                            fontSize: 13.5,
+                            color: AppColors.textPrimary),
+                      ),
+                      const SizedBox(height: 5),
+                      // Petsa, loan number, at reference sa ISANG linya na may
+                      // ellipsis — may cash/office payments na napakahabang
+                      // derived reference (`...-SCHED-<uuid>`), kaya hindi
+                      // pwedeng walang limit ang lapad. Buong reference naman
+                      // ang nasa receipt page.
+                      _MetaTag(
+                        icon: Icons.event_outlined,
+                        text: [
+                          item.createdAt.toShortDate,
+                          if (loanNumber.isNotEmpty) loanNumber,
+                          refText,
+                        ].join('  ·  '),
                       ),
                     ],
                   ),
-                ],
-              ),
-              if (loanNumber.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                Row(
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    const Icon(Icons.receipt_long_outlined,
-                        size: 13, color: AppColors.textTertiary),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        'Loan $loanNumber',
-                        style: const TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.textTertiary,
-                            fontWeight: FontWeight.w500),
+                    Text(
+                      amount.toCurrency,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        letterSpacing: -0.3,
+                        color:
+                            isReversed ? AppColors.error : AppColors.textPrimary,
                       ),
+                    ),
+                    const SizedBox(height: 4),
+                    // Plain na status label — hindi mukhang button.
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isVerified
+                              ? Icons.check_circle_rounded
+                              : isReversed
+                                  ? Icons.undo_rounded
+                                  : Icons.schedule_rounded,
+                          size: 13,
+                          color: accent,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          item.statusLabel,
+                          style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w700,
+                              color: accent),
+                        ),
+                      ],
                     ),
                   ],
                 ),
+                const Icon(Icons.chevron_right_rounded,
+                    size: 20, color: AppColors.textHint),
               ],
-            ],
+            ),
           ),
         ),
       ),

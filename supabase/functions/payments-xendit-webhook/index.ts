@@ -4,9 +4,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { verifyWebhookToken } from '../_shared/xendit.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { writeAuditLog } from '../_shared/audit.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
-import { getPaymentLoanId, getLoanFinancials, round2 } from '../_shared/loan_financials.ts';
+import { settlePaidXenditPayment } from '../_shared/payment_settlement.ts';
 
 serve(async (req) => {
   const cors = handleCors(req);
@@ -20,37 +18,24 @@ serve(async (req) => {
     const { data: payment } = await db.from('payments').select('id, loan_schedule_id, collection_assignment_id, status').eq('xendit_payment_id', xenditId).single();
     if (!payment) { await db.from('xendit_logs').insert({ event_type: 'payment', xendit_id: xenditId, status: 'unmatched', payload: body }); return jsonResponse({ received: true }); }
     if (payment.status === 'verified') return jsonResponse({ already_processed: true });
-    if (status === 'PAID') {
-      // Re-verify the paid amount against the installment the lender actually
-      // owes before crediting it. A mismatched payload (replayed, tampered, or
-      // a duplicate invoice amount) must not over-credit the balance.
-      let expectedAmount: number | null = null;
-      if (payment.loan_schedule_id) {
-        const { data: schedule } = await db
-          .from('loan_schedules')
-          .select('amount_due')
-          .eq('id', payment.loan_schedule_id)
-          .single();
-        expectedAmount = schedule ? Number(schedule.amount_due) : null;
-      }
-      const paidAmount = Number(amount ?? 0);
-      const amountOk = expectedAmount !== null && round2(paidAmount) === round2(expectedAmount);
-      if (!amountOk) {
+    // Tinatanggap ang PAID at SETTLED: may mga channel na `SETTLED` ang huling
+    // status na ipinapadala, at kung PAID lang ang haharangin ay mananatiling
+    // `pending` ang bayad kahit bayad na.
+    if (status === 'PAID' || status === 'SETTLED') {
+      // Iisang settlement path ito at ang `?fn=sync-payment` (reconciliation),
+      // para pareho ang epekto sa balance kahit saan galing ang kumpirmasyon.
+      // Sinusuri rin nito ang amount laban sa `loan_schedules.amount_due` —
+      // ang maling/replayed na payload ay hindi nagpapababa ng utang.
+      const settled = await settlePaidXenditPayment(db, {
+        paymentId: payment.id,
+        xenditId,
+        amount: Number(body.paid_amount ?? amount ?? 0),
+        source: 'webhook',
+      });
+      if (!settled.ok) {
         await db.from('xendit_logs').insert({ event_type: 'payment', xendit_id: xenditId, payment_id: payment.id, status: 'amount_mismatch', payload: body });
-        console.error(`[payments-xendit-webhook] amount mismatch for payment ${payment.id}: paid=${paidAmount} expected=${expectedAmount}`);
+        console.error(`[payments-xendit-webhook] amount mismatch for payment ${payment.id}: paid=${settled.paidAmount} expected=${settled.expectedAmount}`);
         return errorResponse('Payment amount does not match the installment', 422, 'AMOUNT_MISMATCH');
-      }
-      await db.from('payments').update({ status: 'verified', paid_at: new Date().toISOString() }).eq('id', payment.id);
-      const loanId = await getPaymentLoanId(db, payment);
-      if (loanId) {
-        const { data: loan } = await db.from('loans').select('id, lender_id, status').eq('id', loanId).single();
-        const financials = await getLoanFinancials(db, loanId);
-        const newBalance = Math.max(0, financials?.outstanding_balance ?? 0);
-        await db.from('loans').update({ ...(newBalance <= 0 ? { status: 'completed' } : {}) }).eq('id', loanId);
-        if (loan?.lender_id) {
-          await writeAuditLog({ performedBy: 'system', action: 'xendit_payment_verified', tableName: 'payments', recordId: payment.id, newValues: { amount, xendit_id: xenditId } });
-          await sendPushNotification({ userId: loan.lender_id, title: 'GCash Payment Confirmed', body: `Payment of ₱${(amount ?? 0).toLocaleString()} confirmed. Remaining balance: ₱${newBalance.toLocaleString()}`, type: 'payment_verified', referenceId: payment.id });
-        }
       }
     }
     await db.from('xendit_logs').insert({ event_type: 'payment', xendit_id: xenditId, payment_id: payment.id, status, payload: body });

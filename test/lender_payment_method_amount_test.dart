@@ -137,6 +137,15 @@ void main() {
     // Wala nang "Coming Soon" chip, at nandoon pa rin ang GCash card.
     expect(find.text('Coming Soon'), findsNothing);
     expect(find.text('GCash'), findsOneWidget);
+    // Brand asset ang ginagamit sa GCash card, hindi generic na icon.
+    expect(
+      find.byWidgetPredicate((w) =>
+          w is Image &&
+          w.image is AssetImage &&
+          (w.image as AssetImage).assetName == 'assets/images/gcash.png'),
+      findsOneWidget,
+      reason: 'dapat naka-render ang assets/images/gcash.png sa GCash card',
+    );
     // Default pa rin ang Cash on Delivery.
     expect(find.text('Pay via Cash on Delivery'), findsOneWidget);
 

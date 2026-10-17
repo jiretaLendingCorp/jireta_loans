@@ -12,6 +12,7 @@ import '../../../../../core/utils/timezone.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/pending_payments_table.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
@@ -333,11 +334,8 @@ class _EmpPaymentListScreenState extends ConsumerState<EmpPaymentListScreen> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-              status
-                  .split('_')
-                  .map((w) =>
-                      w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
-                  .join(' '),
+              // `verified` → "Paid" (bayad na, hindi verification).
+              paymentStatusLabel(status),
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

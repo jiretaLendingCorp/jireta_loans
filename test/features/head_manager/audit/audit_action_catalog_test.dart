@@ -40,6 +40,7 @@ void main() {
         'payment_reverse',
         'generate_gcash_link',
         'xendit_payment_verified',
+        'xendit_payment_synced',
         // Xendit sandbox diagnostics (test-only actions)
         'xendit_test_payment_created',
         'xendit_test_payment_simulated',

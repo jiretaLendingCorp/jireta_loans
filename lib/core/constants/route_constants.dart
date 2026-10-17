@@ -13,6 +13,14 @@ class RouteConstants {
   static const String mobileLogin = '/mobile-login';
   static const String otpVerify = '/otp-verify';
 
+  /// "Reset MPIN" mula sa MPIN screen ng login page: sariling URI ang Verify
+  /// OTP nito — `/reset-mpin/verify-otp?s=<opaque token>` — para kitang iba
+  /// ito sa ordinaryong login OTP, at para tumagal ang flow kahit i-refresh
+  /// ang web page. Ang `extra` ay nawawala sa refresh; ang query string ay
+  /// hindi. HINDI numero ang nasa URL (napupunta ito sa history/logs): random
+  /// token lang, at nasa secure storage ang numero.
+  static const String resetMpinOtpVerify = '/reset-mpin/verify-otp';
+
   /// Lender (at sinumang may naka-enroll na TOTP factor): ang authenticator
   /// (Google Authenticator) challenge pagkatapos ng OTP. Hindi ito maaaring
   /// lampasan ng deep link — pinipilit ito ng redirect ng router habang may
