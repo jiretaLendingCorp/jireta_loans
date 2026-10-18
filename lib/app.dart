@@ -51,6 +51,13 @@ class JiretaApp extends ConsumerWidget {
     // light ang lender / employee / head manager (per role).
     final role = ref.watch(authStateProvider.select((s) => s.role));
     final isRider = role == RoleConstants.rider;
+    // `ThemeMode.system` ay itinuturing na LIGHT — hindi awtomatikong
+    // nagda-dark ang rider dahil lang naka-dark ang OS/browser. DARK lang
+    // kapag sadyang in-on ang "Dark Mode" sa Profile. (Dati, `system` ang
+    // default ng setting kaya nag-a-auto-dark ang rider sa unang login.)
+    final themeMode = isRider && settings.themeMode == ThemeMode.dark
+        ? ThemeMode.dark
+        : ThemeMode.light;
     // Kapag nagpalit ng account (logout → bagong login), i-reset ang lahat ng
     // account-scoped lender providers. Kung hindi, nananatili ang Recent
     // Activity / datos ng naunang lender account sa bagong account.
@@ -70,7 +77,7 @@ class JiretaApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: isRider ? settings.themeMode : ThemeMode.light,
+      themeMode: themeMode,
       routerConfig: router,
       // Global overlays: Connectivity (offline) + Logout passthrough +
       // Account Paused (escalation block, lender only).

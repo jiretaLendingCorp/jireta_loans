@@ -1,12 +1,12 @@
 // test/loan_history_tab_test.dart
 //
-// LOAN HISTORY TAB ng Loan Records (`loans-view?fn=get-history`)
+// PREVIOUS LOAN TAB ng Loan Records (`loans-view?fn=get-history`)
 //
 // ANO ANG TINITIGNAN NITO
-//   • Ang listahan ay para sa mga lender na TAPOS nang bayaran (`completed`) at
-//     sa mga MALAPIT nang matapos (isang installment na lang ang natitira) —
-//     kaya `get-history` (server-side ang filter, DERIVED ang outstanding
-//     balance) ang tinatawag, hindi `get-list`.
+//   • Ang listahan ay TANGING para sa mga loan na TAPOS nang bayaran
+//     (`completed`, o outstanding 0) — hindi kasama ang ongoing/"for
+//     completion". Server-side ang filter (`get-history`, DERIVED ang
+//     outstanding balance), kaya `get-history` ang tinatawag, hindi `get-list`.
 //   • Ang toolbar (search + Filter Date) ay naka-wire sa SARILING provider ng
 //     tab: dati, ang bawat bagong tab ay kailangang isa-isang ikabit, at ang
 //     nakalimutang ikabit ay tahimik na hindi gumagana (walang filter na
@@ -151,9 +151,10 @@ void main() {
             reason: 'Nasa Status ang dapat na dagdag na lapad, hindi sa Progress');
       });
 
-      test('${screen.split('/').last}: may Loan History pill tab', () {
+      test('${screen.split('/').last}: may Previous Loan pill tab', () {
         final src = _readNormalized(screen);
-        expect(src, contains("FilterTabDef('loan_history', 'Loan History'"));
+        // "Loan History" ang dating label; "Previous Loan" na ngayon sa UI.
+        expect(src, contains("FilterTabDef('loan_history', 'Previous Loan'"));
         expect(src, contains('hmLoanHistoryProvider'),
             reason: 'Hindi naka-wire ang toolbar/date filter ng tab');
       });
@@ -164,6 +165,55 @@ void main() {
           _historyBlock(_readNormalized(_hmScreen)),
           reason:
               'Dapat kapareho ng HM ang Employee screen — i-run ang scripts/sync_employee_screens.py');
+    });
+  });
+
+  group('Source guard: completed lang ang laman ng Previous Loan', () {
+    test('get-history: outstanding <= 0 lang (wala nang for-completion)', () {
+      final src = _readNormalized('supabase/functions/loans-view/index.ts');
+      expect(src, contains('return outstanding <= 0;'),
+          reason: 'bayad nang loan lang ang dapat isama');
+      expect(src, isNot(contains('outstanding <= (installment')),
+          reason: 'dati itong "malapit nang matapos" — ongoing pa ang mga ito');
+    });
+  });
+
+  group('Previous Loan: for-completion (ongoing) ay hindi kasama', () {
+    test('client filter + count ay tugma sa completed rows', () async {
+      final ds = _FakeHistoryDs();
+      ds.response = {
+        'data': [
+          _historyRow(), // completed
+          _historyRow(
+            status: 'active',
+            outstanding: 20000,
+            paymentsTotal: 40000,
+            progress: 0.6667,
+            completionState: 'for_completion',
+          ),
+        ],
+        'meta': {'page': 1, 'total_pages': 1, 'total': 2},
+      };
+      final notifier = HmLoanHistoryNotifier(ds);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifier.state.loans, hasLength(1));
+      expect(notifier.state.loans.single.status, 'completed');
+      expect(notifier.state.totalCount, 1);
+    });
+
+    test('bayad na pero `active` ang hilaw na status ay kasama pa rin', () async {
+      final ds = _FakeHistoryDs();
+      ds.response = {
+        'data': [
+          _historyRow(status: 'active', outstanding: 0, progress: 1),
+        ],
+        'meta': {'page': 1, 'total_pages': 1, 'total': 1},
+      };
+      final notifier = HmLoanHistoryNotifier(ds);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifier.state.loans, hasLength(1));
     });
   });
 

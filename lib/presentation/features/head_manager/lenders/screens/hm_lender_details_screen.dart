@@ -17,6 +17,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_lender_provider.dart';
+import '../widgets/lender_loan_history_modal.dart';
 
 final _lenderDetailProvider = FutureProvider.family<UserModel, String>((
   ref,
@@ -226,7 +227,10 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 20),
-              _PreviousLoansCard(lenderId: user.id),
+              _PreviousLoansCard(
+                lenderId: user.id,
+                lenderName: '${user.firstName} ${user.lastName}'.trim(),
+              ),
             ],
           ),
         ),
@@ -237,7 +241,8 @@ class HmLenderDetailsScreen extends ConsumerWidget {
 
 class _PreviousLoansCard extends ConsumerWidget {
   final String lenderId;
-  const _PreviousLoansCard({required this.lenderId});
+  final String lenderName;
+  const _PreviousLoansCard({required this.lenderId, required this.lenderName});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -247,6 +252,27 @@ class _PreviousLoansCard extends ConsumerWidget {
       icon: Icons.history_rounded,
       accentColor: AppColors.lenderBlue,
       items: const [],
+      // Buong kasaysayan ng loan ng kliyente — kasama ang mga DATING at
+      // KASALUKUYANG loan (at ang mga completed nang bayaran). Ang card na ito
+      // ay sampung pinakabago lang ang ipinapakita.
+      headerAction: OutlinedButton.icon(
+        onPressed: () => showHmLenderLoanHistoryModal(
+          context,
+          lenderId: lenderId,
+          lenderName: lenderName,
+        ),
+        icon: const Icon(Icons.visibility_outlined, size: 16),
+        label: const Text('View'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: AppColors.lenderBlue,
+          side: BorderSide(
+              color: AppColors.lenderBlue.withValues(alpha: 0.45)),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          minimumSize: const Size(0, 34),
+          textStyle:
+              const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+        ),
+      ),
       footer: loansAsync.when(
         loading: () => const SizedBox(
             width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),

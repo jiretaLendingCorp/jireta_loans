@@ -100,7 +100,8 @@ final _loanWithSchedules = <String, dynamic>{
 };
 
 /// Ang aktibong loan na isinasagot sa `loans-view?fn=get-list` ng test na ito.
-Map<String, dynamic> _activeLoan = _loanListShape;
+/// `null` kapag walang active loan (hal. bagong lender o bayad na).
+Map<String, dynamic>? _activeLoan = _loanListShape;
 
 /// Walang laman ang lahat ng ibang endpoint (payments, collections,
 /// notifications, ...); ang loans list lang ang may aktibong loan.
@@ -109,7 +110,9 @@ Future<Response<dynamic>> _respond(RequestOptions o) async {
   return Response<dynamic>(
     requestOptions: o,
     data: {
-      'data': isLoansList ? [_activeLoan] : <dynamic>[],
+      'data': isLoansList
+          ? (_activeLoan == null ? <dynamic>[] : [_activeLoan])
+          : <dynamic>[],
       'items': <dynamic>[],
       'meta': {'unread_count': 0, 'total': 0, 'page': 1, 'total_pages': 1},
     },
@@ -242,8 +245,7 @@ void main() {
   Finder foxPlaceholder() => find.byKey(const ValueKey('fox'));
 
   group('Ayos ng fox (Rive) + greeting dialog', () {
-    testWidgets('desktop: fox sa KALIWA, dialog sa KANAN nito',
-        (tester) async {
+    testWidgets('desktop: fox sa KALIWA, dialog sa KANAN nito', (tester) async {
       await pumpWelcomeGroup(tester, riveFirst: true);
 
       expect(foxPlaceholder(), findsOneWidget);
@@ -268,6 +270,26 @@ void main() {
 
       expect(dialogBox.dx, lessThan(foxBox.dx),
           reason: 'Hindi dapat nagbago ang mobile: dialog sa kaliwa ng fox');
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Walang active loan: HINDI lumalabas ang stat tiles', () {
+    setUp(() => _activeLoan = null);
+
+    testWidgets('desktop: walang Next Payment / Installment', (tester) async {
+      await pumpDashboard(tester, 1280);
+
+      expect(find.text('Next Payment'), findsNothing);
+      expect(find.text('Installment'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('mobile: walang Next Payment / Installment', (tester) async {
+      await pumpDashboard(tester, 390);
+
+      expect(find.text('Next Payment'), findsNothing);
+      expect(find.text('Installment'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });
@@ -375,13 +397,15 @@ void main() {
       // 3) ISANG ROW: magkatabi at pantay ang taas/lapad ng dalawang card.
       expect((nextPaymentRect.top - installmentRect.top).abs(), lessThan(2),
           reason: 'Dapat isang row ang dalawang tile');
-      expect((nextPaymentRect.width - installmentRect.width).abs(), lessThan(2));
+      expect(
+          (nextPaymentRect.width - installmentRect.width).abs(), lessThan(2));
 
       // 4) Hindi napuputol ang mga teksto: lumiliit (scaleDown) ang bawat linya
       // ng tile kapag makitid ang espasyo imbes na mag-ellipsis.
       bool shrinksInsteadOfClipping(String text) => tester
           .widgetList<FittedBox>(
-            find.ancestor(of: find.text(text), matching: find.byType(FittedBox)),
+            find.ancestor(
+                of: find.text(text), matching: find.byType(FittedBox)),
           )
           .any((b) => b.fit == BoxFit.scaleDown);
 
@@ -389,7 +413,8 @@ void main() {
       expect(shrinksInsteadOfClipping(AppFormatters.currency(4444)), isTrue,
           reason: 'Dapat kita ang buong amount');
       expect(
-          shrinksInsteadOfClipping('Due ${AppFormatters.date(parseManila(_nextDue)!)}'),
+          shrinksInsteadOfClipping(
+              'Due ${AppFormatters.date(parseManila(_nextDue)!)}'),
           isTrue,
           reason: 'Dapat kita ang buong due date');
 

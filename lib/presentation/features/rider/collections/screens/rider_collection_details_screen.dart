@@ -19,8 +19,10 @@ import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/image/xfile_preview.dart';
+// Isang breakpoint lang ang buong app para sa desktop layout.
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint;
 import '../../../../shared/widgets/signature_pad.dart';
-import '../../../../shared/widgets/document_viewer.dart';
 import '../providers/rider_collection_provider.dart';
 import '../../../../../core/utils/logger.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -702,28 +704,37 @@ class _RiderCollectionDetailsScreenState
 
   // ── Read-only footer for completed/declined ───────────────────────────────
   Widget _buildReadOnlyFooter(CollectionAssignmentModel col) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final hPad = isDesktop ? 28.0 : 16.0;
     return Container(
-      padding: EdgeInsets.fromLTRB(16, 10, 16, 16),
+      padding: EdgeInsets.fromLTRB(hPad, 10, hPad, isDesktop ? 20 : 16),
       decoration: BoxDecoration(
         color: context.cSurface,
         border: Border(top: BorderSide(color: Color(0xFFF0F0F0))),
       ),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton(
-          onPressed: () => context.pop(),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: col.status == 'completed'
-                ? AppColors.riderGreen
-                : context.cTextSecondary,
-            foregroundColor: Colors.white,
-            minimumSize: const Size(0, 48),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-          child: Text(
-            col.status == 'completed' ? 'Done' : 'Back to Collections',
-            style: TextStyle(fontWeight: FontWeight.w700),
+      // Sa desktop, naka-center at may max na lapad din ang Done button para
+      // pantay sa content sa itaas.
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => context.pop(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: col.status == 'completed'
+                    ? AppColors.riderGreen
+                    : context.cTextSecondary,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 48),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text(
+                col.status == 'completed' ? 'Done' : 'Back to Collections',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            ),
           ),
         ),
       ),
@@ -735,11 +746,17 @@ class _RiderCollectionDetailsScreenState
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ??
         (schedule?['installment_amount'] as num?)?.toDouble() ??
         0;
+    // Desktop: naka-center ang receipt sa max na lapad (1240) — kapareho ng
+    // rider dashboard/history/profile. Sa mobile, buong lapad pa rin.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      padding: EdgeInsets.all(isDesktop ? 28 : 16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
           // Success banner
           Container(
             width: double.infinity,
@@ -919,102 +936,9 @@ class _RiderCollectionDetailsScreenState
               ),
             ),
           ),
-          SizedBox(height: 12),
-          // Proof viewer - read only, show stored URLs
-          if (col.proofPhoto != null ||
-              col.collectionPhoto != null ||
-              col.borrowerSignature != null)
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: context.cBorder)),
-              child: Padding(
-                padding: EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(Icons.photo_library_outlined,
-                            color: AppColors.riderGreen, size: 18),
-                        SizedBox(width: 8),
-                        Text('Collection Proof',
-                            style: TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                    SizedBox(height: 4),
-                    Text('Photos and signature submitted for this collection',
-                        style: TextStyle(
-                            fontSize: 11, color: context.cTextSecondary)),
-                    SizedBox(height: 12),
-                    if (col.proofPhoto != null) ...[
-                      Text('Payment Proof',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: context.cTextSecondary,
-                              fontWeight: FontWeight.w600)),
-                      SizedBox(height: 6),
-                      DocumentViewer(
-                          url: col.proofPhoto,
-                          label: 'Payment Proof',
-                          height: 200,
-                          bucket: 'collection-proofs'),
-                      SizedBox(height: 14),
-                    ],
-                    if (col.collectionPhoto != null) ...[
-                      Text('Scene Photo',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: context.cTextSecondary,
-                              fontWeight: FontWeight.w600)),
-                      SizedBox(height: 6),
-                      DocumentViewer(
-                          url: col.collectionPhoto,
-                          label: 'Scene Photo',
-                          height: 180,
-                          bucket: 'collection-proofs'),
-                      SizedBox(height: 14),
-                    ],
-                    if (col.borrowerSignature != null) ...[
-                      Text('Lender Signature',
-                          style: TextStyle(
-                              fontSize: 11,
-                              color: context.cTextSecondary,
-                              fontWeight: FontWeight.w600)),
-                      SizedBox(height: 6),
-                      DocumentViewer(
-                          url: col.borrowerSignature,
-                          label: 'Signature',
-                          height: 140,
-                          bucket: 'collection-proofs'),
-                    ],
-                  ],
-                ),
-              ),
-            )
-          else
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: AppColors.surfaceGray,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.cBorder),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.info_outline,
-                      color: context.cTextSecondary, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                      child: Text('No proof photos stored for this collection.',
-                          style: TextStyle(
-                              fontSize: 12, color: context.cTextSecondary))),
-                ],
-              ),
-            ),
+          // Walang "Collection Proof" section dito sa completed/History na
+          // detalye — tapos na ang collection at naka-submit na ang proof, kaya
+          // wala nang kailangang tingnan/i-upload muli.
           if (col.locationLat != null && col.locationLng != null) ...[
             SizedBox(height: 12),
             Card(
@@ -1077,7 +1001,9 @@ class _RiderCollectionDetailsScreenState
             ),
           ),
           SizedBox(height: 16),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

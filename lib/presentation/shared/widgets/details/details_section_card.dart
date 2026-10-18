@@ -16,6 +16,10 @@ class DetailsSectionCard extends StatelessWidget {
   final List<DetailsItem> items;
   final Widget? footer;
 
+  /// Optional na widget sa KANANG dulo ng title row — hal. ang "View" button
+  /// ng Previous Loans card (buong loan history ng kliyente).
+  final Widget? headerAction;
+
   const DetailsSectionCard({
     super.key,
     required this.title,
@@ -23,6 +27,7 @@ class DetailsSectionCard extends StatelessWidget {
     required this.accentColor,
     required this.items,
     this.footer,
+    this.headerAction,
   });
 
   @override
@@ -59,6 +64,7 @@ class DetailsSectionCard extends StatelessWidget {
                   ),
                 ),
               ),
+              if (headerAction != null) headerAction!,
             ],
           ),
           if (items.isNotEmpty) ...[

@@ -5,8 +5,8 @@
 // Dati, isang column lang ang profile kahit sa desktop — kaya nakaunat ang
 // mobile na ayos sa buong browser. Mula sa [kDesktopBreakpoint] pataas:
 //
-//   * kaliwang rail (360px): identity (avatar / pangalan / status) + bersyon +
-//     Log out;
+//   * kaliwang rail (360px): identity (avatar / pangalan / status) + bersyon;
+//     walang Log out dito — nasa sidebar na ito sa desktop;
 //   * kanang column: ang mga section (Personal, Notifications, Security,
 //     General).
 //
@@ -124,10 +124,11 @@ void main() {
       expect((sections.dy - header.dy).abs(), lessThan(80),
           reason: 'Nasa ibaba (hindi katabi) ang mga section');
 
-      // Nasa kaliwang rail din ang account actions (bersyon + Log out) — nasa
-      // KALIWA ito ng mga section, hindi sa kanang column.
-      final logout = tester.getTopLeft(find.text('Log out'));
-      expect(logout.dx, lessThan(sections.dx));
+      // Nasa kaliwang rail ang bersyon, pero WALANG Log out button dito sa
+      // desktop — may "Log Out" na sa sidebar.
+      final version = tester.getTopLeft(find.textContaining('Version '));
+      expect(version.dx, lessThan(sections.dx));
+      expect(find.text('Log out'), findsNothing);
       expect(tester.takeException(), isNull);
     });
 
@@ -158,6 +159,41 @@ void main() {
       expect(sections.dy, greaterThan(header.dy),
           reason: 'Hindi na-stack ang mga section sa ilalim ng header');
       expect((sections.dx - header.dx).abs(), lessThan(24));
+    });
+
+    // Text lang ang section titles — walang card at walang arrow. Bubukas ang
+    // popup na may EXISTING details at pwedeng i-edit.
+    testWidgets('pag-pindot ng section title, bubukas ang editable popup',
+        (tester) async {
+      await pumpProfile(tester, 1280);
+
+      Future<void> openAndClose(
+          String title, List<String> fields, List<String> values) async {
+        await tester.tap(find.text(title));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        for (final f in fields) {
+          expect(find.text(f), findsOneWidget,
+              reason: 'Walang "$f" sa popup ng $title');
+        }
+        for (final v in values) {
+          expect(find.text(v), findsOneWidget,
+              reason: 'Walang existing value na "$v" sa popup ng $title');
+        }
+        expect(find.text('Save'), findsOneWidget);
+        await tester.tap(find.text('Cancel'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+      }
+
+      await openAndClose('Personal Details',
+          ['First Name', 'Gender', 'Date of Birth'], ['Blake', 'Male']);
+      await openAndClose('Email', ['Email Address'], ['blake@example.com']);
+      await openAndClose('Residence Address',
+          ['Street Address', 'Barangay', 'City / Municipality'],
+          ['12 Mabini St', 'Poblacion', 'Makati']);
+
+      expect(tester.takeException(), isNull);
     });
   });
 }

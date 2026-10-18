@@ -16,7 +16,10 @@ import '../profile/modern_profile_widgets.dart';
 import 'mpin_dialog.dart';
 
 class MpinSettingsCard extends StatefulWidget {
-  const MpinSettingsCard({super.key});
+  /// Walang card box — plain text row lang, nakalapat sa page (rider profile).
+  final bool flat;
+
+  const MpinSettingsCard({super.key, this.flat = false});
 
   @override
   State<MpinSettingsCard> createState() => _MpinSettingsCardState();
@@ -64,13 +67,31 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
       );
       return;
     }
-    // Kapag may MPIN na, hihingin muna ang luma bago payagang magpalit.
+    // Kapag may MPIN na, hihingin muna ang luma bago payagang magpalit. Ang
+    // "Reset MPIN" ay nasa TAAS ng modal na ito (hindi na hiwalay na row),
+    // at dumadaan pa rin sa verification ng kasalukuyang MPIN.
+    var wasReset = false;
     final ok = await showMpinSetupDialog(
       context,
       requireCurrent: wasSet,
       mpin: _service,
+      onReset: () => wasReset = true,
     );
-    if (!mounted || !ok) return;
+    if (!mounted) return;
+    if (wasReset) {
+      await _load();
+      if (!mounted) return;
+      context.showSnackBarAsToast(
+        const SnackBar(
+          content: Text(
+            'Your MPIN has been reset. Set a new one anytime from this screen.',
+          ),
+          backgroundColor: AppColors.info,
+        ),
+      );
+      return;
+    }
+    if (!ok) return;
     await _load();
     if (!mounted) return;
     context.showSnackBarAsToast(
@@ -82,39 +103,6 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
                   'submissions.',
         ),
         backgroundColor: AppColors.success,
-      ),
-    );
-  }
-
-  /// Nagpapa-verify muna ng kasalukuyang MPIN bago ito i-off. Kapag nakalimutan
-  /// na ito, hindi rito ma-reset — kailangan ng tulong ng support.
-  Future<void> _reset() async {
-    if (_isSet != true) return;
-    // Kapag naubos na ang palit sa 15-day window, walang MPIN na maiiwan ang
-    // user matapos mag-reset at hindi siya makakapag-set ng bago — sabihan na
-    // siya bago pa ito mangyari.
-    final blocked = (_quota?.remaining ?? MpinService.maxChangesPerWindow) <= 0;
-    final resetIn = _quota?.resetIn;
-    final verified = await showMpinVerifyDialog(
-      context,
-      reason: blocked
-          ? 'Enter your current MPIN to reset it. Note: you have used all '
-              '${MpinService.maxChangesPerWindow} changes for now, so you '
-              'cannot set a new MPIN until ${resetIn == null ? 'later' : 'in ${_formatReset(resetIn)}'}.'
-          : 'Enter your current MPIN to reset it. Your MPIN will be turned '
-              'off and you can set a new one anytime.',
-      mpin: _service,
-    );
-    if (!mounted || !verified) return;
-    await _service.clear();
-    await _load();
-    if (!mounted) return;
-    context.showSnackBarAsToast(
-      const SnackBar(
-        content: Text(
-          'Your MPIN has been reset. Set a new one anytime from this screen.',
-        ),
-        backgroundColor: AppColors.info,
       ),
     );
   }
@@ -131,19 +119,12 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
 
   @override
   Widget build(BuildContext context) {
-    return ModernMenuCard(items: [
+    return ModernMenuCard(flat: widget.flat, items: [
       ModernMenuItem(
         icon: Icons.lock_outline_rounded,
         title: _isSet == true ? 'Change MPIN' : 'Set MPIN',
         onTap: _isSet == null ? () {} : _open,
       ),
-      // Kapag wala pang MPIN, walang mabe-reset — itago na lang ang row.
-      if (_isSet == true)
-        ModernMenuItem(
-          icon: Icons.lock_reset_rounded,
-          title: 'Reset MPIN',
-          onTap: _reset,
-        ),
     ]);
   }
 }

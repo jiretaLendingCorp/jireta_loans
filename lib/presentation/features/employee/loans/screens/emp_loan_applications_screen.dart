@@ -20,6 +20,7 @@ import '../../../head_manager/disbursements/screens/hm_disbursement_details_scre
 import '../../../head_manager/loans/providers/hm_loan_provider.dart';
 import '../../../head_manager/loans/providers/hm_loan_history_provider.dart';
 import '../../../head_manager/loans/widgets/approve_reject_modal.dart';
+import '../../../head_manager/loans/widgets/loan_history_modal.dart';
 import '../../../head_manager/in_office/providers/hm_in_office_provider.dart';
 import '../../../head_manager/in_office/widgets/in_office_wizard.dart';
 import '../../../head_manager/disbursements/providers/hm_disbursement_provider.dart';
@@ -68,8 +69,9 @@ class _EmpLoanApplicationsScreenState
     FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
     // Tapos nang magbayad (`completed`) + malapit nang matapos (isang
     // installment na lang ang natitira) — progreso ng bayad kada loan ang
-    // pokus nito, kaya naka-base sa `loans-view?fn=get-history`.
-    FilterTabDef('loan_history', 'Loan History', Icons.history_rounded),
+    // pokus nito, kaya naka-base sa `loans-view?fn=get-history`. "Previous
+    // Loan" ang label nito sa UI; `loan_history` pa rin ang URI/key.
+    FilterTabDef('loan_history', 'Previous Loan', Icons.history_rounded),
   ];
 
   /// Manila-day bounds ng napiling filter — `null` kapag walang date filter.
@@ -139,11 +141,29 @@ class _EmpLoanApplicationsScreenState
     if (tab == _lastRouteTab) return;
     final isFirst = _lastRouteTab == null;
     _lastRouteTab = tab;
-    // Unang build: may sariling initial fetch ang providers — huwag mag-doble.
-    if (isFirst) return;
     final from = _dateFromParam;
     final to = _dateToParam;
     if (tab == null) return; // base path
+    if (isFirst) {
+      // Unang build (refresh / deep link): In-Office / Disbursements / Loan
+      // History ay may sariling initial fetch, kaya wala nang idadagdag dito.
+      // Ang loan list naman ay 'all' ang default kahit `/ongoing` o
+      // `/completed` ang URL — kailangang i-sync, kung hindi ay kasama sa
+      // Ongoing Loan tab ang overdue at completed na loan. Pagkatapos ng
+      // frame ito gawin: hindi pinapayagang i-modify ang provider habang
+      // nagbi-build pa ang widget tree.
+      if (tab == 'in_office' ||
+          tab == 'disbursements' ||
+          tab == 'loan_history') {
+        return;
+      }
+      final routeTab = tab;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ref.read(hmLoanProvider.notifier).syncTab(routeTab);
+      });
+      return;
+    }
     if (tab == 'in_office') {
       ref.read(hmInOfficeProvider.notifier).setDateRange(from, to);
     } else if (tab == 'disbursements') {
@@ -151,7 +171,8 @@ class _EmpLoanApplicationsScreenState
     } else if (tab == 'loan_history') {
       ref.read(hmLoanHistoryProvider.notifier).setDateRange(from, to);
     } else {
-      ref.read(hmLoanProvider.notifier).setTab(tab);
+      // Ongoing / Completed / pipeline statuses — i-apply sa loan list.
+      ref.read(hmLoanProvider.notifier).syncTab(tab);
     }
   }
 
@@ -360,8 +381,8 @@ class _EmpLoanApplicationsScreenState
   }
 
   // ──────────────────────── Loan History (embedded tab) ──────────────────────
-  // Mga loan na TAPOS nang bayaran (status `completed`) at ang mga MALAPIT nang
-  // matapos (isang installment na lang ang natitira). Server-side ang filter
+  // Mga loan na TAPOS nang bayaran (status `completed`, o outstanding 0) lang
+  // — HINDI kasama ang ongoing/"for completion". Server-side ang filter
   // (`loans-view?fn=get-history`) dahil DERIVED ang outstanding balance — wala
   // itong column sa `loans` kaya hindi mai-filter sa query ng client.
   Widget _buildLoanHistorySection(HmLoanHistoryState st) {
@@ -369,10 +390,10 @@ class _EmpLoanApplicationsScreenState
     if (st.loans.isEmpty) {
       final isFiltered = st.search.isNotEmpty;
       return EmptyStateWidget(
-        title: isFiltered ? 'No matching loans' : 'No Loan History Yet',
+        title: isFiltered ? 'No matching loans' : 'No Previous Loans Yet',
         message: isFiltered
             ? 'Walang loan na tugma sa hinahanap. Subukan ang ibang termino.'
-            : 'Lalabas dito ang mga loan na tapos nang bayaran at ang mga malapit nang matapos.',
+            : 'Lalabas dito ang mga loan na tapos nang bayaran (completed).',
         icon: isFiltered ? Icons.search_off_rounded : Icons.history_rounded,
       );
     }
@@ -425,7 +446,7 @@ class _EmpLoanApplicationsScreenState
         final accent = isFullyPaid ? AppColors.success : AppColors.goldDark;
         final lastPayment = loan.lastPaymentAt;
         return ResponsiveRow(
-          onTap: () => _openDetails(context, loan.id),
+          onTap: () => _openHistory(context, loan),
           cells: [
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -535,11 +556,37 @@ class _EmpLoanApplicationsScreenState
               ],
             ),
           ],
-          actions: _ActionIcon(
-            icon: Icons.visibility_outlined,
-            color: AppColors.deepNavy,
-            tooltip: 'View details',
-            onTap: () => _openDetails(context, loan.id),
+          // "View" — buong kasaysayan ng loan: ang mga PAGBABAYAD (petsa at
+          // oras) at ang mga DATING loan ng kliyente.
+          actions: Tooltip(
+            message: 'View loan history',
+            child: InkWell(
+              onTap: () => _openHistory(context, loan),
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.deepNavy.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                      color: AppColors.deepNavy.withValues(alpha: 0.14)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.visibility_outlined,
+                        size: 14, color: AppColors.deepNavy),
+                    SizedBox(width: 4),
+                    Text('View',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.deepNavy)),
+                  ],
+                ),
+              ),
+            ),
           ),
         );
       }).toList(),
@@ -1135,6 +1182,16 @@ class _EmpLoanApplicationsScreenState
       }).toList(),
     );
   }
+
+  /// Loan History modal — mga pagbabayad (may petsa at oras) at ang mga
+  /// dating loan ng parehong kliyente. Employee route ang "Open loan details".
+  void _openHistory(BuildContext context, LoanModel loan) =>
+      showHmLoanHistoryModal(
+        context,
+        loan: loan,
+        detailsPath: RouteConstants.empLoanApplicationDetails
+            .replaceFirst(':id', loan.id),
+      );
 
   void _openDetails(BuildContext context, String loanId) {
     // Full-page navigation — hindi na modal, para buong screen ang details

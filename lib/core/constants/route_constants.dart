@@ -60,7 +60,12 @@ class RouteConstants {
       '/hm/loan-records/in-office';
   static const String hmLoanApplicationsDisbursements =
       '/hm/loan-records/disbursements';
-  static const String hmLoanApplicationsHistory = '/hm/loan-records/history';
+  // "Previous Loan" tab (dating "Loan History") — `/previous-loan` na ang URI.
+  // May redirect ang lumang `/history` para hindi mabreak ang bookmark.
+  static const String hmLoanApplicationsHistory =
+      '/hm/loan-records/previous-loan';
+  static const String hmLoanApplicationsHistoryLegacy =
+      '/hm/loan-records/history';
   // Base pill tabs at pipeline statuses — bawat isa may sariling URI.
   static const String hmLoanRecordsOngoing = '/hm/loan-records/ongoing';
   static const String hmLoanRecordsCompleted = '/hm/loan-records/completed';
@@ -113,7 +118,10 @@ class RouteConstants {
   static const String empLoansInOffice = '/employee/loan-records/in-office';
   static const String empLoansDisbursements =
       '/employee/loan-records/disbursements';
-  static const String empLoansHistory = '/employee/loan-records/history';
+  static const String empLoansHistory =
+      '/employee/loan-records/previous-loan';
+  static const String empLoansHistoryLegacy =
+      '/employee/loan-records/history';
   static const String empLoansOngoing = '/employee/loan-records/ongoing';
   static const String empLoansCompleted = '/employee/loan-records/completed';
   static const String empLoansPipeline =

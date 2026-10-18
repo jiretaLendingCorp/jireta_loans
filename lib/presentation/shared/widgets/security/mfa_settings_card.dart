@@ -18,7 +18,10 @@ import '../profile/modern_profile_widgets.dart';
 import 'mfa_dialogs.dart';
 
 class MfaSettingsCard extends StatefulWidget {
-  const MfaSettingsCard({super.key, this.service});
+  /// Walang card box — plain text rows lang, nakalapat sa page (rider profile).
+  final bool flat;
+
+  const MfaSettingsCard({super.key, this.service, this.flat = false});
 
   /// Opsyonal na service (pang-test / shared instance).
   final MfaService? service;
@@ -152,7 +155,7 @@ class _MfaSettingsCardState extends State<MfaSettingsCard> {
   Widget build(BuildContext context) {
     final enrolled = _status?.enrolled ?? false;
     final enabled = !_loading && _error == null;
-    return ModernMenuCard(items: [
+    return ModernMenuCard(flat: widget.flat, items: [
       ModernMenuItem(
         icon: enrolled
             ? Icons.verified_user_outlined

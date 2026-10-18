@@ -25,6 +25,7 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../auth/providers/auth_provider.dart';
 import '../providers/lender_profile_provider.dart';
+import '../widgets/lender_details_dialogs.dart';
 
 class LenderProfileScreen extends ConsumerStatefulWidget {
   const LenderProfileScreen({super.key});
@@ -95,6 +96,18 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
+  /// Text lang na pindot-pindot — bubukas ang popup ng section para makita
+  /// at ma-edit ang existing details (walang card, walang arrow).
+  Widget _buildSectionLink(String title, IconData icon, VoidCallback onTap) {
+    return ModernInfoCard(
+      title: title,
+      icon: icon,
+      rows: const [],
+      flat: true,
+      onTap: onTap,
+    );
+  }
+
   Widget _buildError(String? message) {
     return Center(
       child: Padding(
@@ -133,11 +146,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
   Widget _buildProfile(dynamic user) {
     final userModel = ref.watch(lenderProfileProvider).user;
     final phone = user.phoneNumber as String? ?? '';
-    // Ang `${phone}@jireta.temp` ay internal GoTrue credential lang (phone
-    // login) — hindi ito ipinapakita bilang email ng lender.
-    final rawEmail = (userModel?.email ?? '').trim();
-    final email =
-        rawEmail.toLowerCase().endsWith('@jireta.temp') ? '' : rawEmail;
     final accountStatus = user.accountStatus as String?;
     final fullName = _buildFullName(userModel ?? user);
     final accountUpgradeStatus =
@@ -153,38 +161,38 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final identity = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-          ModernProfileHeader(
-            name: fullName,
-            subtitles: [phone],
-            photoUrl: user.profilePhotoUrl as String?,
-            accent: _accent,
-            onAvatarUploaded: _updateAvatar,
-            statusLabel: status.label,
-            statusColor: status.fg,
-            statusBg: status.bg,
-            statusAsText: true,
-            // Lender profile: photo sits directly on the page background —
-            // no card / ring "plate" behind the profile picture.
-            flat: true,
-          ),
-          const SizedBox(height: 16),
-          // Kapag verified na, may sariling "Edit" button ang bawat section sa
-          // ibaba (Personal Details / Residence Address) — hindi na kailangan
-          // ang isang "Edit Profile" button na pinagsama ang lahat.
-          if (!isVerified)
-            ModernMenuCard(items: [
-              ModernMenuItem(
-                icon: Icons.verified_outlined,
-                title: 'Complete Verification',
-                onTap: () =>
-                    context.push(RouteConstants.lenderAccountUpgradeStatus),
-              ),
-            ]),
-          if (userModel?.isWalkIn == true) ...[
-            const SizedBox(height: 12),
-            _buildWalkInNote(userModel?.inOfficeApplication,
-                isVerified: isVerified),
-          ],
+        ModernProfileHeader(
+          name: fullName,
+          subtitles: [phone],
+          photoUrl: user.profilePhotoUrl as String?,
+          accent: _accent,
+          onAvatarUploaded: _updateAvatar,
+          statusLabel: status.label,
+          statusColor: status.fg,
+          statusBg: status.bg,
+          statusAsText: true,
+          // Lender profile: photo sits directly on the page background —
+          // no card / ring "plate" behind the profile picture.
+          flat: true,
+        ),
+        const SizedBox(height: 16),
+        // Kapag verified na, may sariling "Edit" button ang bawat section sa
+        // ibaba (Personal Details / Residence Address) — hindi na kailangan
+        // ang isang "Edit Profile" button na pinagsama ang lahat.
+        if (!isVerified)
+          ModernMenuCard(items: [
+            ModernMenuItem(
+              icon: Icons.verified_outlined,
+              title: 'Complete Verification',
+              onTap: () =>
+                  context.push(RouteConstants.lenderAccountUpgradeStatus),
+            ),
+          ]),
+        if (userModel?.isWalkIn == true) ...[
+          const SizedBox(height: 12),
+          _buildWalkInNote(userModel?.inOfficeApplication,
+              isVerified: isVerified),
+        ],
       ],
     );
 
@@ -192,243 +200,177 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final sections = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-          if (isVerified) ...[
-            const SizedBox(height: 20),
-            const ModernSectionLabel('Personal'),
-            ModernInfoCard(
-              title: 'Personal Details',
-              icon: Icons.person_outline_rounded,
-              collapsible: true,
-              initiallyExpanded: false,
-              onEdit: () =>
-                  context.push(RouteConstants.lenderEditPersonalInfo),
-              editColor: _accent,
-              rows: [
-                ModernInfoRowData(
-                    icon: Icons.person_outline_rounded,
-                    label: 'Full name',
-                    value: fullName),
-                ModernInfoRowData(
-                    icon: Icons.phone_outlined,
-                    label: 'Phone',
-                    value: phone.isEmpty ? '—' : phone),
-                ModernInfoRowData(
-                    icon: Icons.wc_outlined,
-                    label: 'Gender',
-                    value: _formatLabel(user.gender)),
-                ModernInfoRowData(
-                    icon: Icons.favorite_border_rounded,
-                    label: 'Civil status',
-                    value: _formatLabel(user.civilStatus)),
-                ModernInfoRowData(
-                  icon: Icons.cake_outlined,
-                  label: 'Date of birth',
-                  value: userModel?.dateOfBirth != null
-                      ? _formatDate(userModel!.dateOfBirth!)
-                      : '—',
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // HIWALAY na card + edit para sa email — sariling screen at sariling
-            // Save (hindi kasama sa Personal Information).
-            ModernInfoCard(
-              title: 'Email',
-              icon: Icons.email_outlined,
-              // Toggle-able pa rin (collapse/expand) kahit walang naka-set na
-              // email — pareho sa iba pang section card.
-              collapsible: true,
-              initiallyExpanded: false,
-              onEdit: () => context.push(RouteConstants.lenderEditEmail),
-              editColor: _accent,
-              rows: [
-                ModernInfoRowData(
-                    icon: Icons.alternate_email_rounded,
-                    label: 'Login email',
-                    value: email.isEmpty ? 'Not set' : email),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // HIWALAY na card + edit para sa address — sariling screen at
-            // sariling Save (hindi kasama sa Personal Information).
-            ModernInfoCard(
-              title: 'Residence Address',
-              icon: Icons.location_on_outlined,
-              collapsible: true,
-              initiallyExpanded: false,
-              onEdit: () => context.push(RouteConstants.lenderEditAddress),
-              editColor: _accent,
-              rows: [
-                ModernInfoRowData(
-                    icon: Icons.signpost_outlined,
-                    label: 'Street',
-                    value: (userModel?.streetAddress ?? '').trim()),
-                ModernInfoRowData(
-                    icon: Icons.holiday_village_outlined,
-                    label: 'Barangay',
-                    value: (userModel?.barangay ?? '').trim()),
-                ModernInfoRowData(
-                    icon: Icons.location_city_outlined,
-                    label: 'City / Municipality',
-                    value: (userModel?.city ?? '').trim()),
-                ModernInfoRowData(
-                    icon: Icons.map_outlined,
-                    label: 'Province',
-                    value: (userModel?.province ?? '').trim()),
-                ModernInfoRowData(
-                    icon: Icons.markunread_mailbox_outlined,
-                    label: 'ZIP Code',
-                    value: (userModel?.zipCode ?? '').trim()),
-              ],
-            ),
-            // 00128: Financial Details + Emergency Contact no longer live on the
-            // lender profile — they are declared per loan inside the Apply Loan
-            // flow and stored on the loan record.
-          ],
+        if (isVerified) ...[
           const SizedBox(height: 20),
-          const ModernSectionLabel('Notifications'),
-          // Push notifications ON/OFF — kapag OFF, ide-delete ang device token
-          // kaya hindi na makakatanggap ng push ang device na ito (ang in-app
-          // notification center ay hindi apektado).
-          Consumer(builder: (context, ref, _) {
-            final settings = ref.watch(appSettingsProvider);
-            final notifier = ref.read(appSettingsProvider.notifier);
-            return ModernMenuCard(items: [
-              ModernMenuItem(
-                icon: Icons.notifications_active_outlined,
-                title: 'Push Notifications',
-                onTap: () => notifier
-                    .setPushNotifications(!settings.pushNotificationsEnabled),
-                trailing: Switch.adaptive(
-                  value: settings.pushNotificationsEnabled,
-                  activeTrackColor: _accent,
-                  onChanged: (v) => notifier.setPushNotifications(v),
-                ),
-              ),
-            ]);
-          }),
-          const SizedBox(height: 20),
-          // MPIN — 4-digit na pang-kumpirmasyon sa lahat ng submission kapag
-          // walang password o biometrics ang phone.
-          const ModernSectionLabel('Security'),
-          const MpinSettingsCard(),
+          const ModernSectionLabel('Personal'),
+          // Text lang na pindot-pindot ang titles — bubukas ang popup na may
+          // existing details at pwedeng i-edit doon (kapareho ng rider).
+          _buildSectionLink('Personal Details', Icons.person_outline_rounded,
+              () => showLenderPersonalDetailsDialog(context)),
           const SizedBox(height: 12),
-          // Google Authenticator (TOTP) — second factor sa login. Ang status,
-          // enrollment (QR + manual key) at disable ay dito; ang pagsusuri ng
-          // code ay Supabase Auth (`mfa.challenge` / `mfa.verify`).
-          const MfaSettingsCard(),
-          const SizedBox(height: 20),
-          const ModernSectionLabel('General'),
-          ModernMenuCard(items: [
+          _buildSectionLink('Email', Icons.email_outlined,
+              () => showLenderEmailDialog(context)),
+          const SizedBox(height: 12),
+          _buildSectionLink('Residence Address', Icons.location_on_outlined,
+              () => showLenderAddressDialog(context)),
+          // 00128: Financial Details + Emergency Contact no longer live on the
+          // lender profile — they are declared per loan inside the Apply Loan
+          // flow and stored on the loan record.
+        ],
+        const SizedBox(height: 20),
+        const ModernSectionLabel('Notifications'),
+        // Push notifications ON/OFF — kapag OFF, ide-delete ang device token
+        // kaya hindi na makakatanggap ng push ang device na ito (ang in-app
+        // notification center ay hindi apektado).
+        Consumer(builder: (context, ref, _) {
+          final settings = ref.watch(appSettingsProvider);
+          final notifier = ref.read(appSettingsProvider.notifier);
+          return ModernMenuCard(flat: true, items: [
             ModernMenuItem(
-              icon: Icons.description_outlined,
+              icon: Icons.notifications_active_outlined,
+              title: 'Push Notifications',
+              onTap: () => notifier
+                  .setPushNotifications(!settings.pushNotificationsEnabled),
+              trailing: Switch.adaptive(
+                value: settings.pushNotificationsEnabled,
+                activeTrackColor: _accent,
+                onChanged: (v) => notifier.setPushNotifications(v),
+              ),
+            ),
+          ]);
+        }),
+        const SizedBox(height: 20),
+        // MPIN — 4-digit na pang-kumpirmasyon sa lahat ng submission kapag
+        // walang password o biometrics ang phone.
+        const ModernSectionLabel('Security'),
+        const MpinSettingsCard(flat: true),
+        const SizedBox(height: 12),
+        // Google Authenticator (TOTP) — second factor sa login. Ang status,
+        // enrollment (QR + manual key) at disable ay dito; ang pagsusuri ng
+        // code ay Supabase Auth (`mfa.challenge` / `mfa.verify`).
+        const MfaSettingsCard(flat: true),
+        const SizedBox(height: 20),
+        const ModernSectionLabel('General'),
+        ModernMenuCard(flat: true, items: [
+          ModernMenuItem(
+            icon: Icons.description_outlined,
+            title: 'Terms & Conditions',
+            onTap: () => _showSheet(
               title: 'Terms & Conditions',
-              onTap: () => _showSheet(
-                title: 'Terms & Conditions',
-                icon: Icons.description_outlined,
-                sections: const [
-                  ModernSheetSection(
-                      title: 'Agreement to Terms',
-                      body:
-                          'By accessing and using the Jireta Loans & Credit Corp 1966 mobile application, you agree to be bound by these Terms and Conditions and our Privacy Policy.'),
-                  ModernSheetSection(
-                      title: 'Loan Services',
-                      body:
-                          'Jireta Loans & Credit Corp 1966 offers loans from ₱3,000 to ₱500,000 at the interest rate set per loan term, subject to verification and credit evaluation.'),
-                  ModernSheetSection(
-                      title: 'Interest & Penalties',
-                      body:
-                          'Interest is charged per loan term at the rate set by Jireta. If the loan term ends with an unpaid balance, a one-time 20% penalty is charged on the outstanding balance at that time.'),
-                  ModernSheetSection(
-                      title: 'Account Requirements',
-                      body:
-                          'Submit a valid government ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.'),
-                  ModernSheetSection(
-                      title: 'Data Privacy',
-                      body:
-                          'We process your information under the Data Privacy Act of 2012 (RA 10173), solely for loan processing and account management.'),
-                ],
-              ),
+              icon: Icons.description_outlined,
+              sections: const [
+                ModernSheetSection(
+                    title: 'Agreement to Terms',
+                    body:
+                        'By accessing and using the Jireta Loans & Credit Corp 1966 mobile application, you agree to be bound by these Terms and Conditions and our Privacy Policy.'),
+                ModernSheetSection(
+                    title: 'Loan Services',
+                    body:
+                        'Jireta Loans & Credit Corp 1966 offers loans from ₱3,000 to ₱500,000 at the interest rate set per loan term, subject to verification and credit evaluation.'),
+                ModernSheetSection(
+                    title: 'Interest & Penalties',
+                    body:
+                        'Interest is charged per loan term at the rate set by Jireta. If the loan term ends with an unpaid balance, a one-time 20% penalty is charged on the outstanding balance at that time.'),
+                ModernSheetSection(
+                    title: 'Account Requirements',
+                    body:
+                        'Submit a valid government ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.'),
+                ModernSheetSection(
+                    title: 'Data Privacy',
+                    body:
+                        'We process your information under the Data Privacy Act of 2012 (RA 10173), solely for loan processing and account management.'),
+              ],
             ),
-            ModernMenuItem(
-              icon: Icons.privacy_tip_outlined,
+          ),
+          ModernMenuItem(
+            icon: Icons.privacy_tip_outlined,
+            title: 'Privacy Policy',
+            onTap: () => _showSheet(
               title: 'Privacy Policy',
-              onTap: () => _showSheet(
-                title: 'Privacy Policy',
-                icon: Icons.privacy_tip_outlined,
-                sections: const [
-                  ModernSheetSection(
-                      title: 'Data We Collect',
-                      body:
-                          'We collect your name, contact details, government IDs, financial information, and location data for investigation and collection.'),
-                  ModernSheetSection(
-                      title: 'How We Use Your Data',
-                      body:
-                          'Your data is stored securely and used only for loan processing, identity verification, and regulatory compliance.'),
-                  ModernSheetSection(
-                      title: 'Your Rights',
-                      body:
-                          'You may access, correct, and request deletion of your data under the Data Privacy Act of 2012 (RA 10173).'),
-                ],
-              ),
+              icon: Icons.privacy_tip_outlined,
+              sections: const [
+                ModernSheetSection(
+                    title: 'Data We Collect',
+                    body:
+                        'We collect your name, contact details, government IDs, financial information, and location data for investigation and collection.'),
+                ModernSheetSection(
+                    title: 'How We Use Your Data',
+                    body:
+                        'Your data is stored securely and used only for loan processing, identity verification, and regulatory compliance.'),
+                ModernSheetSection(
+                    title: 'Your Rights',
+                    body:
+                        'You may access, correct, and request deletion of your data under the Data Privacy Act of 2012 (RA 10173).'),
+              ],
             ),
-            ModernMenuItem(
-              icon: Icons.support_agent_outlined,
+          ),
+          ModernMenuItem(
+            icon: Icons.support_agent_outlined,
+            title: 'Help Center',
+            onTap: () => _showSheet(
               title: 'Help Center',
-              onTap: () => _showSheet(
-                title: 'Help Center',
-                icon: Icons.support_agent_outlined,
-                sections: const [
-                  ModernSheetSection(
-                      title: 'How do I apply for a loan?',
-                      body:
-                          'Go to Loans and tap Apply. Fill out the required details and submit your application for review.'),
-                  ModernSheetSection(
-                      title: 'How do I pay?',
-                      body:
-                          'Pay via GCash (Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.'),
-                  ModernSheetSection(
-                      title: 'Is my data safe?',
-                      body:
-                          'Yes. We protect your information under the Data Privacy Act of 2012 (RA 10173). Never share your OTP with anyone.'),
-                ],
-              ),
+              icon: Icons.support_agent_outlined,
+              sections: const [
+                ModernSheetSection(
+                    title: 'How do I apply for a loan?',
+                    body:
+                        'Go to Loans and tap Apply. Fill out the required details and submit your application for review.'),
+                ModernSheetSection(
+                    title: 'How do I pay?',
+                    body:
+                        'Pay via GCash (Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.'),
+                ModernSheetSection(
+                    title: 'Is my data safe?',
+                    body:
+                        'Yes. We protect your information under the Data Privacy Act of 2012 (RA 10173). Never share your OTP with anyone.'),
+              ],
             ),
-            ModernMenuItem(
-              icon: Icons.info_outline_rounded,
+          ),
+          ModernMenuItem(
+            icon: Icons.info_outline_rounded,
+            title: 'About Jireta',
+            onTap: () => _showSheet(
               title: 'About Jireta',
-              onTap: () => _showSheet(
-                title: 'About Jireta',
-                icon: Icons.info_outline_rounded,
-                sections: const [
-                  ModernSheetSection(
-                      title: 'Company',
-                      body:
-                          'Jireta Loans & Credit Corp 1966 provides accessible financial assistance to Filipinos.'),
-                  ModernSheetSection(
-                      title: 'Our Services',
-                      body:
-                          'Loans from ₱3,000 to ₱500,000 with clear terms and transparent rates.'),
-                ],
-              ),
+              icon: Icons.info_outline_rounded,
+              sections: const [
+                ModernSheetSection(
+                    title: 'Company',
+                    body:
+                        'Jireta Loans & Credit Corp 1966 provides accessible financial assistance to Filipinos.'),
+                ModernSheetSection(
+                    title: 'Our Services',
+                    body:
+                        'Loans from ₱3,000 to ₱500,000 with clear terms and transparent rates.'),
+              ],
             ),
-          ]),
+          ),
+        ]),
       ],
     );
 
     // ── Account actions (bersyon + logout) ──
+    const versionLabel = Center(
+      child: Text(
+        'Version ${AppConfig.appVersion}',
+        style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
+      ),
+    );
+    // Sa desktop, may "Log Out" na sa sidebar, kaya bersyon lang ang nasa
+    // ibaba ng profile. Sa mobile, dito pa rin ang logout button.
+    const desktopFooter = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SizedBox(height: 16),
+        versionLabel,
+      ],
+    );
     final footer = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-          const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              'Version ${AppConfig.appVersion}',
-              style: TextStyle(fontSize: 12, color: AppColors.textTertiary),
-            ),
-          ),
-          const SizedBox(height: 8),
-          _buildLogoutButton(),
+        const SizedBox(height: 16),
+        versionLabel,
+        const SizedBox(height: 8),
+        _buildLogoutButton(),
       ],
     );
 
@@ -450,7 +392,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       identity,
-                      footer,
+                      desktopFooter,
                     ],
                   ),
                 ),
@@ -520,18 +462,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       user?.suffix,
     ].where((e) => e != null && e.toString().isNotEmpty).toList();
     return parts.isEmpty ? '—' : parts.join(' ');
-  }
-
-  String _formatDate(DateTime d) =>
-      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-
-  String _formatLabel(dynamic value) {
-    if (value == null || value.toString().isEmpty) return '—';
-    final s = value.toString();
-    return s
-        .split('_')
-        .map((w) => w[0].toUpperCase() + w.substring(1))
-        .join(' ');
   }
 
   Widget _buildWalkInNote(Map<String, dynamic>? app,

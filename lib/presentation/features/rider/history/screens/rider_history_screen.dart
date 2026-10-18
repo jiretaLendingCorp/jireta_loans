@@ -15,6 +15,10 @@ import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../../data/models/disbursement_model.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+// Isang breakpoint lang ang buong app para sa desktop chrome — dito rin
+// sinasalalay ang lapad ng content para kapareho ng dashboard/profile.
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint;
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_history_provider.dart';
 
@@ -58,7 +62,13 @@ class _RiderHistoryScreenState extends ConsumerState<RiderHistoryScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderHistoryProvider);
-
+    // Desktop: naka-center at may max na lapad ang feed (kapareho ng rider
+    // dashboard/profile). Sa mobile, buong lapad pa rin gaya dati.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final hPad = isDesktop ? 28.0 : 16.0;
+    final bottomPad = isDesktop ? 40.0 : 100.0;
+    final listPadding =
+        EdgeInsets.fromLTRB(hPad, isDesktop ? 20 : 16, hPad, bottomPad);
     // Pinagsama-sama ang lahat ng natapos na gawain sa ISANG listahan,
     // pinakabago muna. Ang uri nito (Collection / CI Task / Delivery) ay nasa
     // card mismo — kaya walang tabs sa header.
@@ -81,41 +91,51 @@ class _RiderHistoryScreenState extends ConsumerState<RiderHistoryScreen> {
       title: 'History',
       accentColor: AppColors.riderGreen,
       navItems: _navItems,
-      body: Column(
-        children: [
-          _MonthFilterBar(
-            selectedMonth: state.selectedMonth,
-            onChanged: (m) =>
-                ref.read(riderHistoryProvider.notifier).setMonth(m),
-            onClear: () => ref.read(riderHistoryProvider.notifier).clearFilter(),
-          ),
-          if (state.error != null)
-            Container(
-              width: double.infinity,
-              margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: AppColors.errorLight,
-                borderRadius: BorderRadius.circular(10),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: Column(
+            children: [
+              _MonthFilterBar(
+                selectedMonth: state.selectedMonth,
+                margin: EdgeInsets.fromLTRB(
+                    hPad, isDesktop ? 20 : 12, hPad, 4),
+                onChanged: (m) =>
+                    ref.read(riderHistoryProvider.notifier).setMonth(m),
+                onClear: () =>
+                    ref.read(riderHistoryProvider.notifier).clearFilter(),
               ),
-              child: Text(state.error!,
-                  style: TextStyle(
-                      fontSize: 12, color: AppColors.error)),
-            ),
-          Expanded(
-            child: _HistoryList<_HistoryEntry>(
-              items: entries,
-              isLoading: state.isLoading,
-              // Silent load: hindi na kailangang mag-flash ng shimmer habang
-              // nakabitin ang pull-down spinner.
-              onRefresh: () =>
-                  ref.read(riderHistoryProvider.notifier).load(silent: true),
-              emptyText: 'No history yet',
-              itemBuilder: (e) => e.card,
-            ),
+              if (state.error != null)
+                Container(
+                  width: double.infinity,
+                  margin: EdgeInsets.fromLTRB(hPad, 10, hPad, 0),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.errorLight,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(state.error!,
+                      style:
+                          TextStyle(fontSize: 12, color: AppColors.error)),
+                ),
+              Expanded(
+                child: _HistoryList<_HistoryEntry>(
+                  items: entries,
+                  isLoading: state.isLoading,
+                  padding: listPadding,
+                  // Silent load: hindi na kailangang mag-flash ng shimmer
+                  // habang nakabitin ang pull-down spinner.
+                  onRefresh: () => ref
+                      .read(riderHistoryProvider.notifier)
+                      .load(silent: true),
+                  emptyText: 'No history yet',
+                  itemBuilder: (e) => e.card,
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -127,17 +147,22 @@ class _MonthFilterBar extends StatelessWidget {
   final ValueChanged<String?> onChanged;
   final VoidCallback onClear;
 
+  /// Panlabas na margin ng bar — iba ang padding ng desktop (28) at mobile
+  /// (16) para pantay ito sa listahan sa ilalim.
+  final EdgeInsetsGeometry margin;
+
   const _MonthFilterBar({
     required this.selectedMonth,
     required this.onChanged,
     required this.onClear,
+    this.margin = const EdgeInsets.fromLTRB(16, 12, 16, 4),
   });
 
   @override
   Widget build(BuildContext context) {
     final hasFilter = selectedMonth != null;
     return Container(
-      margin: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      margin: margin,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: context.cSurface,
@@ -200,19 +225,24 @@ class _HistoryList<T> extends StatelessWidget {
   final String emptyText;
   final Widget Function(T item) itemBuilder;
 
+  /// Padding ng listahan — mas malaki sa desktop at walang 100px na puwang
+  /// para sa floating bottom nav (wala iyon sa desktop shell).
+  final EdgeInsetsGeometry padding;
+
   const _HistoryList({
     required this.items,
     required this.isLoading,
     required this.onRefresh,
     required this.emptyText,
     required this.itemBuilder,
+    required this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
     if (isLoading && items.isEmpty) {
       return ListView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: padding,
         itemCount: 5,
         itemBuilder: (_, __) => const Padding(
           padding: EdgeInsets.only(bottom: 12),
@@ -259,7 +289,7 @@ class _HistoryList<T> extends StatelessWidget {
       onRefresh: onRefresh,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        padding: padding,
         itemCount: items.length,
         itemBuilder: (_, i) => itemBuilder(items[i]),
       ),

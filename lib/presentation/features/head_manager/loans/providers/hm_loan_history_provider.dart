@@ -99,16 +99,26 @@ class HmLoanHistoryNotifier extends StateNotifier<HmLoanHistoryState>
         dateTo: state.dateTo,
       );
       if (seq != _requestSeq) return;
-      final loans = (res['data'] as List? ?? [])
+      final rows = (res['data'] as List? ?? [])
           .map((e) => LoanModel.fromJson(e as Map<String, dynamic>))
           .toList();
+      // Previous Loan tab = TANGING bayad nang loan (completed, o outstanding
+      // 0 kahit `active` pa ang hilaw na status). Naka-filter na ito sa
+      // `get-history`; safety net ito kapag luma pa ang deployed na function
+      // para hindi lumabas ang "For Completion" (ongoing pa) na loan.
+      final loans = rows
+          .where((l) =>
+              l.status.toLowerCase() == 'completed' || l.isFullyPaid)
+          .toList();
       final meta = res['meta'] as Map<String, dynamic>? ?? {};
+      final removed = rows.length - loans.length;
+      final serverTotal = (meta['total'] as num?)?.toInt() ?? rows.length;
       state = state.copyWith(
         loans: loans,
         isLoading: false,
         currentPage: meta['page'] as int? ?? 1,
         totalPages: meta['total_pages'] as int? ?? 1,
-        totalCount: (meta['total'] as num?)?.toInt() ?? loans.length,
+        totalCount: (serverTotal - removed).clamp(0, serverTotal),
       );
     } catch (e) {
       if (seq != _requestSeq) return;

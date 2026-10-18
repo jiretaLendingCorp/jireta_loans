@@ -67,11 +67,13 @@ class _LiveMapHeaderState extends State<LiveMapHeader>
                       widget.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      // Theme-aware: sa dark mode, puti ang title sa dark card
+                      // (dating navy — hindi mabasa kapag naka-dark mode).
+                      style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w800,
                         letterSpacing: -0.2,
-                        color: AppColors.textPrimary,
+                        color: context.cTextPrimary,
                       ),
                     ),
                   ),
@@ -83,10 +85,10 @@ class _LiveMapHeaderState extends State<LiveMapHeader>
                   widget.subtitle!,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
+                    color: context.cTextSecondary,
                   ),
                 ),
               ],
@@ -111,21 +113,21 @@ class _LiveBadge extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: AppColors.surfaceVariant,
+          color: context.cSurfaceVariant,
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: AppColors.border),
+          border: Border.all(color: context.cBorder),
         ),
-        child: const Row(
+        child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.pause_circle_outline,
-                size: 12, color: AppColors.textTertiary),
-            SizedBox(width: 5),
+                size: 12, color: context.cTextTertiary),
+            const SizedBox(width: 5),
             Text('Paused',
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textTertiary)),
+                    color: context.cTextTertiary)),
           ],
         ),
       );

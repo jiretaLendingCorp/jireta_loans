@@ -105,17 +105,20 @@ class MobileScaffold extends ConsumerWidget {
         : ref.watch(riderNotificationProvider).unreadCount;
 
     // ── Desktop layout (lender) ─────────────────────────────────────────────
-    // Sa desktop, ang lender role ay gumagamit ng KAPAREHONG desktop chrome ng
-    // head manager / employee (sidebar + top bar) — ang mobile na app bar at
+    // Sa desktop, ang lender at rider ay gumagamit ng KAPAREHONG desktop chrome
+    // ng head manager / employee (sidebar + top bar) — ang mobile na app bar at
     // floating bottom nav ay para lang sa makitid na screen. Hindi na kailangang
-    // baguhin ang body ng bawat lender screen: dito lang sa shell naka-centralize
-    // ang switch, kaya isang layout lang ang pinapanatili sa lahat ng screen.
-    if (isLender && MediaQuery.sizeOf(context).width >= kDesktopBreakpoint) {
+    // baguhin ang body ng bawat screen: dito lang sa shell naka-centralize ang
+    // switch, kaya isang layout lang ang pinapanatili sa lahat ng screen.
+    if ((isLender || isRider) &&
+        MediaQuery.sizeOf(context).width >= kDesktopBreakpoint) {
       return WebScaffold(
         title: title,
-        // Pinipilit ang lender navigation kahit hindi pa kumpirmado ang role sa
+        // Pinipilit ang navigation ng role kahit hindi pa kumpirmado ang role sa
         // auth state (hal. account upgrade / onboarding).
-        roleOverride: AppConstants.roleLender,
+        roleOverride: isLender
+            ? AppConstants.roleLender
+            : AppConstants.roleRider,
         leading: appBarLeading ??
             (showBackButton ? _buildDesktopBackButton(context) : null),
         actions: _desktopTopBarActions(),
@@ -223,8 +226,12 @@ class MobileScaffold extends ConsumerWidget {
   }
 
   /// Back button ng desktop top bar — kapareho ng gawi ng mobile app bar: pop
-  /// kung may maaaring balikan, kung wala ay sa lender dashboard.
+  /// kung may maaaring balikan, kung wala ay sa dashboard ng role.
   Widget _buildDesktopBackButton(BuildContext context) {
+    final fallback =
+        GoRouterState.of(context).uri.path.startsWith('/rider')
+            ? RouteConstants.riderDashboard
+            : RouteConstants.lenderDashboard;
     return IconButton(
       tooltip: 'Back',
       icon: const Icon(
@@ -236,7 +243,7 @@ class MobileScaffold extends ConsumerWidget {
         if (Navigator.of(context).canPop()) {
           Navigator.of(context).pop();
         } else {
-          context.go(RouteConstants.lenderDashboard);
+          context.go(fallback);
         }
       },
     );

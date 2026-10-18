@@ -203,6 +203,21 @@ String? mfaRedirect({
   return null;
 }
 
+/// `true` habang dapat i-hold ng router ang redirects palayo sa OTP screen.
+///
+/// Kapag matagumpay na na-verify ang OTP, naka-authenticated na agad ang
+/// session; kung hahayaan ang redirect, ililipat nito ang staff sa dashboard
+/// bago pa maipakita ng OTP screen ang "OTP Verified" na dialog. Ang screen
+/// mismo ang mag-navigate kapag natapos na ang dialog.
+bool holdsPostOtpRedirect({
+  required bool handoff,
+  required String path,
+}) {
+  if (!handoff) return false;
+  return path == RouteConstants.otpVerify ||
+      path == RouteConstants.resetMpinOtpVerify;
+}
+
 final appRouterProvider = Provider<GoRouter>((ref) {
   // NOTE: The GoRouter instance is created ONCE and kept stable. Auth state is
   // read LIVE inside `redirect` (never captured — a captured value goes stale
@@ -256,6 +271,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (AppConstants.suppressLogoutRedirect) return null;
 
       final path = state.uri.path;
+
+      // Hold the redirect while the Verify OTP screen shows its success dialog
+      // and navigates by itself — see [holdsPostOtpRedirect].
+      if (holdsPostOtpRedirect(
+        handoff: ref.read(otpSuccessHandoffProvider),
+        path: path,
+      )) {
+        return null;
+      }
 
       // While offline (or still probing for connectivity) the web app stays on
       // the splash screen — it cannot be opened without internet access. Mobile
@@ -582,6 +606,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmLoanApplicationsHistory,
           builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      // Lumang URI ng Previous Loan tab (`/hm/loan-records/history`) —
+      // redirect sa bagong `/previous-loan`. Kailangang MAUNA sa `:id` route.
+      GoRoute(
+        path: RouteConstants.hmLoanApplicationsHistoryLegacy,
+        redirect: (ctx, s) => RouteConstants.hmLoanApplicationsHistory,
+      ),
       GoRoute(
           path: RouteConstants.hmLoanRecordsOngoing,
           builder: (ctx, s) => const HmLoanApplicationsListScreen()),
@@ -727,6 +757,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.empLoansHistory,
           builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      // Lumang URI ng Previous Loan tab (Employee) — redirect sa bagong path.
+      GoRoute(
+        path: RouteConstants.empLoansHistoryLegacy,
+        redirect: (ctx, s) => RouteConstants.empLoansHistory,
+      ),
       GoRoute(
           path: RouteConstants.empActiveLoans,
           builder: (ctx, s) => const EmpLoanListScreen()),

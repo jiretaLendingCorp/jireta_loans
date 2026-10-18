@@ -298,6 +298,10 @@ class ModernInfoCard extends StatefulWidget {
   /// "Edit" button sa kanan (ginagamit ng per-section edit ng profile).
   final VoidCallback? onEdit;
 
+  /// Kapag may [onTap], pindot-pindot ang header (hal. rider profile: bubukas
+  /// ang popup ng details). Walang arrow — text lang ang tina-tap.
+  final VoidCallback? onTap;
+
   /// Kulay ng edit action. Default: neutral na icon color.
   final Color? editColor;
 
@@ -311,6 +315,7 @@ class ModernInfoCard extends StatefulWidget {
     this.flat = false,
     this.onEdit,
     this.editColor,
+    this.onTap,
   });
 
   @override
@@ -333,18 +338,24 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
       padding: EdgeInsets.fromLTRB(pad, 14, pad, 10),
       child: Row(
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            decoration: BoxDecoration(
-              color: ModernProfileStyles.iconBgOf(context),
-              borderRadius: BorderRadius.circular(8),
+          // Flat: wala ang icon, pero PANATILI ang dating espasyo para hindi
+          // gumalaw ang posisyon ng title.
+          if (widget.flat)
+            const SizedBox(width: 40)
+          else ...[
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: ModernProfileStyles.iconBgOf(context),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              alignment: Alignment.center,
+              child: Icon(widget.icon,
+                  size: 16, color: ModernProfileStyles.iconColorOf(context)),
             ),
-            alignment: Alignment.center,
-            child: Icon(widget.icon,
-                size: 16, color: ModernProfileStyles.iconColorOf(context)),
-          ),
-          const SizedBox(width: 10),
+            const SizedBox(width: 10),
+          ],
           Expanded(
             child: Text(
               widget.title,
@@ -360,8 +371,7 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
               onPressed: widget.onEdit,
               style: TextButton.styleFrom(
                 minimumSize: Size.zero,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
               icon: Icon(
@@ -397,7 +407,7 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
       children: [
         Divider(height: 1, color: ModernProfileStyles.hairlineOf(context)),
         for (var i = 0; i < widget.rows.length; i++) ...[
-          _Row(entry: widget.rows[i], horizontal: pad),
+          _Row(entry: widget.rows[i], horizontal: pad, showIcon: !widget.flat),
           if (i != widget.rows.length - 1)
             Divider(
               height: 1,
@@ -419,7 +429,16 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
           if (widget.collapsible)
             InkWell(
               onTap: _toggle,
-              borderRadius: BorderRadius.circular(ModernProfileStyles.cardRadius),
+              borderRadius:
+                  BorderRadius.circular(ModernProfileStyles.cardRadius),
+              child: header,
+            )
+          else if (widget.onTap != null)
+            // Flat clickable text: walang rounded hover/splash na
+            // nagmumukhang card — text lang ang pindot.
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: widget.onTap,
               child: header,
             )
           else
@@ -434,7 +453,7 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
               firstChild: const SizedBox(width: double.infinity),
               secondChild: rowsSection,
             )
-          else
+          else if (widget.rows.isNotEmpty)
             rowsSection,
         ],
       ),
@@ -456,7 +475,12 @@ class ModernInfoRowData {
 class _Row extends StatelessWidget {
   final ModernInfoRowData entry;
   final double horizontal;
-  const _Row({required this.entry, this.horizontal = 16});
+  final bool showIcon;
+  const _Row({
+    required this.entry,
+    this.horizontal = 16,
+    this.showIcon = true,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -465,8 +489,13 @@ class _Row extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(entry.icon,
-              size: 16, color: ModernProfileStyles.iconColorOf(context)),
+          // Kung walang icon, itago lang ito — hindi binabawasan ang indent
+          // para hindi gumalaw ang posisyon ng label/value.
+          if (showIcon)
+            Icon(entry.icon,
+                size: 16, color: ModernProfileStyles.iconColorOf(context))
+          else
+            const SizedBox(width: 16),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -492,21 +521,35 @@ class _Row extends StatelessWidget {
 /// quiet icons, chevron affordance.
 class ModernMenuCard extends StatelessWidget {
   final List<ModernMenuItem> items;
-  const ModernMenuCard({super.key, required this.items});
+
+  /// Walang card box (background/border) — plain na text rows lang na may
+  /// hairlines, nakalapat sa page. Default false para hindi magbago ang ibang
+  /// profile screens.
+  final bool flat;
+
+  const ModernMenuCard({
+    super.key,
+    required this.items,
+    this.flat = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    // Flat: kaunting indent lang para pantay sa section label (4px) — pareho
+    // sa flat na `ModernInfoCard`.
+    final pad = flat ? 4.0 : 16.0;
     return Container(
-      decoration: ModernProfileStyles.cardOf(context),
+      width: flat ? double.infinity : null,
+      decoration: flat ? null : ModernProfileStyles.cardOf(context),
       child: Column(
         children: [
           for (var i = 0; i < items.length; i++) ...[
-            _MenuRow(item: items[i]),
+            _MenuRow(item: items[i], horizontal: pad, flat: flat),
             if (i != items.length - 1)
               Divider(
                 height: 1,
-                indent: 58,
-                endIndent: 0,
+                indent: flat ? pad + 46 : 58,
+                endIndent: flat ? pad : 0,
                 color: ModernProfileStyles.hairlineOf(context),
               ),
           ],
@@ -537,17 +580,25 @@ class ModernMenuItem {
 
 class _MenuRow extends StatelessWidget {
   final ModernMenuItem item;
-  const _MenuRow({required this.item});
+  final double horizontal;
+  final bool flat;
+  const _MenuRow({
+    required this.item,
+    this.horizontal = 16,
+    this.flat = false,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: item.onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
+    final content = Padding(
+      padding: EdgeInsets.symmetric(horizontal: horizontal, vertical: 12),
+      child: Row(
+        children: [
+          // Flat: wala ang icon, pero PANATILI ang dating espasyo para hindi
+          // gumalaw ang posisyon ng title.
+          if (flat)
+            const SizedBox(width: 46)
+          else ...[
             Container(
               width: 34,
               height: 34,
@@ -557,30 +608,47 @@ class _MenuRow extends StatelessWidget {
               ),
               alignment: Alignment.center,
               child: Icon(item.icon,
-                  size: 17,
-                  color: ModernProfileStyles.iconColorOf(context)),
+                  size: 17, color: ModernProfileStyles.iconColorOf(context)),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.title,
-                      style: ModernProfileStyles.menuTitleOf(context)),
-                  if (item.subtitle != null) ...[
-                    const SizedBox(height: 1),
-                    Text(item.subtitle!,
-                        style: ModernProfileStyles.menuSubtitleOf(context)),
-                  ],
-                ],
-              ),
-            ),
-            item.trailing ??
-                Icon(Icons.chevron_right_rounded,
-                    size: 20, color: context.cTextTertiary),
           ],
-        ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(item.title,
+                    style: ModernProfileStyles.menuTitleOf(context)),
+                // Flat: walang subtitle — title lang ang teksto.
+                if (!flat && item.subtitle != null) ...[
+                  const SizedBox(height: 1),
+                  Text(item.subtitle!,
+                      style: ModernProfileStyles.menuSubtitleOf(context)),
+                ],
+              ],
+            ),
+          ),
+          // Flat: walang chevron/arrow — text lang ang pindot-pindot.
+          if (item.trailing != null)
+            item.trailing!
+          else if (!flat)
+            Icon(Icons.chevron_right_rounded,
+                size: 20, color: context.cTextTertiary),
+        ],
       ),
+    );
+    // Flat: GestureDetector lang — walang InkWell hover/splash na may rounded
+    // background (parang card pa rin ang dating).
+    if (flat) {
+      return GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: item.onTap,
+        child: content,
+      );
+    }
+    return InkWell(
+      onTap: item.onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: content,
     );
   }
 }
@@ -727,8 +795,7 @@ class ModernInfoSheet extends StatelessWidget {
                 ],
               ),
             ),
-            Divider(
-                height: 1, color: ModernProfileStyles.hairlineOf(context)),
+            Divider(height: 1, color: ModernProfileStyles.hairlineOf(context)),
             Flexible(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),

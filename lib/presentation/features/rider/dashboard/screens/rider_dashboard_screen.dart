@@ -14,6 +14,8 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/animated/count_up_animation.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint;
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../dashboard/providers/rider_dashboard_provider.dart';
 import '../../notifications/providers/rider_notification_provider.dart';
@@ -30,12 +32,104 @@ class RiderDashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
+  /// `true` habang tumatakbo ang refresh — spinner sa Refresh button ng desktop
+  /// top bar at hindi na doble-doble ang pindot.
+  bool _refreshing = false;
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderDashboardProvider);
     final profileState = ref.watch(riderProfileProvider);
     final notifState = ref.watch(riderNotificationProvider);
     final riderName = _resolveRiderName(profileState);
+
+    // Sa desktop (≥ [kDesktopBreakpoint]) desktop shell na ang gamit ng rider
+    // (sidebar + top bar, tingnan ang `MobileScaffold`) at dalawang-column ang
+    // body. Sa mobile, walang binago: isang column pa rin at floating bottom
+    // nav.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+
+    // ── Mga piraso ng dashboard — ISANG pinagmumulan lang ────────────────
+    // Pareho ang nilalaman para sa mobile at desktop; ang tanging pinag-iba
+    // ay ang PAGKAKA-AYOS (isang column vs. main + rail).
+    final sections = _RiderDashboardSections(
+      header: _Entrance(
+        delay: 0,
+        child: _EnterpriseHeader(
+          riderName: riderName,
+          profilePhotoUrl: profileState.user?.profilePhotoUrl,
+          taskCount: state.todayCollections.length +
+              state.todayDeliveries.length +
+              state.todayCiTasks.length,
+        ),
+      ),
+      filterBar: _Entrance(
+        delay: 40,
+        child: _CollectionFilterBar(state: state),
+      ),
+      hero: _Entrance(
+        delay: 80,
+        child: _EnterpriseAmountHero(state: state),
+      ),
+      tracking: const _Entrance(
+        delay: 120,
+        child: RiderLiveTrackingCard(),
+      ),
+      collectionsLabel: _Entrance(
+        delay: 180,
+        child: _buildSectionLabel(
+          context,
+          label: 'Collections',
+          count: state.todayCollections.length,
+          icon: Icons.local_shipping_outlined,
+          onMore: () => context.push(RouteConstants.riderCollections),
+        ),
+      ),
+      collections: _Entrance(
+        delay: 220,
+        child: _buildCollectionTasks(context, state),
+      ),
+      deliveriesLabel: _Entrance(
+        delay: 280,
+        child: _buildSectionLabel(
+          context,
+          label: 'Cash Deliveries',
+          count: state.todayDeliveries.length,
+          icon: Icons.delivery_dining_outlined,
+          onMore: () => context.push(RouteConstants.riderDisbursements),
+        ),
+      ),
+      deliveries: _Entrance(
+        delay: 340,
+        child: _buildDeliveryTasks(context, state),
+      ),
+      ciLabel: _Entrance(
+        delay: 400,
+        child: _buildSectionLabel(
+          context,
+          label: 'CI Assignments',
+          count: state.todayCiTasks.length,
+          icon: Icons.search_outlined,
+          onMore: () => context.push(RouteConstants.riderCi),
+        ),
+      ),
+      ci: _Entrance(delay: 460, child: _buildCiTasks(context, state)),
+      activityLabel: _Entrance(
+        delay: 520,
+        child: _buildSectionLabel(
+          context,
+          label: 'Recent Activity',
+          count: notifState.notifications.length,
+          icon: Icons.notifications_active_outlined,
+          onMore: () => context.push(RouteConstants.riderNotifications),
+        ),
+      ),
+      activity: _Entrance(
+        delay: 560,
+        child: _buildRecentActivity(context, notifState),
+      ),
+      error: state.error == null ? null : _ErrorBanner(state.error!),
+    );
 
     return MobileScaffold(
       title: 'Rider Home',
@@ -72,122 +166,168 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
           route: RouteConstants.riderProfile,
         ),
       ],
+      // Sa desktop, nasa top bar ang refresh — hindi kayang i-drag ng mouse ang
+      // pull-to-refresh. Sa mobile walang idinadagdag ito (may pull-down doon).
+      appBarActions: isDesktop ? [_buildRefreshAction()] : null,
       body: state.isLoading
-          ? _buildShimmer()
+          ? _buildShimmer(desktop: isDesktop)
           : MobileRefresh(
               color: AppColors.riderGreen,
               // Silent loads: kapag hindi, mag-i-flash ang shimmer sa gitna ng
               // pull-down gesture dahil nagiging `isLoading = true` ang
               // dashboard at napapalitan ang RefreshIndicator mismo.
-              onRefresh: () async {
-                await ref
-                    .read(riderDashboardProvider.notifier)
-                    .load(silent: true);
-                await ref
-                    .read(riderProfileProvider.notifier)
-                    .loadProfile(silent: true);
-              },
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
+              onRefresh: _silentRefresh,
+              child: isDesktop
+                  ? _desktopBody(sections)
+                  : _mobileBody(sections),
+            ),
+    );
+  }
+
+  /// Silent refresh para sa pull-down at sa Refresh button ng desktop top bar —
+  /// hindi ito nagpapalit ng screen sa shimmer.
+  Future<void> _silentRefresh() async {
+    await ref.read(riderDashboardProvider.notifier).load(silent: true);
+    await ref.read(riderProfileProvider.notifier).loadProfile(silent: true);
+  }
+
+  /// Refresh button ng desktop top bar: may nakikitang feedback pagkatapos,
+  /// kaya malinaw na gumagana ito.
+  Future<void> _onRefreshTap() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      await _silentRefresh();
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Refreshed'),
+      duration: Duration(seconds: 2),
+      behavior: SnackBarBehavior.floating,
+    ));
+  }
+
+  Widget _buildRefreshAction() {
+    return IconButton(
+      tooltip: 'Refresh',
+      // Habang tumatakbo, spinner ang icon — kitang-kita na may nangyayari.
+      onPressed: _refreshing ? null : _onRefreshTap,
+      icon: _refreshing
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                  strokeWidth: 2, color: Colors.white),
+            )
+          : const Icon(Icons.refresh_rounded, color: Colors.white),
+    );
+  }
+
+  /// MOBILE na ayos: isang column lang, nakadikit sa floating bottom nav.
+  /// Kapareho ito ng dating layout — walang binago sa phone.
+  Widget _mobileBody(_RiderDashboardSections s) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          s.header,
+          const SizedBox(height: 14),
+          s.filterBar,
+          const SizedBox(height: 12),
+          s.hero,
+          const SizedBox(height: 22),
+          s.tracking,
+          const SizedBox(height: 22),
+          s.collectionsLabel,
+          const SizedBox(height: 10),
+          s.collections,
+          const SizedBox(height: 20),
+          s.deliveriesLabel,
+          const SizedBox(height: 10),
+          s.deliveries,
+          const SizedBox(height: 20),
+          s.ciLabel,
+          const SizedBox(height: 10),
+          s.ci,
+          const SizedBox(height: 20),
+          s.activityLabel,
+          const SizedBox(height: 10),
+          s.activity,
+          if (s.error != null) ...[
+            const SizedBox(height: 16),
+            s.error!,
+          ],
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  /// DESKTOP na ayos: pangunahing column (greeting, filter, Total Collected,
+  /// live map, Collections) sa kaliwa at makitid na rail (Cash Deliveries, CI
+  /// Assignments, Recent Activity) sa kanan. Naka-cap ang lapad (1240) at
+  /// naka-center, kaya hindi nakaunat ang mga card sa buong monitor — at wala
+  /// nang espasyong nakalaan para sa bottom nav.
+  Widget _desktopBody(_RiderDashboardSections s) {
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _Entrance(
-                      delay: 0,
-                      child: _EnterpriseHeader(
-                        riderName: riderName,
-                        profilePhotoUrl: profileState.user?.profilePhotoUrl,
-                        taskCount: state.todayCollections.length +
-                            state.todayDeliveries.length +
-                            state.todayCiTasks.length,
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    _Entrance(
-                      delay: 40,
-                      child: _CollectionFilterBar(state: state),
-                    ),
+                    s.header,
+                    const SizedBox(height: 16),
+                    s.filterBar,
                     const SizedBox(height: 12),
-                    _Entrance(
-                      delay: 80,
-                      child: _EnterpriseAmountHero(state: state),
-                    ),
+                    s.hero,
                     const SizedBox(height: 22),
-                    const _Entrance(
-                      delay: 120,
-                      child: RiderLiveTrackingCard(),
-                    ),
-                    const SizedBox(height: 22),
-                    _Entrance(
-                      delay: 180,
-                      child: _buildSectionLabel(
-                        context,
-                        label: 'Collections',
-                        count: state.todayCollections.length,
-                        icon: Icons.local_shipping_outlined,
-                        onMore: () =>
-                            context.push(RouteConstants.riderCollections),
-                      ),
-                    ),
+                    s.tracking,
+                    const SizedBox(height: 24),
+                    s.collectionsLabel,
                     const SizedBox(height: 10),
-                    _Entrance(
-                        delay: 220,
-                        child: _buildCollectionTasks(context, state)),
-                    const SizedBox(height: 20),
-                    _Entrance(
-                      delay: 280,
-                      child: _buildSectionLabel(
-                        context,
-                        label: 'Cash Deliveries',
-                        count: state.todayDeliveries.length,
-                        icon: Icons.delivery_dining_outlined,
-                        onMore: () =>
-                            context.push(RouteConstants.riderDisbursements),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _Entrance(
-                        delay: 340, child: _buildDeliveryTasks(context, state)),
-                    const SizedBox(height: 20),
-                    _Entrance(
-                      delay: 400,
-                      child: _buildSectionLabel(
-                        context,
-                        label: 'CI Assignments',
-                        count: state.todayCiTasks.length,
-                        icon: Icons.search_outlined,
-                        onMore: () => context.push(RouteConstants.riderCi),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _Entrance(delay: 460, child: _buildCiTasks(context, state)),
-                    const SizedBox(height: 20),
-                    _Entrance(
-                      delay: 520,
-                      child: _buildSectionLabel(
-                        context,
-                        label: 'Recent Activity',
-                        count: notifState.notifications.length,
-                        icon: Icons.notifications_active_outlined,
-                        onMore: () =>
-                            context.push(RouteConstants.riderNotifications),
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    _Entrance(
-                      delay: 560,
-                      child: _buildRecentActivity(context, notifState),
-                    ),
-                    if (state.error != null) ...[
-                      const SizedBox(height: 16),
-                      _ErrorBanner(state.error!),
-                    ],
-                    const SizedBox(height: 8),
+                    s.collections,
                   ],
                 ),
               ),
-            ),
+              const SizedBox(width: 24),
+              SizedBox(
+                width: 360,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    s.deliveriesLabel,
+                    const SizedBox(height: 10),
+                    s.deliveries,
+                    const SizedBox(height: 20),
+                    s.ciLabel,
+                    const SizedBox(height: 10),
+                    s.ci,
+                    const SizedBox(height: 20),
+                    s.activityLabel,
+                    const SizedBox(height: 10),
+                    s.activity,
+                    if (s.error != null) ...[
+                      const SizedBox(height: 20),
+                      s.error!,
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -201,25 +341,62 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     return full;
   }
 
-  Widget _buildShimmer() => SingleChildScrollView(
+  Widget _buildShimmer({bool desktop = false}) {
+    final tiles = List.generate(
+      5,
+      (_) => const Padding(
+        padding: EdgeInsets.only(bottom: 10),
+        child: ShimmerLoader(height: 72, borderRadius: 16),
+      ),
+    );
+
+    if (desktop) {
+      return SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
-        child: Column(
-          children: [
-            const ShimmerLoader(height: 112, borderRadius: 16),
-            const SizedBox(height: 14),
-            const ShimmerLoader(height: 154, borderRadius: 20),
-            const SizedBox(height: 20),
-            ...List.generate(
-              5,
-              (_) => const Padding(
-                padding: EdgeInsets.only(bottom: 10),
-                child: ShimmerLoader(height: 72, borderRadius: 16),
-              ),
+        padding: const EdgeInsets.fromLTRB(28, 28, 28, 40),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1240),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Column(
+                    children: [
+                      const ShimmerLoader(height: 112, borderRadius: 16),
+                      const SizedBox(height: 14),
+                      const ShimmerLoader(height: 154, borderRadius: 20),
+                      const SizedBox(height: 20),
+                      ...tiles,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 24),
+                SizedBox(
+                  width: 360,
+                  child: Column(children: tiles.take(4).toList()),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       );
+    }
+
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 100),
+      child: Column(
+        children: [
+          const ShimmerLoader(height: 112, borderRadius: 16),
+          const SizedBox(height: 14),
+          const ShimmerLoader(height: 154, borderRadius: 20),
+          const SizedBox(height: 20),
+          ...tiles,
+        ],
+      ),
+    );
+  }
 
   Widget _buildSectionLabel(
     BuildContext context, {
@@ -325,7 +502,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
           title: 'Collection #${c.id.substring(0, 8).toUpperCase()}',
           subtitle: subtitle,
           status: c.statusLabel,
-          statusColor: _collStatusColor(c.status),
+          statusColor: _collStatusColor(context, c.status),
           icon: Icons.local_shipping_outlined,
           iconColor: AppColors.riderGreen,
           onTap: () =>
@@ -377,7 +554,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
               ? 'Due: ${ci.deadline!.toDateString()}'
               : 'No deadline',
           status: displayStatus,
-          statusColor: _ciStatusColor(displayStatus),
+          statusColor: _ciStatusColor(context, displayStatus),
           icon: Icons.search_outlined,
           iconColor: AppColors.info,
           onTap: () => context.push('${RouteConstants.riderCi}/${ci.id}'),
@@ -508,7 +685,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
   }
 
   Widget _buildActivityTile(BuildContext context, NotificationModel n) {
-    final (icon, color) = _activityStyle(n.type);
+    final (icon, color) = _activityStyle(context, n.type);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
@@ -608,7 +785,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     );
   }
 
-  (IconData, Color) _activityStyle(String type) {
+  (IconData, Color) _activityStyle(BuildContext context, String type) {
     final t = type.toLowerCase();
     if (t.startsWith('ci_') || t == 'ci_required' || t == 'ci_overdue') {
       return (Icons.manage_search_rounded, AppColors.info);
@@ -628,7 +805,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     if (t.startsWith('account_upgrade')) {
       return (Icons.verified_user_outlined, AppColors.statusCompleted);
     }
-    return (Icons.notifications_outlined, _kNeutralColor);
+    return (Icons.notifications_outlined, context.cTextSecondary);
   }
 
   String _timeAgo(DateTime time) {
@@ -669,10 +846,7 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
     );
   }
 
-  /// Neutral fallback para sa status colors na wala sa `context` scope.
-  static const Color _kNeutralColor = AppColors.textSecondary;
-
-  Color _collStatusColor(String s) {
+  Color _collStatusColor(BuildContext context, String s) {
     switch (s) {
       case 'pending':
         return AppColors.statusPending;
@@ -687,11 +861,11 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       case 'declined':
         return AppColors.statusRejected;
       default:
-        return _kNeutralColor;
+        return context.cTextSecondary;
     }
   }
 
-  Color _ciStatusColor(String s) {
+  Color _ciStatusColor(BuildContext context, String s) {
     switch (s) {
       case 'pending':
         return AppColors.statusPending;
@@ -703,9 +877,44 @@ class _RiderDashboardScreenState extends ConsumerState<RiderDashboardScreen> {
       case 'declined':
         return AppColors.statusRejected;
       default:
-        return _kNeutralColor;
+        return context.cTextSecondary;
     }
   }
+}
+
+/// Mga piraso ng rider dashboard. Isang beses lang binubuo ang bawat piraso
+/// (sa `build`) at ipinapasa sa mobile o desktop na ayos — kaya kapareho ang
+/// nilalaman ng dalawa at ang pagkakaayos lang ang nagbabago.
+class _RiderDashboardSections {
+  final Widget header;
+  final Widget filterBar;
+  final Widget hero;
+  final Widget tracking;
+  final Widget collectionsLabel;
+  final Widget collections;
+  final Widget deliveriesLabel;
+  final Widget deliveries;
+  final Widget ciLabel;
+  final Widget ci;
+  final Widget activityLabel;
+  final Widget activity;
+  final Widget? error;
+
+  const _RiderDashboardSections({
+    required this.header,
+    required this.filterBar,
+    required this.hero,
+    required this.tracking,
+    required this.collectionsLabel,
+    required this.collections,
+    required this.deliveriesLabel,
+    required this.deliveries,
+    required this.ciLabel,
+    required this.ci,
+    required this.activityLabel,
+    required this.activity,
+    this.error,
+  });
 }
 
 // ──────────────────────────────────────────────────────────────

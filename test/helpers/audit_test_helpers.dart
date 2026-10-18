@@ -28,6 +28,17 @@ class FakeDioClient extends DioClient {
       RequestOptions(path: path, queryParameters: queryParams ?? const {}),
     );
   }
+
+  /// Kailangan para sa mga test na nagse-save (hal. update-profile) — kung
+  /// hindi, tutungo sa totoong network ang `patch`.
+  @override
+  Future<Response<dynamic>> patch(
+    String path, {
+    dynamic data,
+    Map<String, String>? headers,
+  }) async {
+    return handler(RequestOptions(path: path, data: data));
+  }
 }
 
 /// Convenience: builds a fake audit datasource backed by [handler].

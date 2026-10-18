@@ -413,9 +413,10 @@ async function handleGetDetails(req: Request) {
 
 // ── [Loan Records → Loan History tab] ──────────────────────────────────────
 /**
- * Loan History — ang mga loan na TAPOS nang bayaran (status `completed`) at ang
- * mga MALAPIT nang matapos (ang natitirang balanse ay kasinlaki na lang ng
- * isang installment, o wala nang natitira pero hindi pa na-tag na completed).
+ * Loan History / Previous Loan — TANGING mga loan na TAPOS nang bayaran
+ * (status `completed`, o `active`/`overdue` na UBOS nang bayad: outstanding 0).
+ * HINDI kasama ang "malapit nang matapos" — ongoing pa ang mga iyon, kaya wala
+ * sila sa Previous Loan tab.
  *
  * Bakit server-side ang filter: ang outstanding balance ay DERIVED sa
  * `_shared/loan_financials.ts` (wala itong column sa `loans`), kaya hindi ito
@@ -480,10 +481,10 @@ async function handleGetHistory(req: Request) {
     const history = candidates.filter((r) => {
       if (String(r.status) === 'completed') return true;
       const outstanding = financials[String(r.id)]?.outstanding_balance ?? 0;
-      // Malapit nang matapos: kasing-laki na lang ng isang installment ang
-      // natitira (o wala nang natitira pero hindi pa na-tag na completed).
-      const installment = Number(r.installment_amount ?? 0);
-      return outstanding <= (installment > 0 ? installment : 0);
+      // Bayad na lahat (outstanding = 0) kahit hindi pa na-tag na `completed`
+      // ang hilaw na status — previous loan na ito. Ang mga may natitirang
+      // balanse (kahit isang installment na lang) ay HINDI kasama.
+      return outstanding <= 0;
     });
 
     const pageRows = history.slice(offset, offset + limit);
@@ -520,10 +521,8 @@ async function handleGetHistory(req: Request) {
         installment_amount: r.installment_amount,
         payment_frequency: r.payment_frequency,
         status: r.status,
-        // `completed` = tapos na; `for_completion` = pa-tapos pa lang.
-        completion_state: String(r.status) === 'completed'
-          ? 'completed'
-          : 'for_completion',
+        // Lahat ng nasa listahan ay bayad na (completed o outstanding 0).
+        completion_state: 'completed',
         last_payment_at: lastPayments[String(r.id)] ?? null,
         disbursed_at: disbursements[String(r.id)]?.disbursed_at ?? null,
         created_at: r.created_at,

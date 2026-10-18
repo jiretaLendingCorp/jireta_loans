@@ -18,7 +18,9 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../shared/widgets/legal_links.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -34,6 +36,19 @@ import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 /// ng disbursement) sa TAAS ng floating bottom nav pill — 8px lang ang gap,
 /// hindi dikit at hindi rin masyadong mataas.
 const double kGapAboveFloatingNav = 8;
+
+/// Pinakabagong loan na BAYAD NA (`completed`, o `active`/`overdue` na ubos
+/// ang balanse). Ito ang basehan ng 2-step re-apply: Purpose → Amount → Submit.
+///
+/// Nasa labas ng State ito para direktang ma-test ang trigger logic.
+LoanModel? latestCompletedLoan(List<LoanModel> loans) {
+  for (final loan in loans) {
+    final s = loan.status.toLowerCase();
+    if (s == 'completed') return loan;
+    if ((s == 'active' || s == 'overdue') && loan.isFullyPaid) return loan;
+  }
+  return null;
+}
 
 class LenderApplyLoanScreen extends ConsumerStatefulWidget {
   const LenderApplyLoanScreen({super.key});
@@ -75,6 +90,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   // lumalabas kapag pinindot ang Confirm (3s bago mawala) at agad ding
   // nawawala kapag Clear.
   bool _showCoMakerSignatureConfirmed = false;
+  // Required sa 2-step re-apply: dapat naka-check ang Terms and Conditions bago
+  // makapag-submit ng bagong loan.
+  bool _acceptedTerms = false;
+  String? _termsError;
   Timer? _coMakerSignatureTimer;
 
   // 00128: financial + emergency are declared PER APPLICATION (this loan).
@@ -339,26 +358,23 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           ? 'Select a relationship'
           : null;
 
-  String? get _employmentOtherError =>
-      _financialAttempted &&
-              _employmentType == 'other' &&
-              _employmentOtherCtrl.text.trim().isEmpty
-          ? 'Please specify your employment type'
-          : null;
+  String? get _employmentOtherError => _financialAttempted &&
+          _employmentType == 'other' &&
+          _employmentOtherCtrl.text.trim().isEmpty
+      ? 'Please specify your employment type'
+      : null;
 
-  String? get _sourceOtherError =>
-      _financialAttempted &&
-              _sourceOfFunds == 'other' &&
-              _sourceOtherCtrl.text.trim().isEmpty
-          ? 'Please specify your source of funds'
-          : null;
+  String? get _sourceOtherError => _financialAttempted &&
+          _sourceOfFunds == 'other' &&
+          _sourceOtherCtrl.text.trim().isEmpty
+      ? 'Please specify your source of funds'
+      : null;
 
-  String? get _ecRelationshipOtherError =>
-      _financialAttempted &&
-              _ecRelationship == 'Other' &&
-              _ecRelationshipOtherCtrl.text.trim().isEmpty
-          ? 'Please specify the relationship'
-          : null;
+  String? get _ecRelationshipOtherError => _financialAttempted &&
+          _ecRelationship == 'Other' &&
+          _ecRelationshipOtherCtrl.text.trim().isEmpty
+      ? 'Please specify the relationship'
+      : null;
 
   String? get _ecPhoneError {
     if (!_financialAttempted) return null;
@@ -515,8 +531,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       final path = _coMakerValidId!.path;
       if (path != null) validIdBytes = await File(path).readAsBytes();
     }
-    final validIdExt = (_coMakerValidId!.name.split('.').lastOrNull ?? '')
-        .toLowerCase();
+    final validIdExt =
+        (_coMakerValidId!.name.split('.').lastOrNull ?? '').toLowerCase();
     final validIdMime = validIdExt == 'png'
         ? 'image/png'
         : validIdExt == 'jpg' || validIdExt == 'jpeg'
@@ -584,6 +600,12 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           coMaker: coMaker,
         );
 
+    await _handleApplyResult(ok);
+  }
+
+  /// Shared na dulo ng submission (full wizard at 2-step re-apply): success
+  /// modal → Home, o error toast + balik sa form.
+  Future<void> _handleApplyResult(bool ok) async {
     if (!mounted) return;
     if (ok) {
       // Manatiling naka-loading ang Submit button (`_submitting` = true) at ang
@@ -612,6 +634,39 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         SnackBar(content: Text(err), backgroundColor: AppColors.error),
       );
     }
+  }
+
+  /// 2-STEP RE-APPLY para sa lender na may BAYAD NANG loan (`completed`):
+  /// Purpose (napili na) → Loan Details (amount, frequency, term) → Submit.
+  /// Hindi na hinihingi ang financial/emergency/co-maker/signature steps — ang
+  /// naunang loan ang nagpapatunay ng identity.
+  Future<void> _submitQuickApply() async {
+    if (!_isAmountValid || _purposeCtrl.text.trim().isEmpty) {
+      setState(() {
+        if (_amountCtrl.text.trim().isEmpty) {
+          _amountError = 'Please enter a loan amount.';
+        }
+      });
+      _focusOn(!_isAmountValid ? _amountKey : _purposeKey);
+      return;
+    }
+    // Required ang Terms and Conditions agreement bago ang submission.
+    if (!_acceptedTerms) {
+      setState(() => _termsError =
+          'Please agree to the Terms and Conditions to continue.');
+      return;
+    }
+    final proceed = await _confirmAndAuthenticate();
+    if (!proceed || !mounted) return;
+
+    setState(() => _submitting = true);
+    final ok = await ref.read(lenderLoanProvider.notifier).applyLoan(
+          amount: _amount,
+          frequency: _frequency,
+          termPeriods: _termPeriods,
+          purpose: _purposeCtrl.text.trim(),
+        );
+    await _handleApplyResult(ok);
   }
 
   /// Nagpapakita ng "Are you sure to submit this loan application?" na modal
@@ -797,8 +852,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                         color: selected ? AppColors.lenderBlue : Colors.white,
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
-                          color:
-                              selected ? AppColors.lenderBlue : AppColors.border,
+                          color: selected
+                              ? AppColors.lenderBlue
+                              : AppColors.border,
                         ),
                       ),
                       alignment: Alignment.center,
@@ -839,6 +895,9 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// ang susunod na fields (tingnan ang "Emergency Contact" na hati).
   double get _stepNavBottomPadding {
     if (MediaQuery.viewInsetsOf(context).bottom > 0) return 10;
+    // Desktop (WebScaffold) → WALANG floating bottom nav, kaya hindi na dapat
+    // mag-reserve ng ~118px na blangkong banda sa ilalim ng Back/Submit.
+    if (MediaQuery.sizeOf(context).width >= kDesktopBreakpoint) return 16;
     return MediaQuery.paddingOf(context).bottom +
         kFloatingNavFloatGap +
         kFloatingNavPillHeight +
@@ -1038,6 +1097,107 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           const SizedBox(height: 20),
           _SchedulePreview(preview: preview, loading: _previewLoading),
         ],
+      ),
+    );
+  }
+
+  // ─────────────── 2-STEP RE-APPLY (lender na may bayad nang loan) ───────────────
+  /// Purpose (napili na) → Loan Details (amount, frequency, term) → Submit.
+  /// Hindi na dumadaan sa financial, co-maker, signature, at review steps.
+  Widget _buildQuickApplyContent(
+      NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
+    return Column(
+      children: [
+        _buildQuickHeader(),
+        // Kaparehong Loan Details step ng normal wizard — dito pa rin pumipili
+        // ng amount, payment frequency, at loan term.
+        Expanded(
+          child: _CenteredMaxWidth(
+            maxWidth: 960,
+            child: _buildLoanDetailsStep(fmt, preview, isSubmitting),
+          ),
+        ),
+        _buildTermsAgreement(),
+        _buildQuickStepNav(isSubmitting),
+      ],
+    );
+  }
+
+  /// Terms and Conditions checkbox — laging visible sa 2-step re-apply at
+  /// required bago mag-submit. Ang link ay nagbubukas ng buong T&C sheet.
+  Widget _buildTermsAgreement() {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 960),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              LenderTermsAgreementCheckbox(
+                value: _acceptedTerms,
+                onChanged: (value) => setState(() {
+                  _acceptedTerms = value;
+                  if (value) _termsError = null;
+                }),
+              ),
+              if (_termsError != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text(
+                    _termsError!,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.error,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // "Loan Details" lang ang nakalagay — walang step chip o subtitle.
+  Widget _buildQuickHeader() => Container(
+        width: double.infinity,
+        color: Colors.white,
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: const Text('Loan Details',
+            style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+                color: AppColors.textPrimary)),
+      );
+
+  Widget _buildQuickStepNav(bool isSubmitting) {
+    // Walang background/card dito — nakapatong lang ang Back/Submit sa page.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 4, 16, _stepNavBottomPadding),
+      child: _CenteredMaxWidth(
+        maxWidth: 960,
+        child: Row(
+          children: [
+            const Spacer(),
+            _NavTextButton(
+              icon: Icons.arrow_back_rounded,
+              label: 'Back',
+              onTap: isSubmitting
+                  ? null
+                  : () => setState(() => _purposeChosen = false),
+            ),
+            const SizedBox(width: 12),
+            AppButton(
+              label: 'Submit Application',
+              icon: Icons.send,
+              color: AppColors.lenderBlue,
+              isLoading: isSubmitting,
+              onTap: isSubmitting ? null : _submitQuickApply,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1644,6 +1804,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     final loanState = ref.watch(lenderLoanProvider);
     final accountUpgradeState = ref.watch(lenderAccountUpgradeProvider);
     final fmt = NumberFormat('#,##0.00', 'en_PH');
+    // May bayad nang loan? → 2-step re-apply ang wizard content.
+    final previousLoan = latestCompletedLoan(loanState.loans);
     final upgradeStatus = accountUpgradeState.status;
     final needsUpgrade =
         upgradeStatus != 'verified' && upgradeStatus != 'approved';
@@ -1674,8 +1836,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
                   SizedBox(height: 16),
                   Text(
                     'Finalizing your request…',
-                    style: TextStyle(
-                        fontSize: 14, color: AppColors.textSecondary),
+                    style:
+                        TextStyle(fontSize: 14, color: AppColors.textSecondary),
                   ),
                 ],
               ),
@@ -1684,8 +1846,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           // loading na Submit button — hindi dapat sumilip ang shimmer
           // skeleton o ang loan-state/status views bago mag-modal at mag-home.
           : _submitting
-              ? _buildWizardStepContent(
-                  fmt, loanState.schedulePreview, _submitting)
+              ? (previousLoan != null
+                  ? _buildQuickApplyContent(
+                      fmt, loanState.schedulePreview, _submitting)
+                  : _buildWizardStepContent(
+                      fmt, loanState.schedulePreview, _submitting))
               : (loanState.isLoading || accountUpgradeState.isLoading)
                   ? const _LenderApplyLoanSkeleton()
                   : _buildFlow(loanState, accountUpgradeState, fmt),
@@ -1754,7 +1919,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     // Bago ang mismong wizard: full-screen na loan purpose selection. Dito
     // na pinipili ang purpose, kaya wala nang purpose field sa Loan Details.
     if (!_purposeChosen) {
-      return _LoanPurposePicker(
+      return LenderLoanPurposePicker(
         suggestions: _purposeSuggestions,
         onSelected: (purpose) {
           setState(() {
@@ -1764,6 +1929,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           _refreshPreview();
         },
       );
+    }
+
+    // Lender na may BAYAD NANG loan: Purpose → Amount → Submit lang — hindi
+    // na ang 5-step wizard (financial, co-maker, signature, review).
+    final previousLoan = latestCompletedLoan(loans);
+    if (previousLoan != null) {
+      return _buildQuickApplyContent(fmt, loanState.schedulePreview, false);
     }
 
     final state = loanState;
@@ -2234,8 +2406,7 @@ class _PesoIncomeFormatter extends TextInputFormatter {
     }
     // Reject values above the cap (truncate until within range, so pasting a
     // huge number can never exceed ₱10M).
-    while (body.isNotEmpty &&
-        (double.tryParse(body) ?? 0) > _maxIncome) {
+    while (body.isNotEmpty && (double.tryParse(body) ?? 0) > _maxIncome) {
       body = body.substring(0, body.length - 1);
     }
     // Recompute after any truncation above so the split below stays valid.
@@ -2471,9 +2642,8 @@ class _StepIndicator extends StatelessWidget {
                         maxLines: 1,
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: i == current
-                              ? FontWeight.w700
-                              : FontWeight.w400,
+                          fontWeight:
+                              i == current ? FontWeight.w700 : FontWeight.w400,
                           color: i <= current
                               ? AppColors.lenderBlue
                               : AppColors.textTertiary,
@@ -3629,20 +3799,22 @@ class _ChooseDisbursementViewState
 /// Buong-screen na loan purpose selection. Ito ang unang lumalabas kapag
 /// pinindot ang "Apply Loan" — pagkatapos pumili, diretso na sa Loan Details
 /// step ng wizard (na wala nang sariling purpose field).
-class _LoanPurposePicker extends StatefulWidget {
+class LenderLoanPurposePicker extends StatefulWidget {
   final List<(String, IconData)> suggestions;
   final ValueChanged<String> onSelected;
 
-  const _LoanPurposePicker({
+  const LenderLoanPurposePicker({
+    super.key,
     required this.suggestions,
     required this.onSelected,
   });
 
   @override
-  State<_LoanPurposePicker> createState() => _LoanPurposePickerState();
+  State<LenderLoanPurposePicker> createState() =>
+      _LenderLoanPurposePickerState();
 }
 
-class _LoanPurposePickerState extends State<_LoanPurposePicker> {
+class _LenderLoanPurposePickerState extends State<LenderLoanPurposePicker> {
   static const String _otherLabel = 'Other';
 
   String? _selected;
@@ -3694,148 +3866,267 @@ class _LoanPurposePickerState extends State<_LoanPurposePicker> {
     widget.onSelected(value);
   }
 
+  /// Isang purpose option — radio row na card.
+  Widget _purposeTile(String label, IconData icon) {
+    final selected = _selected == label;
+    return InkWell(
+      onTap: () => _select(label),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.lenderBlueLight : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppColors.lenderBlue : AppColors.border,
+            width: selected ? 1.6 : 1,
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon,
+                size: 20,
+                color: selected ? Colors.white : AppColors.textSecondary),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppColors.textPrimary,
+                ),
+              ),
+            ),
+            Icon(
+              selected
+                  ? Icons.radio_button_checked
+                  : Icons.radio_button_unchecked,
+              size: 20,
+              color: selected ? Colors.white : AppColors.textTertiary,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    // Desktop: naka-center sa comfortable width (hindi naka-stretch sa buong
+    // browser) at 2 columns ang purposes.
+    return _CenteredMaxWidth(
+      maxWidth: 960,
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              // Kapag kasya ang laman, hindi na mahihila ang page; tuloy pa rin
+              // ang scroll kapag talagang umaapaw.
+              physics: const ClampingScrollPhysics(),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Walang title header — ang subtitle na lang ang nagpapaliwanag.
+                  const Text(
+                    'Choose the purpose of your loan. This is the first step before the loan details.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(builder: (context, c) {
+                    // Makitid (mobile): isang column. Desktop: 2 columns.
+                    if (c.maxWidth < 720) {
+                      return Column(
+                        children: [
+                          for (final option in widget.suggestions)
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 10),
+                              child: _purposeTile(option.$1, option.$2),
+                            ),
+                        ],
+                      );
+                    }
+                    final tileWidth = (c.maxWidth - 12) / 2;
+                    return Wrap(
+                      spacing: 12,
+                      runSpacing: 10,
+                      children: [
+                        for (final option in widget.suggestions)
+                          SizedBox(
+                            width: tileWidth,
+                            child: _purposeTile(option.$1, option.$2),
+                          ),
+                      ],
+                    );
+                  }),
+                  if (_isOther) ...[
+                    const SizedBox(height: 2),
+                    TextField(
+                      key: _otherFieldKey,
+                      controller: _otherCtrl,
+                      maxLines: 3,
+                      maxLength: 255,
+                      onChanged: (_) => setState(() => _showError = false),
+                      decoration: InputDecoration(
+                        hintText: 'Write the reason for your loan...',
+                        counterText: '',
+                        filled: true,
+                        fillColor: Colors.white,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: const BorderSide(color: AppColors.border),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide:
+                              const BorderSide(color: AppColors.lenderBlue),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (_showError)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 10),
+                      child: Text(
+                        'Please choose a loan purpose to continue.',
+                        style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.error,
+                            fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          // Naka-pin sa itaas ng floating bottom nav — eksaktong clearance
+          // mula sa [mobileBottomNavInset]. Sa desktop, right-aligned button.
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              8,
+              16,
+              isDesktop ? 16 : mobileBottomNavInset(context),
+            ),
+            child: isDesktop
+                ? Align(
+                    alignment: Alignment.centerRight,
+                    child: SizedBox(
+                      width: 260,
+                      child: AppButton(
+                        label: 'Continue',
+                        icon: Icons.arrow_forward_rounded,
+                        color: AppColors.lenderBlue,
+                        onTap: _continue,
+                      ),
+                    ),
+                  )
+                : AppButton(
+                    label: 'Continue',
+                    icon: Icons.arrow_forward_rounded,
+                    color: AppColors.lenderBlue,
+                    isExpanded: true,
+                    onTap: _continue,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Desktop layout helper: naka-center sa [maxWidth] (hindi naka-stretch sa buong
+/// lapad ng browser). Sa mas makitid na screen, buong lapad pa rin.
+class _CenteredMaxWidth extends StatelessWidget {
+  final double maxWidth;
+  final Widget child;
+  const _CenteredMaxWidth({required this.maxWidth, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      final width = c.maxWidth > maxWidth ? maxWidth : c.maxWidth;
+      return Center(
+        child: SizedBox(
+          width: width,
+          height: c.maxHeight.isFinite ? c.maxHeight : null,
+          child: child,
+        ),
+      );
+    });
+  }
+}
+
+/// Terms and Conditions agreement row: checkbox + tappable link na nagbubukas
+/// ng buong T&C sheet. Required ito bago ang quick re-apply submit.
+class LenderTermsAgreementCheckbox extends StatelessWidget {
+  final bool value;
+  final ValueChanged<bool> onChanged;
+
+  const LenderTermsAgreementCheckbox({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Checkbox(
+            key: const Key('terms_checkbox'),
+            value: value,
+            activeColor: AppColors.lenderBlue,
+            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            visualDensity: VisualDensity.compact,
+            onChanged: (v) => onChanged(v ?? false),
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
-          child: SingleChildScrollView(
-            // Kapag kasya ang laman, hindi na mahihila ang page; tuloy pa rin
-            // ang scroll kapag talagang umaapaw.
-            physics: const ClampingScrollPhysics(),
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Walang "What is this loan for?" na header — ang subtitle na
-                // lang ang nagpapaliwanag, at naka-center ito.
-                const Text(
-                  'Choose the purpose of your loan. This is the first step before the loan details.',
-                  textAlign: TextAlign.center,
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              InkWell(
+                onTap: () => onChanged(!value),
+                child: const Text(
+                  'I have read and agree to the ',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    height: 1.35,
+                    fontSize: 12.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w500,
                     color: AppColors.textSecondary,
                   ),
                 ),
-                const SizedBox(height: 16),
-                ...widget.suggestions.map((option) {
-                  final label = option.$1;
-                  final icon = option.$2;
-                  final selected = _selected == label;
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: InkWell(
-                      onTap: () => _select(label),
-                      borderRadius: BorderRadius.circular(12),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? AppColors.lenderBlueLight
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: selected
-                                ? AppColors.lenderBlue
-                                : AppColors.border,
-                            width: selected ? 1.6 : 1,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            Icon(icon,
-                                size: 20,
-                                color: selected
-                                    ? Colors.white
-                                    : AppColors.textSecondary),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                label,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                  color: selected
-                                      ? Colors.white
-                                      : AppColors.textPrimary,
-                                ),
-                              ),
-                            ),
-                            Icon(
-                              selected
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              size: 20,
-                              color: selected
-                                  ? Colors.white
-                                  : AppColors.textTertiary,
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-                if (_isOther) ...[
-                  const SizedBox(height: 2),
-                  TextField(
-                    key: _otherFieldKey,
-                    controller: _otherCtrl,
-                    maxLines: 3,
-                    maxLength: 255,
-                    onChanged: (_) => setState(() => _showError = false),
-                    decoration: InputDecoration(
-                      hintText: 'Write the reason for your loan...',
-                      counterText: '',
-                      filled: true,
-                      fillColor: Colors.white,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide: const BorderSide(color: AppColors.border),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(10),
-                        borderSide:
-                            const BorderSide(color: AppColors.lenderBlue),
-                      ),
-                    ),
+              ),
+              InkWell(
+                onTap: () => showTermsAndConditionsSheet(context),
+                child: const Text(
+                  'Terms and Conditions',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.lenderBlue,
+                    decoration: TextDecoration.underline,
                   ),
-                ],
-                if (_showError)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 10),
-                    child: Text(
-                      'Please choose a loan purpose to continue.',
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: AppColors.error,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-        // Naka-pin sa itaas ng floating bottom nav — eksaktong clearance mula
-        // sa [mobileBottomNavInset] (kasama na ang safe area + float + pill).
-        Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            8,
-            16,
-            mobileBottomNavInset(context),
-          ),
-          child: AppButton(
-            label: 'Continue',
-            icon: Icons.arrow_forward_rounded,
-            color: AppColors.lenderBlue,
-            isExpanded: true,
-            onTap: _continue,
+                ),
+              ),
+            ],
           ),
         ),
       ],

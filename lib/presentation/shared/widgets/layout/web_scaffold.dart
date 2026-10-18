@@ -14,6 +14,7 @@ import '../../../features/employee/profile/providers/emp_profile_provider.dart';
 import '../../../features/head_manager/profile/providers/hm_profile_provider.dart';
 import '../../../features/lender/profile/providers/lender_profile_provider.dart';
 import '../../providers/auth_state_provider.dart';
+import '../dialogs/confirmation_dialog.dart';
 import '../dialogs/success_dialog.dart';
 import '../notification_dropdown.dart';
 import '../profile_avatar.dart';
@@ -53,25 +54,20 @@ Future<void> performLogout(BuildContext context, WidgetRef ref) async {
   // disposed context and can leave the app on a blank /login page (URL
   // changes, no widget builds).
   final router = GoRouter.of(context);
-  // 1) Confirm modal muna: "Are you sure to logout?"
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (ctx) => AlertDialog(
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      title: const Text('Log Out'),
-      content: const Text('Are you sure to logout?'),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(ctx, false),
-          child: const Text('No'),
-        ),
-        ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
-          onPressed: () => Navigator.pop(ctx, true),
-          child: const Text('Yes'),
-        ),
-      ],
-    ),
+  // 1) Confirm modal muna: "Are you sure to logout?" — kaparehong shared
+  // dialog ng mobile logout para theme-aware ang "No" (hindi ito mawala sa
+  // dark mode gaya ng default na AlertDialog action).
+  final confirmed = await showConfirmationDialog(
+    context,
+    title: 'Log Out',
+    message: 'Are you sure to logout?',
+    confirmLabel: 'Yes',
+    cancelLabel: 'No',
+    isDangerous: true,
+    centerText: true,
+    showIcon: false,
+    showDivider: false,
+    width: 280,
   );
   if (confirmed != true || !context.mounted) return;
   // 2) Loading modal (non-dismissible) habang tumatakbo ang logout.
@@ -158,6 +154,11 @@ class WebScaffold extends ConsumerWidget {
     final collapsed = ref.watch(_sidebarCollapsedProvider);
     final authState = ref.watch(authStateProvider);
     final role = roleOverride ?? authState.role ?? '';
+    // Ang rider ay may SARILING kulay ng sidebar (berde) — hindi navy — para
+    // agad makilala ang role. Nananatiling navy ang HM / employee / lender.
+    final isRider = role == AppConstants.roleRider;
+    final sidebarColor =
+        isRider ? AppColors.riderGreenDark : AppColors.deepNavy;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -165,7 +166,7 @@ class WebScaffold extends ConsumerWidget {
 
         if (isDesktop) {
           return Scaffold(
-            backgroundColor: const Color(0xFFF0F2F5),
+            backgroundColor: context.cPageBg,
             body: Row(
               children: [
                 RepaintBoundary(
@@ -198,25 +199,25 @@ class WebScaffold extends ConsumerWidget {
         }
 
         return Scaffold(
-          backgroundColor: const Color(0xFFF0F2F5),
+          backgroundColor: context.cPageBg,
           appBar: AppBar(
-            backgroundColor: const Color(0xFFF0F2F5),
-            foregroundColor: AppColors.textPrimary,
+            backgroundColor: context.cPageBg,
+            foregroundColor: context.cTextPrimary,
             elevation: 0,
             automaticallyImplyLeading: false,
             leading: Builder(
               builder: (ctx) => IconButton(
-                icon: const Icon(Icons.menu, color: AppColors.textSecondary),
+                icon: Icon(Icons.menu, color: context.cTextSecondary),
                 tooltip: 'Open Menu',
                 onPressed: () => Scaffold.of(ctx).openDrawer(),
               ),
             ),
             title: Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
-                color: AppColors.textPrimary,
+                color: context.cTextPrimary,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -238,7 +239,7 @@ class WebScaffold extends ConsumerWidget {
           ),
           drawer: Drawer(
             width: 240,
-            backgroundColor: AppColors.deepNavy,
+            backgroundColor: sidebarColor,
             elevation: 0,
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
@@ -280,9 +281,11 @@ class _MobileActions extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         const NotificationBellButton(),
-        // Lender: nasa drawer/sidebar na ang My Profile at Log Out (tingnan ang
-        // `_SidebarAccountItem`), kaya hindi na ipinapakita ang avatar.
-        if (role != AppConstants.roleLender)
+        // Lender at rider: nasa drawer/sidebar na ang My Profile at Log Out
+        // (tingnan ang `_SidebarAccountItem`), kaya hindi na ipinapakita ang
+        // avatar.
+        if (role != AppConstants.roleLender &&
+            role != AppConstants.roleRider)
           _UserAvatar(authState: authState, showName: false),
       ],
     );
@@ -312,9 +315,9 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       height: 64,
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: AppColors.border)),
+      decoration: BoxDecoration(
+        color: context.cSurface,
+        border: Border(bottom: BorderSide(color: context.cBorder)),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Row(
@@ -322,27 +325,29 @@ class _TopBar extends StatelessWidget {
           if (leading != null) leading!,
           IconButton(
             onPressed: onMenuTap,
-            icon: const Icon(Icons.menu, color: AppColors.textSecondary),
+            icon: Icon(Icons.menu, color: context.cTextSecondary),
             tooltip: 'Toggle Sidebar',
           ),
           const SizedBox(width: 8),
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              color: AppColors.textPrimary,
+              color: context.cTextPrimary,
             ),
           ),
           const Spacer(),
           if (actions != null) ...actions!,
           const SizedBox(width: 8),
-          const NotificationBellButton(),
+          NotificationBellButton(iconColor: context.cTextSecondary),
           const SizedBox(width: 4),
-          // Nakatago na ang identity (avatar + pangalan + role) sa lender: nasa
-          // SIDEBAR na ang My Profile at Log Out, kaya wala nang laman ang
-          // dropdown nito. Ang HM / employee ay hindi apektado.
-          if (role != AppConstants.roleLender)
+          // Nakatago na ang identity (avatar + pangalan + role) sa lender at
+          // rider: nasa SIDEBAR na ang My Profile at Log Out, kaya duplikado at
+          // walang laman na dropdown lang ito. Ang HM / employee ay hindi
+          // apektado.
+          if (role != AppConstants.roleLender &&
+              role != AppConstants.roleRider)
             _UserAvatar(authState: authState),
         ],
       ),
@@ -425,10 +430,10 @@ class _UserAvatar extends ConsumerWidget {
               children: [
                 Text(
                   displayName,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.textPrimary,
+                    color: context.cTextPrimary,
                   ),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
@@ -436,10 +441,10 @@ class _UserAvatar extends ConsumerWidget {
                 if (roleLabel.isNotEmpty)
                   Text(
                     roleLabel.toUpperCase(),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textTertiary,
+                      color: context.cTextTertiary,
                       letterSpacing: 0.4,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -450,10 +455,10 @@ class _UserAvatar extends ConsumerWidget {
           ),
         ],
         const SizedBox(width: 4),
-        const Icon(
+        Icon(
           Icons.keyboard_arrow_down_rounded,
           size: 18,
-          color: AppColors.textSecondary,
+          color: context.cTextSecondary,
         ),
       ],
     );
@@ -639,9 +644,17 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           setState(() => _showLabels = true);
         }
       },
-      // Flat navy panel — no border, no shadow/outline on the edge.
-      decoration: const BoxDecoration(
-        color: AppColors.deepNavy,
+      // Flat panel — no border, no shadow/outline on the edge. Navy para sa HM
+      // / employee / lender, at BERDE para sa rider (role color nila).
+      decoration: BoxDecoration(
+        color: role == AppConstants.roleRider ? null : AppColors.deepNavy,
+        gradient: role == AppConstants.roleRider
+            ? const LinearGradient(
+                colors: [AppColors.riderGreenDark, AppColors.riderGreen],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              )
+            : null,
       ),
       child: Column(
         children: [
@@ -686,29 +699,38 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                 return _SidebarItem(
                   item: item,
                   collapsed: !showText,
+                  green: role == AppConstants.roleRider,
                 );
               }).toList(),
             ),
           ),
-          // ── Account items (LENDER) ────────────────────────────────────
+          // ── Account items (LENDER / RIDER) ────────────────────────────
           // Nasa SIDEBAR na ang My Profile at Log Out — hindi na dropdown sa
           // avatar ng top bar. Nakapin sa ibaba, hiwalay sa mga pangunahing
           // section ng app.
-          if (role == AppConstants.roleLender) ...[
+          if (role == AppConstants.roleLender ||
+              role == AppConstants.roleRider) ...[
             const Divider(height: 1, thickness: 1, color: Colors.white12),
             const SizedBox(height: 8),
             _SidebarAccountItem(
               icon: Icons.person_outlined,
               label: 'My Profile',
               collapsed: !showText,
-              isActive: path == RouteConstants.lenderProfile ||
-                  path.startsWith('${RouteConstants.lenderProfile}/'),
-              onTap: () => context.go(RouteConstants.lenderProfile),
+              green: role == AppConstants.roleRider,
+              isActive: role == AppConstants.roleRider
+                  ? (path == RouteConstants.riderProfile ||
+                      path.startsWith('${RouteConstants.riderProfile}/'))
+                  : (path == RouteConstants.lenderProfile ||
+                      path.startsWith('${RouteConstants.lenderProfile}/')),
+              onTap: () => context.go(role == AppConstants.roleRider
+                  ? RouteConstants.riderProfile
+                  : RouteConstants.lenderProfile),
             ),
             _SidebarAccountItem(
               icon: Icons.logout,
               label: 'Log Out',
               collapsed: !showText,
+              green: role == AppConstants.roleRider,
               onTap: () => performLogout(context, ref),
             ),
             const SizedBox(height: 8),
@@ -725,8 +747,24 @@ class _SidebarState extends ConsumerState<_Sidebar> {
 List<_NavItem> _itemsForRole(String role) {
   if (role == AppConstants.roleHeadManager) return _hmItems();
   if (role == AppConstants.roleLender) return _lenderItems();
+  if (role == AppConstants.roleRider) return _riderItems();
   return _empItems();
 }
+
+/// Mga section ng RIDER role para sa sidebar — Home, Collections, Deliveries,
+/// CI Tasks at History. Ang Profile at Log Out ay nasa account section sa
+/// ibaba ng sidebar (tingnan ang `_SidebarAccountItem`).
+List<_NavItem> _riderItems() => const [
+      _NavItem(Icons.home_outlined, 'Home', RouteConstants.riderDashboard),
+      _NavItem(Icons.payments_outlined, 'Collections',
+          RouteConstants.riderCollections),
+      // Cash Deliveries (rider_delivery disbursements) — dati'y maabot lang
+      // mula sa dashboard card, ngayon may sariling sidebar entry.
+      _NavItem(Icons.delivery_dining_outlined, 'Deliveries',
+          RouteConstants.riderDisbursements),
+      _NavItem(Icons.search_outlined, 'CI Tasks', RouteConstants.riderCi),
+      _NavItem(Icons.history_outlined, 'History', RouteConstants.riderHistory),
+    ];
 
 List<_NavItem> _hmItems() => [
       const _NavItem(
@@ -912,7 +950,16 @@ class _NavItem {
 class _SidebarItem extends ConsumerWidget {
   final _NavItem item;
   final bool collapsed;
-  const _SidebarItem({required this.item, required this.collapsed});
+
+  /// Rider sidebar = BERDE, kaya puti ang active na text/icon (hindi gold —
+  /// lubog ang gold sa green kaya hindi mabasa ang naka-select na item).
+  final bool green;
+
+  const _SidebarItem({
+    required this.item,
+    required this.collapsed,
+    this.green = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -953,6 +1000,14 @@ class _SidebarItem extends ConsumerWidget {
         (item.route.isNotEmpty &&
             (path == item.route || path.startsWith('${item.route}/')));
     final isActive = !isPeopleOpen && baseActive;
+    // Active accent: gold sa navy sidebar, PUTI sa berdeng rider sidebar.
+    final activeFg = green ? Colors.white : AppColors.gold;
+    final activeBg = green
+        ? Colors.white.withValues(alpha: 0.18)
+        : AppColors.gold.withValues(alpha: 0.15);
+    final activeBorder = green
+        ? Colors.white.withValues(alpha: 0.36)
+        : AppColors.gold.withValues(alpha: 0.3);
 
     return Tooltip(
       message: collapsed ? item.label : '',
@@ -969,20 +1024,16 @@ class _SidebarItem extends ConsumerWidget {
             vertical: 10,
           ),
           decoration: BoxDecoration(
-            color: isActive
-                ? AppColors.gold.withValues(alpha: 0.15)
-                : Colors.transparent,
+            color: isActive ? activeBg : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
-            border: isActive
-                ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
-                : null,
+            border: isActive ? Border.all(color: activeBorder) : null,
           ),
           child: Row(
             children: [
               Icon(
                 item.icon,
                 size: 20,
-                color: isActive ? AppColors.gold : Colors.white54,
+                color: isActive ? activeFg : Colors.white54,
               ),
               if (!collapsed) ...[
                 const SizedBox(width: 12),
@@ -993,7 +1044,7 @@ class _SidebarItem extends ConsumerWidget {
                       fontSize: 13,
                       fontWeight:
                           isActive ? FontWeight.w600 : FontWeight.w400,
-                      color: isActive ? AppColors.gold : Colors.white70,
+                      color: isActive ? activeFg : Colors.white70,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1021,20 +1072,25 @@ class _SidebarAccountItem extends StatelessWidget {
   /// tumatakbo ng action (hal. logout) o `context.go(...)` mula sa caller.
   final VoidCallback onTap;
 
+  /// Rider sidebar = BERDE — puti ang active accent para mabasa (hindi gold).
+  final bool green;
+
   const _SidebarAccountItem({
     required this.icon,
     required this.label,
     required this.collapsed,
     required this.onTap,
     this.isActive = false,
+    this.green = false,
   });
 
   @override
   Widget build(BuildContext context) {
     // Kapareho ng kulay ng ibang sidebar item (puti) — hindi pula: ordinaryong
     // nav item ang Log Out, hindi babala.
-    final Color fg = isActive ? AppColors.gold : Colors.white70;
-    final Color iconColor = isActive ? AppColors.gold : Colors.white54;
+    final Color activeFg = green ? Colors.white : AppColors.gold;
+    final Color fg = isActive ? activeFg : Colors.white70;
+    final Color iconColor = isActive ? activeFg : Colors.white54;
 
     return Tooltip(
       message: collapsed ? label : '',
@@ -1050,11 +1106,16 @@ class _SidebarAccountItem extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: isActive
-                ? AppColors.gold.withValues(alpha: 0.15)
+                ? (green
+                    ? Colors.white.withValues(alpha: 0.18)
+                    : AppColors.gold.withValues(alpha: 0.15))
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: isActive
-                ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+                ? Border.all(
+                    color: green
+                        ? Colors.white.withValues(alpha: 0.36)
+                        : AppColors.gold.withValues(alpha: 0.3))
                 : null,
           ),
           child: Row(

@@ -149,6 +149,17 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
     fetchLoans();
   }
 
+  /// I-sync ang tab mula sa URL (refresh / deep link / back-forward).
+  ///
+  /// 'all' ang default ng provider kahit `/ongoing` o `/completed` ang unang
+  /// bukas — kung hindi ito tatawagin, LAHAT ng loan ang laman ng Ongoing Loan
+  /// tab (kasama ang `overdue` at `completed`). Kapag tugma na ang tab, hindi
+  /// na mag-reload para hindi magdoble ang unang fetch.
+  void syncTab(String tab) {
+    if (state.tabFilter == tab) return;
+    setTab(tab);
+  }
+
   Future<Map<String, dynamic>?> getLoanDetails(String loanId) async {
     try {
       return await _ds.getDetails(loanId: loanId);

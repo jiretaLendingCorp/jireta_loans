@@ -53,6 +53,10 @@ Future<bool> showMpinSetupDialog(
   bool requireCurrent = false,
   String? reason,
   MpinService? mpin,
+  /// Tinatawag kapag nag-reset (turn off) ang user mula sa itaas ng modal —
+  /// naka-clear na ang MPIN bago ito tawagin. Ang caller ang nagre-reload at
+  /// nagpapakita ng kaukulang mensahe.
+  VoidCallback? onReset,
 }) async {
   final result = await showDialog<bool>(
     context: context,
@@ -62,6 +66,7 @@ Future<bool> showMpinSetupDialog(
       requireCurrent: requireCurrent,
       reason: reason,
       mpin: mpin,
+      onReset: onReset,
     ),
   );
   return result == true;
@@ -74,6 +79,7 @@ class MpinDialog extends StatefulWidget {
     this.requireCurrent = false,
     this.reason,
     this.mpin,
+    this.onReset,
   });
 
   final MpinDialogMode mode;
@@ -87,6 +93,11 @@ class MpinDialog extends StatefulWidget {
   /// Opsyonal na service (pang-test / shared instance). Kapag null, gumagawa
   /// ito ng sarili nitong [MpinService].
   final MpinService? mpin;
+
+  /// Kapag may naka-set nang MPIN, may "Reset MPIN" action sa TAAS ng modal.
+  /// Kapag pinindot ito at na-verify ang kasalukuyang MPIN, naka-clear na ang
+  /// MPIN bago tawagin ito — ang caller ang nagre-reload / nag-toast.
+  final VoidCallback? onReset;
 
   @override
   State<MpinDialog> createState() => _MpinDialogState();
@@ -105,6 +116,10 @@ class _MpinDialogState extends State<MpinDialog> {
   String _firstEntry = '';
   bool _busy = false;
   bool _verifiedCurrent = false;
+
+  /// `true` kapag pinili ang "Reset MPIN" sa TAAS ng modal: pagkatapos
+  /// ma-verify ang kasalukuyang MPIN, i-o-off ito (hindi mag-set ng bago).
+  bool _resetMode = false;
 
   /// Ang KASALUKUYANG MPIN na na-verify na sa server (setup-with-current flow).
   /// Ipinapasa ito sa `setMpin` bilang `currentMpin` — may pangalawang tsek ang
@@ -258,6 +273,15 @@ class _MpinDialogState extends State<MpinDialog> {
 
     switch (result.status) {
       case MpinStatus.success:
+        if (_resetMode) {
+          // Reset: i-off ang MPIN sa server bago isara ang modal.
+          setState(() => _busy = true);
+          await _service.clear();
+          if (!mounted) return;
+          widget.onReset?.call();
+          Navigator.of(context).pop(false);
+          return;
+        }
         if (_isSetup) {
           setState(() {
             _verifiedCurrent = true;
@@ -363,6 +387,7 @@ class _MpinDialogState extends State<MpinDialog> {
       return _isSetup && _verifiedCurrent ? 'New MPIN' : 'Create 4-Digit MPIN';
     }
     if (_step == _Step.confirm) return 'Confirm MPIN';
+    if (_resetMode) return 'Reset MPIN';
     return _isSetup ? 'Current MPIN' : 'Enter MPIN';
   }
 
@@ -377,8 +402,50 @@ class _MpinDialogState extends State<MpinDialog> {
       case _Step.confirm:
         return 'Re-enter your MPIN to confirm.';
       case _Step.current:
+        if (_resetMode) {
+          return 'Enter your current MPIN to reset it. Your MPIN will be '
+              'turned off and you can set a new one anytime.';
+        }
         return widget.reason ?? 'Enter your 4-digit MPIN to continue.';
     }
+  }
+
+  /// "Reset MPIN" sa TAAS ng modal — kailangan pa ring i-verify ang
+  /// kasalukuyang MPIN bago ito ma-off, kaya hindi ito bypass.
+  Future<void> _requestReset() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Reset MPIN'),
+        content: const Text(
+          'Turn off your MPIN? You can set a new one anytime from '
+          'Profile → Security.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Reset',
+              style: TextStyle(
+                color: AppColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _resetMode = true;
+      _error = null;
+    });
+    _clearBoxes();
   }
 
   @override
@@ -421,6 +488,29 @@ class _MpinDialogState extends State<MpinDialog> {
                       ),
                     ),
                   ),
+                  // Reset MPIN sa TAAS ng modal — lumalabas lang kapag may
+                  // naka-set nang MPIN at nasa Current MPIN step pa lang.
+                  if (_isSetup &&
+                      widget.requireCurrent &&
+                      _step == _Step.current &&
+                      !_resetMode)
+                    TextButton(
+                      onPressed: _busy ? null : _requestReset,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        padding:
+                            const EdgeInsets.symmetric(horizontal: 8),
+                        minimumSize: const Size(0, 0),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Reset MPIN',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
                 ],
               ),
               if (_subtitle != null) ...[

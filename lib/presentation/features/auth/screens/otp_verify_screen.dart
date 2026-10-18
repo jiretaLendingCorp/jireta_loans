@@ -220,171 +220,166 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       _loading = true;
       _error = null;
     });
-    final ok = await ref
-        .read(authProvider.notifier)
-        .verifyOtp(phone: _phone, otp: otp);
-    if (!mounted) return;
-    setState(() => _loading = false);
-    if (ok) {
-      // ── Authenticator (TOTP) challenge MUNA, bago ang lahat ──────────────
-      // Ang desisyon ay kinuha na ng [AuthNotifier] habang nag-e-verify ng OTP
-      // (server ang unang pinagkukunan ng factor state, Supabase Auth ang
-      // fallback), kaya dito ay binabasa na lang ito. Kapag may verified TOTP
-      // factor ang account, hindi dapat maabot ang MPIN, ang dashboard, o
-      // kahit ang "Reset MPIN" — sensitibo ang huli sa server at tinatanggihan
-      // kapag `aal1` pa ang session.
-      if (ref.read(authStateProvider).mfaRequired) {
-        final loginMfa = ref.read(authProvider.notifier).loginMfa;
-        await _showSuccessAndGo(
-          RouteConstants.mfaVerify,
-          extra: MfaVerifyArgs(
-            factorId: loginMfa.factorId,
-            phone: _phone,
-            resetMpin: widget.resetMpin,
-          ),
-          title: 'OTP verified',
-          message: 'Enter the 6-digit code from your authenticator app.',
-        );
-        return;
-      }
-      // ── "Reset MPIN": burahin ang lumang MPIN, tapos DERETSO sa create ────
-      // Sa takbong ito, napatunayan na ng OTP ang numero, kaya ngayon pa lang
-      // binubura ang lumang MPIN (kung mag-back ang user bago ito, hindi
-      // nasisira ang dating MPIN at babalik siya sa MPIN screen na may numero —
-      // hindi sa "Mobile Number" form).
-      //
-      // MAHALAGA: hindi na ito dumadaan pa sa `statusHasMpin()` sa ibaba.
-      // Nasa kamay na natin ang sagot — nabura na ang MPIN — kaya
-      // "Create Your MPIN" ang tanging tamang susunod na screen.
-      //
-      // DATI: kahit sa reset flow ay tumitingin pa sa `statusHasMpin()`, at
-      // tanging ang TAHASANG `false` lang ang dumadaan sa create. Kapag nabigo
-      // ang `clear()` (tahimik na kinakain ng `catch (_) {}`) o hindi maabot
-      // ang `status`, `true`/`null` ang isinasagot nito — kaya nauuwi ang user
-      // sa "Enter MPIN" na hindi naman niya alam ang sagot. Ngayon, ang bigong
-      // pag-reset ay sinasabi nang malinaw sa halip na ituloy sa maling screen.
-      if (widget.resetMpin) {
-        final cleared = await clearMpinForReset(ref);
-        if (!mounted) return;
-        if (!cleared) {
-          setState(() {
-            _error = 'We could not reset your MPIN. Please check your '
-                'internet connection and try again.';
-          });
+    // Naka-authenticated na agad ang session kapag nagtagumpay ang OTP, kaya
+    // puwede nang agawin ng router redirect ang screen (hal. staff →
+    // dashboard). I-hold ito hanggang maipakita ang success dialog at
+    // makapag-navigate ang screen mismo.
+    ref.read(otpSuccessHandoffProvider.notifier).state = true;
+    try {
+      final ok = await ref
+          .read(authProvider.notifier)
+          .verifyOtp(phone: _phone, otp: otp);
+      if (!mounted) return;
+      setState(() => _loading = false);
+      if (ok) {
+        // ── Authenticator (TOTP) challenge MUNA, bago ang lahat ──────────────
+        // Ang desisyon ay kinuha na ng [AuthNotifier] habang nag-e-verify ng OTP
+        // (server ang unang pinagkukunan ng factor state, Supabase Auth ang
+        // fallback), kaya dito ay binabasa na lang ito. Kapag may verified TOTP
+        // factor ang account, hindi dapat maabot ang MPIN, ang dashboard, o
+        // kahit ang "Reset MPIN" — sensitibo ang huli sa server at tinatanggihan
+        // kapag `aal1` pa ang session.
+        if (ref.read(authStateProvider).mfaRequired) {
+          final loginMfa = ref.read(authProvider.notifier).loginMfa;
+          await _showSuccessAndGo(
+            RouteConstants.mfaVerify,
+            extra: MfaVerifyArgs(
+              factorId: loginMfa.factorId,
+              phone: _phone,
+              resetMpin: widget.resetMpin,
+            ),
+            title: 'OTP verified',
+            message: 'Enter the 6-digit code from your authenticator app.',
+          );
           return;
         }
-        // Isang beses lang dapat gamitin ang reset link/token na nasa URL.
-        await SecureStorage.clearResetOtpSession();
+        // ── "Reset MPIN": burahin ang lumang MPIN, tapos DERETSO sa create ────
+        // Sa takbong ito, napatunayan na ng OTP ang numero, kaya ngayon pa lang
+        // binubura ang lumang MPIN (kung mag-back ang user bago ito, hindi
+        // nasisira ang dating MPIN at babalik siya sa MPIN screen na may numero —
+        // hindi sa "Mobile Number" form).
+        //
+        // MAHALAGA: hindi na ito dumadaan pa sa `statusHasMpin()` sa ibaba.
+        // Nasa kamay na natin ang sagot — nabura na ang MPIN — kaya
+        // "Create Your MPIN" ang tanging tamang susunod na screen.
+        //
+        // DATI: kahit sa reset flow ay tumitingin pa sa `statusHasMpin()`, at
+        // tanging ang TAHASANG `false` lang ang dumadaan sa create. Kapag nabigo
+        // ang `clear()` (tahimik na kinakain ng `catch (_) {}`) o hindi maabot
+        // ang `status`, `true`/`null` ang isinasagot nito — kaya nauuwi ang user
+        // sa "Enter MPIN" na hindi naman niya alam ang sagot. Ngayon, ang bigong
+        // pag-reset ay sinasabi nang malinaw sa halip na ituloy sa maling screen.
+        if (widget.resetMpin) {
+          final cleared = await clearMpinForReset(ref);
+          if (!mounted) return;
+          if (!cleared) {
+            setState(() {
+              _error = 'We could not reset your MPIN. Please check your '
+                  'internet connection and try again.';
+            });
+            return;
+          }
+          // Isang beses lang dapat gamitin ang reset link/token na nasa URL.
+          await SecureStorage.clearResetOtpSession();
+          if (!mounted) return;
+          // Malinaw sa user kung ano ang nangyari sa MPIN niya — hindi lang
+          // "verified" ang nakalagay kundi pati ang naburang lumang MPIN.
+          // Dito muna ito sa Verify OTP screen at kusang nawawala pagkalipas ng
+          // 2 segundo (`_showSuccessAndGo` → `SuccessDialog.showAutoDismiss`),
+          // bago lumipat sa "Create Your MPIN".
+          await _showSuccessAndGo(
+            RouteConstants.mpinSetup,
+            title: 'Successfully Reset MPIN',
+            message: 'Your OTP has been verified and your old MPIN has been '
+                'reset. Create your new MPIN now.',
+            // Dito muna sa Verify OTP screen: 2 segundo ang dialog, tapos
+            // deretso sa "Create Your MPIN".
+            dialogDuration: const Duration(seconds: 2),
+          );
+          return;
+        }
+        // ── Susunod na screen pagkatapos ng OTP ─────────────────────────────
+        // Rider / lender: palaging dumadaan muna sa MPIN (setup kung wala pa, o
+        // "Enter MPIN" na may numerong ginamit); staff: dashboard ng role (o
+        // force-password-change). Kapareho ito ng nangyayari sa pagbukas muli ng
+        // app, kaya iisa ang takbo ng dalawang pagkakataon — iisang pinagmulan
+        // na lang (`resolvePostAuthDestination`) dahil ginagamit din ito ng MFA
+        // screen.
+        final destination =
+            await resolvePostAuthDestination(ref, phone: _phone);
         if (!mounted) return;
-        // Malinaw sa user kung ano ang nangyari sa MPIN niya — hindi lang
-        // "verified" ang nakalagay kundi pati ang naburang lumang MPIN.
-        // Dito muna ito sa Verify OTP screen at kusang nawawala pagkalipas ng
-        // 2 segundo (`_showSuccessAndGo` → `SuccessDialog.showAutoDismiss`),
-        // bago lumipat sa "Create Your MPIN".
         await _showSuccessAndGo(
-          RouteConstants.mpinSetup,
-          title: 'Successfully Reset MPIN',
-          message: 'Your OTP has been verified and your old MPIN has been '
-              'reset. Create your new MPIN now.',
-          // Dito muna sa Verify OTP screen: 2 segundo ang dialog, tapos
-          // deretso sa "Create Your MPIN".
-          waitForDialog: true,
-          dialogDuration: const Duration(seconds: 2),
+          destination.location,
+          extra: destination.extra,
         );
-        return;
-      }
-      // ── Susunod na screen pagkatapos ng OTP ─────────────────────────────
-      // Rider / lender: palaging dumadaan muna sa MPIN (setup kung wala pa, o
-      // "Enter MPIN" na may numerong ginamit); staff: dashboard ng role (o
-      // force-password-change). Kapareho ito ng nangyayari sa pagbukas muli ng
-      // app, kaya iisa ang takbo ng dalawang pagkakataon — iisang pinagmulan
-      // na lang (`resolvePostAuthDestination`) dahil ginagamit din ito ng MFA
-      // screen.
-      final destination =
-          await resolvePostAuthDestination(ref, phone: _phone);
-      if (!mounted) return;
-      await _showSuccessAndGo(
-        destination.location,
-        extra: destination.extra,
-      );
-    } else {
-      for (final c in _controllers) {
-        c.clear();
-      }
-      _focusNodes[0].requestFocus();
-      final err = ref.read(authProvider).error;
-      var message = 'Wrong OTP code. Please check and try again.';
-      if (err != null) {
-        message =
-            ref.read(authProvider.notifier).extractErrorMessage(err) ?? message;
-      }
-      final lockSecs =
-          ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
-      if (lockSecs != null && lockSecs > 0) {
+      } else {
+        for (final c in _controllers) {
+          c.clear();
+        }
+        _focusNodes[0].requestFocus();
+        final err = ref.read(authProvider).error;
+        var message = 'Wrong OTP code. Please check and try again.';
+        if (err != null) {
+          message = ref.read(authProvider.notifier).extractErrorMessage(err) ??
+              message;
+        }
+        final lockSecs =
+            ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
+        if (lockSecs != null && lockSecs > 0) {
+          if (!mounted) return;
+          setState(() {
+            _error = message;
+          });
+          _startLockCountdown(lockSecs);
+          return;
+        }
         if (!mounted) return;
-        setState(() {
-          _error = message;
-        });
-        _startLockCountdown(lockSecs);
-        return;
+        // No toast — the inline error text below the OTP boxes is enough.
+        // Show a proper validation message with the remaining attempts.
+        _attemptsUsed++;
+        final attemptsLeft = _maxOtpAttempts - _attemptsUsed;
+        final attemptSuffix = attemptsLeft > 0
+            ? ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
+                '$attemptsLeft attempt${attemptsLeft == 1 ? '' : 's'} left.'
+            : ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
+                'no attempts left. Please request a new code.';
+        setState(() => _error = '$message$attemptSuffix');
       }
-      if (!mounted) return;
-      // No toast — the inline error text below the OTP boxes is enough.
-      // Show a proper validation message with the remaining attempts.
-      _attemptsUsed++;
-      final attemptsLeft = _maxOtpAttempts - _attemptsUsed;
-      final attemptSuffix = attemptsLeft > 0
-          ? ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
-              '$attemptsLeft attempt${attemptsLeft == 1 ? '' : 's'} left.'
-          : ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
-              'no attempts left. Please request a new code.';
-      setState(() => _error = '$message$attemptSuffix');
+    } finally {
+      // Balik sa normal ang redirect pagkatapos ng dialog / navigation (o ng
+      // bigong verification).
+      ref.read(otpSuccessHandoffProvider.notifier).state = false;
     }
   }
 
-  /// Ipinapakita ang "Successfully verified" modal at SABAY (sa parehong
-  /// synchronous na hakbang) dinadala ang user sa [location].
+  /// Ipinapakita ang "OTP Verified" success modal, TAPOS dinadala ang user
+  /// sa [location].
   ///
-  /// MAHALAGA ang pagkakasunod-sunod: dating ina-`await` muna ang modal bago
-  /// mag-navigate, kaya buong segundo pang nakatigil ang OTP screen bago
-  /// lumipat sa MPIN (at may pagkakataon pang ma-redirect ng router ang stack
-  /// habang umiiral pa ang modal). Ang modal ay nasa ROOT navigator, kaya
-  /// nananatili itong nakapatong sa bagong screen at kusang nagsasara
-  /// pagkatapos ng 1 segundo.
+  /// MAHALAGA ang pagkakasunod-sunod: ina-`await` muna ang modal bago
+  /// mag-navigate. Kapag sabay silang tumakbo, pinapalitan ng go_router ang
+  /// page sa ilalim ng modal (at nawawala ang confirmation) kada matagumpay
+  /// na verification — kaya dating walang nakikitang "success" ang user
+  /// pagkatapos mag-load ang Verify OTP.
   ///
-  /// Kapag [waitForDialog] ang `true`, dito muna sa OTP screen lumalabas ang
-  /// modal — kailangan ito ng reset flow, para makita ng user ang
-  /// "Successfully Reset MPIN" sa mismong screen na pinag-verify niya, bago
-  /// siya lumipat sa create-new-MPIN.
+  /// Ang router redirect ay naka-hold din habang nangyayari ito (tingnan ang
+  /// [otpSuccessHandoffProvider]), kaya hindi maagaw ng "naka-authenticated →
+  /// dashboard" na panuntunan ang screen bago pa lumitaw ang dialog.
   Future<void> _showSuccessAndGo(
     String location, {
     Object? extra,
-    String title = 'Successfully verified',
-    String message = 'Your OTP has been verified.',
-    bool waitForDialog = false,
-    Duration dialogDuration = const Duration(seconds: 1),
+    String title = 'OTP Verified Successfully',
+    String message = 'Your OTP has been verified successfully.',
+    Duration dialogDuration = const Duration(seconds: 2),
   }) async {
-    if (waitForDialog) {
-      await SuccessDialog.showAutoDismiss(
-        context,
-        title: title,
-        message: message,
-        duration: dialogDuration,
-      );
-      if (!mounted) return;
-      context.go(location, extra: extra);
-      return;
-    }
-    final dialogDone = SuccessDialog.showAutoDismiss(
+    await SuccessDialog.showAutoDismiss(
       context,
       title: title,
       message: message,
       duration: dialogDuration,
     );
+    if (!mounted) return;
     context.go(location, extra: extra);
-    await dialogDone;
   }
-
 
   Future<void> _resend() async {
     if (_secondsLeft > 0 || _lockSecondsLeft > 0) return;

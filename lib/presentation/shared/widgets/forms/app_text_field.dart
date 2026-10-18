@@ -106,9 +106,13 @@ class _AppTextFieldState extends State<AppTextField> {
       // color. Kung theme-aware ito (context.cTextPrimary), magiging puti ang
       // typed/recorded na value sa dark mode at hindi ito mababasa — hal. ang
       // "Amount Collected" sa rider Collect step.
-      style: const TextStyle(
+      //
+      // Ang `minimal` variant ay WALANG fill (nakalapat sa page/dialog), kaya
+      // doon kailangang theme-aware ang value — kung hindi, itim ang existing
+      // details sa dark mode at mukhang walang laman ang popup.
+      style: TextStyle(
         fontSize: 14,
-        color: AppColors.textPrimary,
+        color: widget.minimal ? context.cTextPrimary : AppColors.textPrimary,
         fontFamily: 'Inter',
       ),
       decoration: _decoration(context, radius),
@@ -143,8 +147,7 @@ class _AppTextFieldState extends State<AppTextField> {
         isDense: true,
         hintStyle: TextStyle(fontSize: 13, color: context.cTextTertiary),
         prefixIcon: _prefix,
-        prefixIconConstraints:
-            const BoxConstraints(minWidth: 0, minHeight: 0),
+        prefixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         suffixIcon: _suffix,
         filled: false,
         contentPadding: const EdgeInsets.fromLTRB(0, 6, 0, 8),

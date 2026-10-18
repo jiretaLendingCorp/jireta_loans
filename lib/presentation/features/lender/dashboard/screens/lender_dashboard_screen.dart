@@ -345,8 +345,7 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
       collections: collectionItems,
       upgrade: upgradeStatus,
     );
-    final errorBanner =
-        state.error == null ? null : _ErrorBanner(state.error!);
+    final errorBanner = state.error == null ? null : _ErrorBanner(state.error!);
 
     return MobileScaffold(
       title: 'Account',
@@ -444,7 +443,9 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
         ref.read(lenderLoanProvider.notifier).loadLoans(silent: true),
         paymentNotifier.loadPayments(silent: true),
         ref.read(lenderCollectionProvider.notifier).loadList(silent: true),
-        ref.read(lenderAccountUpgradeProvider.notifier).loadStatus(silent: true),
+        ref
+            .read(lenderAccountUpgradeProvider.notifier)
+            .loadStatus(silent: true),
       ]);
       if (!mounted) return;
       // Manual refresh = "check now": huwag hintayin ang 3-minutong throttle ng
@@ -483,12 +484,8 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           welcome,
-          // Walang aktibong loan: ang Balance card sa loob ng `welcome` ang
-          // outstanding balance, kaya sa ilalim nito ang mga tile.
-          if (activeLoan == null) ...[
-            const SizedBox(height: 16),
-            _LenderKpiStats(loan: activeLoan),
-          ],
+          // Walang aktibong loan → HINDI ipinapakita ang Next Payment /
+          // Installment tiles (walang saysay ang "—" kapag walang babayaran).
           const SizedBox(height: 16),
           if (approvedBanner != null) ...[
             approvedBanner,
@@ -562,7 +559,8 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [                    // ── Top row ──
+                  children: [
+                    // ── Top row ──
                     // May aktibong loan: maliit lang ang `welcome` (fox + greeting
                     // dialog), kaya sinasamantala ang bakanteng espasyo sa KANAN
                     // nito para sa Next Payment / Installment — kaya hindi na
@@ -577,16 +575,13 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
                           Expanded(child: _LenderKpiStats(loan: loan)),
                         ],
                       )
-                    else ...[
-                      // Walang aktibong loan: ang gradient na Balance card
-                      // (bahagi ng `welcome`) ang outstanding balance, kaya sa
-                      // ilalim nito ang mga tile.
+                    // Walang aktibong loan: ang gradient na Balance card (bahagi
+                    // ng `welcome`) ang outstanding balance, at HINDI na
+                    // lumalabas ang Next Payment / Installment tiles.
+                    else
                       welcome,
-                      const SizedBox(height: 20),
-                      _LenderKpiStats(loan: loan),
-                    ],
                     const SizedBox(height: 20),
-          if (approvedBanner != null) ...[
+                    if (approvedBanner != null) ...[
                       approvedBanner,
                       const SizedBox(height: 20),
                     ],
@@ -631,12 +626,12 @@ class _LenderDashboardScreenState extends ConsumerState<LenderDashboardScreen>
 
 /// Buod ng account — DALAWANG stat tiles: ang **Next Payment** (susunod na hindi
 /// pa bayad na installment kasama ang due date) at ang **Installment** (halaga
-/// ng bawat bayaran). Ipinapakita ito sa DESKTOP at MOBILE.
+/// ng bawat bayaran). Ipinapakita lang ito kapag MAY aktibong loan — kapag
+/// wala (o bayad na), hindi na ito lumalabas sa desktop o mobile.
 ///
-/// Ayos: sa DESKTOP (may aktibong loan), nakadikit ito sa KANANG bahagi ng
-/// greeting row — pantay ang kanang gilid sa Outstanding Balance card sa ibaba;
-/// kapag walang aktibong loan, sa ilalim ng Balance card ito. Sa MOBILE, laging
-/// sa ilalim ng Outstanding Balance card.
+/// Ayos: sa DESKTOP, nakadikit ito sa KANANG bahagi ng greeting row — pantay ang
+/// kanang gilid sa Outstanding Balance card sa ibaba. Sa MOBILE, sa ilalim ng
+/// Outstanding Balance card.
 class _LenderKpiStats extends ConsumerWidget {
   /// Aktibong loan — null kapag wala ("—" ang ipinapakita sa mga tile).
   final LoanModel? loan;
@@ -906,12 +901,16 @@ class _WelcomeBannerState extends ConsumerState<_WelcomeBanner> {
                     style: TextStyle(color: Colors.white70, fontSize: 12),
                   ),
                   InkWell(
-                    onTap: () => ref.read(lenderAmountObscuredProvider.notifier).toggle(),
+                    onTap: () => ref
+                        .read(lenderAmountObscuredProvider.notifier)
+                        .toggle(),
                     borderRadius: BorderRadius.circular(20),
                     child: Padding(
                       padding: const EdgeInsets.all(4),
                       child: Icon(
-                        obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        obscured
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: Colors.white70,
                         size: 20,
                       ),
@@ -1032,8 +1031,7 @@ class _ApprovedLoanBanner extends StatelessWidget {
                 // sa disbursement selection (lenderLoans route).
                 Center(
                   child: ElevatedButton.icon(
-                    onPressed: () =>
-                        context.push(RouteConstants.lenderLoans),
+                    onPressed: () => context.push(RouteConstants.lenderLoans),
                     icon: const Icon(Icons.touch_app_outlined, size: 16),
                     label: const Text('Choose'),
                     style: ElevatedButton.styleFrom(
@@ -1061,17 +1059,16 @@ class _QuickActions extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final upgradeState = ref.watch(lenderAccountUpgradeProvider);
-    final upgradeVerified = upgradeState.status == 'verified' ||
-        upgradeState.status == 'approved';
+    final upgradeVerified =
+        upgradeState.status == 'verified' || upgradeState.status == 'approved';
     // Ang KPI ng lender ang may huling salita kapag may naunang loan na siya:
     // kapag natapos na niya ang isang loan (fully paid / approved / active),
     // hindi na dapat mag-claim ng "Upgrade Account" — halatang "Apply Loan" na
     // ito. Dati, nag-fla-flash pa ang "Upgrade Account" sa button kahit paid
     // na lahat ng loan term niya.
     final kpi = ref.watch(lenderDashboardProvider).kpi;
-    final hadPriorLoan = kpi.totalCompleted > 0 ||
-        kpi.totalApproved > 0 ||
-        kpi.totalActive > 0;
+    final hadPriorLoan =
+        kpi.totalCompleted > 0 || kpi.totalApproved > 0 || kpi.totalActive > 0;
     final kpiVerified = kpi.accountUpgradeStatus == 'verified' ||
         kpi.accountUpgradeStatus == 'approved';
     final isVerified = upgradeVerified || kpiVerified || hadPriorLoan;
@@ -1184,8 +1181,7 @@ class _PendingLoanCard extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.lenderBlue,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 22, vertical: 11),
+              padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 11),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(10)),
             ),
@@ -1265,12 +1261,16 @@ class _MyLoanCardState extends ConsumerState<_MyLoanCard> {
                       style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     InkWell(
-                      onTap: () => ref.read(lenderAmountObscuredProvider.notifier).toggle(),
+                      onTap: () => ref
+                          .read(lenderAmountObscuredProvider.notifier)
+                          .toggle(),
                       borderRadius: BorderRadius.circular(20),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(
-                          obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                          obscured
+                              ? Icons.visibility_off_outlined
+                              : Icons.visibility_outlined,
                           color: Colors.white70,
                           size: 20,
                         ),
@@ -1620,8 +1620,7 @@ class _RecentActivitySection extends StatelessWidget {
             ),
             if (shown.isNotEmpty) ...[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                 decoration: BoxDecoration(
                   color: AppColors.lenderBlue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(20),
@@ -1753,8 +1752,8 @@ class _RecentActivitySection extends StatelessWidget {
       final rider = (c['rider_name'] as String? ?? '').trim();
       final id = c['id'] as String? ?? '';
       final done = status == 'completed';
-      final failed = const ['cancelled', 'declined', 'expired', 'failed']
-          .contains(status);
+      final failed =
+          const ['cancelled', 'declined', 'expired', 'failed'].contains(status);
       entries.add(_ActivityEntry(
         at: at,
         icon: Icons.delivery_dining_rounded,
@@ -2077,7 +2076,6 @@ class _ActivityTile extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _MyLoansOverview extends StatelessWidget {
@@ -2125,7 +2123,7 @@ class _MyLoansOverview extends StatelessWidget {
         ),
         SizedBox(height: 12),
         Text(
-          'Must be 18 years old and above · Release in 1–3 business days.\n'
+          'Must be 18 years old and above · Release in 1–2 business days.\n'
           'You can apply if you are eligible based on your details.',
           textAlign: TextAlign.center,
           style: TextStyle(
@@ -2243,35 +2241,93 @@ class _LenderDashboardSkeleton extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Container(width: 110, height: 32, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12))),
+                Container(
+                    width: 110,
+                    height: 32,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12))),
                 const SizedBox(width: 8),
-                Container(width: 80, height: 80, decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle)),
+                Container(
+                    width: 80,
+                    height: 80,
+                    decoration: const BoxDecoration(
+                        color: Colors.white, shape: BoxShape.circle)),
               ],
             ),
             const SizedBox(height: 16),
             // Apply Now / Pending card skeleton
-            Container(width: double.infinity, height: 56, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            Container(
+                width: double.infinity,
+                height: 56,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14))),
             const SizedBox(height: 20),
             // My Loans overview skeleton
-            Center(child: Container(width: 120, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            Center(
+                child: Container(
+                    width: 120,
+                    height: 12,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6)))),
             const SizedBox(height: 10),
-            Center(child: Container(width: 180, height: 22, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            Center(
+                child: Container(
+                    width: 180,
+                    height: 22,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6)))),
             const SizedBox(height: 10),
-            Center(child: Container(width: 220, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            Center(
+                child: Container(
+                    width: 220,
+                    height: 10,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6)))),
             const SizedBox(height: 10),
-            Center(child: Container(width: 160, height: 10, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6)))),
+            Center(
+                child: Container(
+                    width: 160,
+                    height: 10,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6)))),
             const SizedBox(height: 20),
             // Active loan card skeleton (if any)
-            Container(width: double.infinity, height: 180, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+            Container(
+                width: double.infinity,
+                height: 180,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16))),
             const SizedBox(height: 16),
             // You can pay with (2 cards) skeleton
-            Container(width: 120, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+            Container(
+                width: 120,
+                height: 14,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(6))),
             const SizedBox(height: 10),
             Row(
               children: [
-                Expanded(child: Container(height: 150, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)))),
+                Expanded(
+                    child: Container(
+                        height: 150,
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14)))),
                 const SizedBox(width: 12),
-                Expanded(child: Container(height: 150, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)))),
+                Expanded(
+                    child: Container(
+                        height: 150,
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14)))),
               ],
             ),
             const SizedBox(height: 16),
@@ -2279,30 +2335,99 @@ class _LenderDashboardSkeleton extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Container(width: 140, height: 14, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
-                Container(width: 60, height: 12, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6))),
+                Container(
+                    width: 140,
+                    height: 14,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6))),
+                Container(
+                    width: 60,
+                    height: 12,
+                    decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(6))),
               ],
             ),
             const SizedBox(height: 12),
             // 3 loan history tiles skeleton
-            ...List.generate(3, (_) => Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
-                    child: Row(
-                      children: [
-                        Container(width: 44, height: 44, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(11))),
-                        const SizedBox(width: 12),
-                        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Container(height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(height: 10, width: 100, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 6), Container(height: 9, width: 80, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6)))])),
-                        const SizedBox(width: 12),
-                        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [Container(width: 70, height: 12, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(6))), const SizedBox(height: 8), Container(width: 54, height: 18, decoration: BoxDecoration(color: AppColors.shimmerBase, borderRadius: BorderRadius.circular(10)))]),
-                      ],
-                    ),
-                  ),
-                )),
+            ...List.generate(
+                3,
+                (_) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(14)),
+                        child: Row(
+                          children: [
+                            Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                    color: AppColors.shimmerBase,
+                                    borderRadius: BorderRadius.circular(11))),
+                            const SizedBox(width: 12),
+                            Expanded(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                  Container(
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                          color: AppColors.shimmerBase,
+                                          borderRadius:
+                                              BorderRadius.circular(6))),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                      height: 10,
+                                      width: 100,
+                                      decoration: BoxDecoration(
+                                          color: AppColors.shimmerBase,
+                                          borderRadius:
+                                              BorderRadius.circular(6))),
+                                  const SizedBox(height: 6),
+                                  Container(
+                                      height: 9,
+                                      width: 80,
+                                      decoration: BoxDecoration(
+                                          color: AppColors.shimmerBase,
+                                          borderRadius:
+                                              BorderRadius.circular(6)))
+                                ])),
+                            const SizedBox(width: 12),
+                            Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  Container(
+                                      width: 70,
+                                      height: 12,
+                                      decoration: BoxDecoration(
+                                          color: AppColors.shimmerBase,
+                                          borderRadius:
+                                              BorderRadius.circular(6))),
+                                  const SizedBox(height: 8),
+                                  Container(
+                                      width: 54,
+                                      height: 18,
+                                      decoration: BoxDecoration(
+                                          color: AppColors.shimmerBase,
+                                          borderRadius:
+                                              BorderRadius.circular(10)))
+                                ]),
+                          ],
+                        ),
+                      ),
+                    )),
             // Tracking card skeleton
-            Container(width: double.infinity, height: 120, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14))),
+            Container(
+                width: double.infinity,
+                height: 120,
+                decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(14))),
           ],
         ),
       ),

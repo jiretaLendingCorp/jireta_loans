@@ -27,8 +27,15 @@ void main() {
           contains("hmLoanApplicationsInOffice =\n      '/hm/loan-records/in-office'"));
       expect(routes,
           contains("hmLoanApplicationsDisbursements =\n      '/hm/loan-records/disbursements'"));
-      expect(routes,
-          contains("hmLoanApplicationsHistory = '/hm/loan-records/history'"));
+      // "Previous Loan" tab — dating `/history`, `/previous-loan` na ngayon.
+      expect(
+          routes,
+          contains("hmLoanApplicationsHistory =\n"
+              "      '/hm/loan-records/previous-loan'"));
+      expect(
+          routes,
+          contains("hmLoanApplicationsHistoryLegacy =\n"
+              "      '/hm/loan-records/history'"));
       expect(routes,
           contains("hmLoanRecordsOngoing = '/hm/loan-records/ongoing'"));
       expect(routes,
@@ -45,8 +52,14 @@ void main() {
           contains("empLoansInOffice = '/employee/loan-records/in-office'"));
       expect(routes,
           contains("empLoansDisbursements =\n      '/employee/loan-records/disbursements'"));
-      expect(routes,
-          contains("empLoansHistory = '/employee/loan-records/history'"));
+      expect(
+          routes,
+          contains("empLoansHistory =\n"
+              "      '/employee/loan-records/previous-loan'"));
+      expect(
+          routes,
+          contains("empLoansHistoryLegacy =\n"
+              "      '/employee/loan-records/history'"));
       expect(routes,
           contains("empLoansOngoing = '/employee/loan-records/ongoing'"));
       expect(routes,
@@ -63,6 +76,10 @@ void main() {
       // Nakarehistro ang redirect routes sa router.
       expect(router, contains('RouteConstants.hmLoanApplicationsLegacy'));
       expect(router, contains('RouteConstants.empLoansLegacy'));
+      // Lumang `/history` URI ng Previous Loan tab → redirect sa bagong path.
+      expect(
+          router, contains('RouteConstants.hmLoanApplicationsHistoryLegacy'));
+      expect(router, contains('RouteConstants.empLoansHistoryLegacy'));
     });
 
     test('static tab paths ay NAUNA sa :id details routes', () {
@@ -76,11 +93,27 @@ void main() {
           'RouteConstants.hmLoanApplicationDetails',
         ],
         [
+          'RouteConstants.hmLoanApplicationsHistory',
+          'RouteConstants.hmLoanApplicationDetails',
+        ],
+        [
+          'RouteConstants.hmLoanApplicationsHistoryLegacy',
+          'RouteConstants.hmLoanApplicationDetails',
+        ],
+        [
           'RouteConstants.hmLoanRecordsPipeline',
           'RouteConstants.hmLoanApplicationDetails',
         ],
         [
           'RouteConstants.empLoansInOffice',
+          'RouteConstants.empLoanApplicationDetails',
+        ],
+        [
+          'RouteConstants.empLoansHistory',
+          'RouteConstants.empLoanApplicationDetails',
+        ],
+        [
+          'RouteConstants.empLoansHistoryLegacy',
           'RouteConstants.empLoanApplicationDetails',
         ],
         [

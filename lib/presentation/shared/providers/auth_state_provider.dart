@@ -875,3 +875,13 @@ final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>((
 ) {
   return AuthStateNotifier()..initialize();
 });
+
+/// `true` habang tinatapos ng Verify OTP screen ang isang matagumpay na
+/// verification — mula sa pag-submit hanggang matapos ang "OTP Verified"
+/// success dialog at ang sariling navigation nito.
+///
+/// Habang `true`, hindi pinapayagan ng router redirect na ilipat ang user
+/// palayo sa OTP screen. Kapag nag-sign in na ang session (matagumpay ang
+/// OTP), agad sanang dinadala ng redirect sa dashboard ang staff — kaya
+/// nawawala ang success dialog bago pa ito lumitaw.
+final otpSuccessHandoffProvider = StateProvider<bool>((ref) => false);
