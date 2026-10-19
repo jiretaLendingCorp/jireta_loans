@@ -49,6 +49,7 @@ Future<void> pumpPreview(
   DateTimeRange? dateRange,
   VoidCallback? onPickDateRange,
   Widget? exportActions,
+  ValueChanged<ReportSummary>? onSummaryChanged,
 }) async {
   tester.view.physicalSize = Size(width, 1600);
   tester.view.devicePixelRatio = 1.0;
@@ -61,6 +62,7 @@ Future<void> pumpPreview(
         dateRange: dateRange,
         onPickDateRange: onPickDateRange,
         exportActions: exportActions,
+        onSummaryChanged: onSummaryChanged,
       ),
     ),
   ));
@@ -106,20 +108,107 @@ void main() {
     });
   });
 
+  group('loanReportTotals', () {
+    test('nakolekta, hindi pa nakokolekta, kita at kabuuang halaga', () {
+      final totals = loanReportTotals(apiRows(2));
+
+      expect(totals.principal, 20000);
+      expect(totals.total, 24000);
+      expect(totals.income, 4000);
+      // Total − Outstanding kada row: (12,000 − 6,000) × 2.
+      expect(totals.collected, 12000);
+      expect(totals.outstanding, 12000);
+    });
+
+    test('row na walang outstanding ay hindi itinuturing na fully paid', () {
+      final totals = loanReportTotals([
+        {
+          'principalAmount': 5000,
+          'interestAmount': null,
+          'totalPayable': 6000,
+          'status': 'active',
+        },
+      ]);
+
+      expect(totals.total, 6000);
+      expect(totals.income, 0);
+      expect(totals.collected, 0);
+      expect(totals.outstanding, 0);
+    });
+
+    test('walang row → lahat zero', () {
+      final totals = loanReportTotals(const []);
+      expect(totals.collected, 0);
+      expect(totals.outstanding, 0);
+      expect(totals.income, 0);
+      expect(totals.total, 0);
+    });
+  });
+
+  group('interestPreviewRowsWithTotals', () {
+    test('may huling TOTAL row na nagbubuod sa buong report', () {
+      final out = interestPreviewRowsWithTotals(apiRows(2));
+
+      expect(out, hasLength(3));
+      // Nasa Loan Name column ang TOTAL para malapit sa mga halaga; blangko
+      // (hindi `N/A`) ang Loan Record cell.
+      expect(out.last['Loan Record'], isA<ReportBlank>());
+      expect(out.last['Loan Name'], 'TOTAL');
+      expect(out.last['Amount'], 20000.0);
+      expect(out.last['Interest'], 4000.0);
+      expect(out.last['Total'], 24000.0);
+    });
+
+    test('walang TOTAL row kapag walang loan', () {
+      expect(interestPreviewRowsWithTotals(const []), isEmpty);
+    });
+  });
+
   group('LoanRecordsPreview', () {
+    testWidgets('Loan Summary: Beginning/Ending Date at TOTAL row',
+        (tester) async {
+      await pumpPreview(
+        tester,
+        apiRows(2),
+        dateRange: DateTimeRange(
+            start: DateTime(2026, 9, 1), end: DateTime(2026, 9, 30)),
+      );
+
+      expect(find.text('Loan Summary'), findsOneWidget);
+      expect(find.text('Loan Records'), findsOneWidget);
+      // Cards ng Loan Summary sa TAAS, Loan Records sa gitna, at ang
+      // Beginning Date table sa PINAKABABA.
+      final summaryY = tester.getTopLeft(find.text('Loan Summary')).dy;
+      final recordsY = tester.getTopLeft(find.text('Loan Records')).dy;
+      final tableY = tester.getTopLeft(find.text('BEGINNING DATE')).dy;
+      expect(summaryY, lessThan(recordsY));
+      expect(recordsY, lessThan(tableY));
+      for (final h in [
+        'BEGINNING DATE',
+        'ENDING DATE',
+        'AMOUNT COLLECTED',
+        'AMOUNT TO COLLECT',
+        'TOTAL INCOME',
+        'TOTAL AMOUNT',
+      ]) {
+        expect(find.text(h), findsOneWidget, reason: 'header $h');
+      }
+      expect(find.text('Sep 01, 2026'), findsOneWidget);
+      expect(find.text('Sep 30, 2026'), findsOneWidget);
+      // ₱12,000 nakolekta / ₱12,000 pa / ₱4,000 kita / ₱24,000 kabuuan.
+      expect(find.text('TOTAL'), findsWidgets);
+      expect(find.text('₱24,000.00'), findsWidgets);
+    });
+
     testWidgets('naka-table ang rows tulad ng Loan Records page',
         (tester) async {
       await pumpPreview(tester, apiRows(3));
 
-      for (final h in [
-        'LENDER & LOAN',
-        'AMOUNT',
-        'INTEREST',
-        'TOTAL',
-        'STATUS'
-      ]) {
+      for (final h in ['LENDER & LOAN', 'AMOUNT', 'INTEREST', 'STATUS']) {
         expect(find.text(h), findsOneWidget, reason: 'header $h');
       }
+      // 'TOTAL' = table header + Loan Summary TOTAL row + table TOTAL row.
+      expect(find.text('TOTAL'), findsWidgets);
       // Loan number (bold) + pangalan ng lender sa isang column.
       expect(find.text('LN-2025-0001'), findsOneWidget);
       expect(find.text('Juan Dela Cruz'), findsNWidgets(2));
@@ -132,6 +221,20 @@ void main() {
       expect(find.text('Active'), findsNWidgets(2));
     });
 
+    testWidgets('hindi nag-overflow sa makitid na viewport', (tester) async {
+      await pumpPreview(
+        tester,
+        apiRows(3),
+        width: 420,
+        dateRange: DateTimeRange(
+            start: DateTime(2026, 9, 1), end: DateTime(2026, 9, 30)),
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(find.text('Loan Summary'), findsOneWidget);
+      expect(find.text('TOTAL'), findsWidgets);
+    });
+
     testWidgets('walang Status column kapag walang status ang rows',
         (tester) async {
       final rows = [
@@ -142,7 +245,8 @@ void main() {
 
       expect(find.text('STATUS'), findsNothing);
       expect(find.text('LENDER & LOAN'), findsOneWidget);
-      expect(find.text('TOTAL'), findsOneWidget);
+      // Table header + Loan Summary TOTAL row + table TOTAL row.
+      expect(find.text('TOTAL'), findsWidgets);
     });
 
     testWidgets('totals ng summary cards ay tama at hindi kasama ang N/A',
@@ -162,13 +266,18 @@ void main() {
       expect(find.text('Loans'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
       expect(find.text('Total Amount'), findsOneWidget);
-      expect(find.text('₱25,000.00'), findsOneWidget); // 10k + 10k + 5k
-      expect(find.text('Total Interest'), findsOneWidget);
-      expect(find.text('₱4,000.00'), findsOneWidget); // 2k + 2k (N/A ignored)
+      expect(find.text('₱25,000.00'), findsWidgets); // 10k + 10k + 5k
+      expect(find.text('Total Income'), findsOneWidget);
+      expect(find.text('₱4,000.00'), findsWidgets); // 2k + 2k (N/A ignored)
       expect(find.text('Total Payable'), findsOneWidget);
-      expect(find.text('₱30,000.00'), findsOneWidget); // 12k + 12k + 6k
+      expect(find.text('₱30,000.00'), findsWidgets); // 12k + 12k + 6k
+      // Nakolekta na = Total − Outstanding; hindi pa nakokolekta = Outstanding.
+      expect(find.text('Amount Collected'), findsOneWidget);
+      expect(find.text('₱12,000.00'), findsWidgets); // (12k−6k) × 2
+      expect(find.text('Not Yet Collected'), findsOneWidget);
+      expect(find.text('₱12,000.00'), findsWidgets); // 6k + 6k (N/A row skipped)
       // Ang N/A ay ipinapakita pa rin sa cell.
-      expect(find.text('N/A'), findsOneWidget);
+      expect(find.text('N/A'), findsWidgets);
     });
 
     testWidgets('numbered pagination (1 2 3 4 5 … n) at paging',
@@ -221,7 +330,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // 5 sa 10 ang Maria Santos.
-      expect(find.text('₱50,000.00'), findsOneWidget); // Total Amount
+      expect(find.text('₱50,000.00'), findsWidgets); // Total Amount
       expect(find.text('5'), findsOneWidget); // Loans card
       // Naka-reset na sa page 1 ang pagination.
       expect(find.text('Showing 1–5 of 5 records'), findsOneWidget);
@@ -243,7 +352,7 @@ void main() {
 
       // Kada 3rd row ang completed → 10 sa 30.
       expect(find.text('Showing 1–10 of 10 records'), findsOneWidget);
-      expect(find.text('₱100,000.00'), findsOneWidget); // Total Amount
+      expect(find.text('₱100,000.00'), findsWidgets); // Total Amount
     });
 
     testWidgets('Lender dropdown ay nagfi-filter', (tester) async {
@@ -257,7 +366,33 @@ void main() {
       // Even rows lang ang kay Maria Santos → 3 sa 6.
       expect(find.text('Showing 1–3 of 3 records'), findsOneWidget);
       expect(find.text('₱3,000.00'), findsNothing); // walang maling total
-      expect(find.text('₱30,000.00'), findsOneWidget); // Total Amount
+      expect(find.text('₱30,000.00'), findsWidgets); // Total Amount
+    });
+
+    testWidgets('onSummaryChanged: kabuuan ng naka-filter na panahon',
+        (tester) async {
+      ReportSummary? summary;
+      await pumpPreview(
+        tester,
+        apiRows(10),
+        dateRange: DateTimeRange(
+            start: DateTime(2026, 9, 1), end: DateTime(2026, 9, 30)),
+        onSummaryChanged: (value) => summary = value,
+      );
+
+      expect(summary, isNotNull);
+      expect(summary!.beginningDate, 'Sep 01, 2026');
+      expect(summary!.endingDate, 'Sep 30, 2026');
+      expect(summary!.collected, 60000); // 10 × (12,000 − 6,000)
+      expect(summary!.outstanding, 60000);
+      expect(summary!.income, 20000);
+
+      // Sumusunod sa filter (5 even rows lang ang Maria Santos).
+      await tester.enterText(find.byType(TextField), 'Maria');
+      await tester.pumpAndSettle();
+      expect(summary!.collected, 30000);
+      expect(summary!.outstanding, 30000);
+      expect(summary!.income, 10000);
     });
 
     testWidgets('date pill at Export button ay lumalabas kapag may props',
@@ -358,17 +493,21 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      // Simula pa lang: buong set na tatlong column lang.
-      expect(exported, hasLength(6));
+      // Simula pa lang: buong set na tatlong column lang + TOTAL row.
+      expect(exported, hasLength(7));
       expect(exported!.first.keys.toList(),
           ['Loan Record', 'Loan Name', 'Amount', 'Interest', 'Total']);
+      expect(exported!.last['Loan Record'], isA<ReportBlank>());
+      expect(exported!.last['Loan Name'], 'TOTAL');
+      expect(exported!.last['Total'], 72000);
 
       await tester.enterText(find.byType(TextField), 'Maria');
       await tester.pumpAndSettle();
 
-      // Pagkatapos ng filter: 3 rows lang (even numbers) ang ie-export.
-      expect(exported, hasLength(3));
-      expect(exported!.every((r) => r['Total'] == 12000), isTrue);
+      // Pagkatapos ng filter: 3 rows lang (even numbers) + TOTAL row.
+      expect(exported, hasLength(4));
+      expect(exported!.last['Loan Name'], 'TOTAL');
+      expect(exported!.take(3).every((r) => r['Total'] == 12000), isTrue);
     });
   });
 }

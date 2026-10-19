@@ -232,6 +232,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   /// ida-download ng Export button (tugma sa nakikita sa screen).
   List<Map<String, dynamic>> _exportRows = const [];
 
+  /// Kabuuan ng napiling panahon para sa summary sa itaas ng PDF/Excel.
+  ReportSummary? _exportSummary;
+
   /// Napiling Report Type sa Loan Records section.
   String _reportType = kInterestReportKey;
 
@@ -348,6 +351,7 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
       contentPadding: EdgeInsets.zero,
       showDropdownFilters: false,
       onFilteredChanged: (rows) => _exportRows = rows,
+      onSummaryChanged: (summary) => _exportSummary = summary,
     );
   }
 
@@ -439,9 +443,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     if (!context.mounted) return;
     if (!saved) _notifyExportNotRecorded(context);
     if (format == 'xlsx') {
-      await _downloadExcel(context, title, _exportRows);
+      await _downloadExcel(context, title, _exportRows,
+          summary: _exportSummary);
     } else {
-      await _downloadPdf(context, title, _exportRows);
+      await _downloadPdf(context, title, _exportRows,
+          summary: _exportSummary);
     }
   }
 
@@ -1133,6 +1139,22 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     );
   }
 
+  /// Summary ng panahon (Beginning/Ending Date + mga kabuuan) na nakalagay
+  /// sa itaas ng PDF/Excel export.
+  ReportSummary _periodSummary(
+      List<Map<String, dynamic>> rows, DateTimeRange? range) {
+    final totals = loanReportTotals(rows);
+    String day(DateTime? d) =>
+        d == null ? '—' : DateFormat('MMM dd, yyyy').format(d);
+    return ReportSummary(
+      beginningDate: day(range?.start),
+      endingDate: day(range?.end),
+      collected: totals.collected,
+      outstanding: totals.outstanding,
+      income: totals.income,
+    );
+  }
+
   Future<void> _showDownloadDialog(
       BuildContext context, String title, dynamic data,
       {DateTimeRange? dateRange,
@@ -1146,7 +1168,12 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
     // (Status / Lender / search), kaya ang na-export ay tugma sa nakikita sa
     // screen at hindi ang buong report.
     final isInterestReport = templateKey == kInterestReportKey;
-    var exportRows = isInterestReport ? interestPreviewRows(rows) : rows;
+    var exportRows =
+        isInterestReport ? interestPreviewRowsWithTotals(rows) : rows;
+    // Summary block sa TAAS ng PDF/Excel — Beginning/Ending Date, nakolekta,
+    // hindi pa nakokolekta, at kita ng napiling panahon.
+    var exportSummary =
+        isInterestReport ? _periodSummary(rows, dateRange) : null;
     await showDialog(
       context: context,
       barrierDismissible: true,
@@ -1217,8 +1244,11 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                   child: isInterestReport
                       ? LoanRecordsPreview(
                           rows: rows,
+                          dateRange: dateRange,
                           onFilteredChanged: (filtered) =>
                               exportRows = filtered,
+                          onSummaryChanged: (summary) =>
+                              exportSummary = summary,
                         )
                       : PdfZoomViewer(
                           buildDocument: () =>
@@ -1242,7 +1272,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                               format: 'xlsx');
                           if (!context.mounted) return;
                           if (!saved) _notifyExportNotRecorded(context);
-                          await _downloadExcel(context, title, exportRows);
+                          await _downloadExcel(context, title, exportRows,
+                              summary: exportSummary);
                         },
                         icon: const Icon(Icons.table_chart_rounded,
                             color: AppColors.riderGreen, size: 16),
@@ -1258,7 +1289,8 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
                               format: 'pdf');
                           if (!context.mounted) return;
                           if (!saved) _notifyExportNotRecorded(context);
-                          await _downloadPdf(context, title, exportRows);
+                          await _downloadPdf(context, title, exportRows,
+                              summary: exportSummary);
                         },
                         icon:
                             const Icon(Icons.picture_as_pdf_rounded, size: 16),
@@ -1299,9 +1331,10 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   }
 
   Future<void> _downloadPdf(BuildContext context, String title,
-      List<Map<String, dynamic>> rows) async {
+      List<Map<String, dynamic>> rows, {ReportSummary? summary}) async {
     try {
-      final bytes = await buildPdf(title: title, rows: rows);
+      final bytes =
+          await buildPdf(title: title, rows: rows, summary: summary);
       await saveFile(bytes, '${sanitizeFileName(title)}.pdf');
       if (context.mounted) _notifyDownload(context, title, 'PDF');
     } catch (e) {
@@ -1310,9 +1343,9 @@ class _HmReportLibraryScreenState extends ConsumerState<HmReportLibraryScreen> {
   }
 
   Future<void> _downloadExcel(BuildContext context, String title,
-      List<Map<String, dynamic>> rows) async {
+      List<Map<String, dynamic>> rows, {ReportSummary? summary}) async {
     try {
-      final bytes = buildXlsx(rows);
+      final bytes = buildXlsx(rows, summary: summary);
       await saveFile(bytes, '${sanitizeFileName(title)}.xlsx');
       if (context.mounted) _notifyDownload(context, title, 'Excel');
     } catch (e) {

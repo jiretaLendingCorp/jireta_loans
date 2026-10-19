@@ -17,13 +17,16 @@
 //   • Ang progress/total-paid/last-payment na datos ay galing sa payload
 //     (`payments_total`, `progress`, `last_payment_at`) at handa para sa table.
 
+import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:jireta_loans/data/datasources/remote/loan_remote_datasource.dart';
 import 'package:jireta_loans/data/models/loan_model.dart';
 import 'package:jireta_loans/presentation/features/head_manager/loans/providers/hm_loan_history_provider.dart';
+import 'package:jireta_loans/presentation/features/head_manager/loans/widgets/loan_details_side_panel.dart';
 
 // ── Fake: itinatala lang ang natanggap na params at ang isinasagot na payload ──
 
@@ -35,6 +38,10 @@ class _FakeHistoryDs implements LoanRemoteDataSource {
   String? dateFrom;
   String? dateTo;
   Map<String, dynamic> response = const {'data': [], 'meta': {}};
+
+  /// Kapag naka-set, hinihintay muna ito bago magbalik — para ma-observe ang
+  /// loading state habang nag-a-apply ng filter.
+  Future<void>? gate;
 
   @override
   Future<Map<String, dynamic>> getHistory({
@@ -50,6 +57,7 @@ class _FakeHistoryDs implements LoanRemoteDataSource {
     this.search = search;
     this.dateFrom = dateFrom;
     this.dateTo = dateTo;
+    if (gate != null) await gate;
     return response;
   }
 
@@ -91,12 +99,85 @@ Map<String, dynamic> _historyRow({
       'updated_at': '2026-09-25T04:00:00.000Z',
     };
 
+/// Payload ng `loans-view?fn=get-details` — sapat para mabuo ang side panel.
+Map<String, dynamic> _detailsPayload() => {
+      'id': 'loan-1',
+      'loan_number': 'LN-2025-0012',
+      // Bayad na pero `active` pa ang hilaw na status → dapat Completed pa rin.
+      'status': 'active',
+      'principal_amount': 50000,
+      'interest_rate': 20,
+      'total_payable': 60000,
+      'outstanding_balance': 0,
+      'installment_amount': 2500,
+      'payment_frequency': 'monthly',
+      'term_periods': 3,
+      'disbursed_at': '2025-05-10T02:24:00.000Z',
+      'created_at': '2025-05-10T02:24:00.000Z',
+      'updated_at': '2025-08-10T01:15:00.000Z',
+      'lender': {
+        'first_name': 'Maria',
+        'middle_name': 'Santos',
+        'last_name': 'Dela Cruz',
+        'phone_number': '+63 917 555 1234',
+        'email': 'maria@example.com',
+      },
+      'lender_address': {
+        'street': '123 Mabini St.',
+        'barangay': 'Poblacion',
+        'city': 'Makati',
+        'province': 'Metro Manila',
+        'zip_code': '1210',
+      },
+      'loan_schedules': [
+        {
+          'installment_number': 1,
+          'due_date': '2025-05-10',
+          'amount_due': 2500,
+          'status': 'paid',
+          'paid_at': '2025-05-10T04:00:00.000Z',
+        },
+        {
+          'installment_number': 2,
+          'due_date': '2025-06-10',
+          'amount_due': 2500,
+          'status': 'paid',
+          'paid_at': '2025-06-10T04:00:00.000Z',
+        },
+        {
+          'installment_number': 3,
+          'due_date': '2025-07-10',
+          'amount_due': 2500,
+          'status': 'paid',
+          'paid_at': '2025-07-10T04:00:00.000Z',
+        },
+      ],
+      'payments': [
+        {
+          'amount': 2500,
+          'status': 'verified',
+          'payment_method': 'gcash',
+          'reference_number': 'GCB-123456',
+          'paid_at': '2025-05-10T04:00:00.000Z',
+          'created_at': '2025-05-10T04:00:00.000Z',
+        },
+      ],
+      'disbursements': [
+        {
+          'disbursed_at': '2025-05-10T02:24:00.000Z',
+          'xendit_id': 'TRX-20250510-0012',
+        },
+      ],
+    };
+
 // ── Source guards ─────────────────────────────────────────────────────────────
 
 const _hmScreen =
     'lib/presentation/features/head_manager/loans/screens/hm_loan_applications_list_screen.dart';
 const _empScreen =
     'lib/presentation/features/employee/loans/screens/emp_loan_applications_screen.dart';
+const _panelFile =
+    'lib/presentation/features/head_manager/loans/widgets/loan_details_side_panel.dart';
 
 /// Read a repo file and normalize line endings (Windows checkouts use CRLF).
 String _readNormalized(String path) => File(path)
@@ -126,9 +207,8 @@ void main() {
       test('${screen.split('/').last}: naka-table sa 880px pataas', () {
         final block = _historyBlock(_readNormalized(screen));
 
-        // 880 = kapareho ng Disbursements tab ng parehong screen. Kapag mas
-        // mataas dito (hal. 1120), bumabagsak sa stacked-card layout ang tab
-        // kahit sa ~1080px na desktop viewport.
+        // Full-width na ang table (nasa itaas na ang filter bar), kaya 880
+        // ang minimum — kapareho ng ibang desktop tables sa screen.
         expect(block, contains('minTableWidth: 880,'),
             reason: 'Bumabalik sa stacked cards sa desktop viewport');
         expect(block, contains('rowHeight: 64,'));
@@ -138,17 +218,62 @@ void main() {
           () {
         final block = _historyBlock(_readNormalized(screen));
 
-        // 'For Completion' (~108px kasama ang dot) ang pinakamahabang laman ng
-        // table. Kapag flex 2 ang Status (at flex 3 ang Progress), dumadaan ito
-        // sa Last Payment column at natatakpan ang petsa.
+        // 'Completed' (~70px) ang pinakamahabang status sa Previous Loan tab.
+        // Flex 4 ang Status para hindi ito ma-clip sa 880px na table.
         expect(block,
-            contains("ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3)"));
-        final progressFlex2 =
-            block.contains("ResponsiveCol('Progress', flex: 2)") ||
-                block.contains(
-                    "ResponsiveCol('Progress', icon: Icons.trending_up_rounded, flex: 2)");
-        expect(progressFlex2, isTrue,
-            reason: 'Nasa Status ang dapat na dagdag na lapad, hindi sa Progress');
+            contains("ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 4)"));
+      });
+
+      test('${screen.split('/').last}: naka-Previous Loans design ang layout',
+          () {
+        final block = _historyBlock(_readNormalized(screen));
+
+        // Stat cards sa itaas ng table.
+        for (final label in const [
+          "title: 'Total Loans'",
+          "title: 'Completed'",
+          "title: 'Ongoing'",
+          "title: 'Overdue'",
+        ]) {
+          expect(block, contains(label));
+        }
+
+        // Bare na filter bar sa itaas ng table: search + date + apply.
+        // Wala nang "Search & Filter" title at malaking card wrapper.
+        expect(block, isNot(contains('Search & Filter')));
+        expect(block, contains('Search by Loan ID or client name...'));
+        expect(block, contains('Apply Filters'));
+        // Tinanggal ang asul na "Loan Details" info card sa ibaba ng table.
+        expect(block, isNot(contains('_buildHistoryDetailsCard')));
+        expect(block, contains('Showing \$from - \$to of \$total'));
+
+        // Mga column ng design (walang progress column sa Previous Loans).
+        // Walang hiwalay na Client Name column — nasa ILALIM ng Loan ID ang
+        // pangalan para buo ang Loan ID.
+        expect(block, isNot(contains("ResponsiveCol('Client Name'")));
+        expect(block, contains('lenderName.isEmpty'));
+        for (final col in const [
+          'Loan ID',
+          'Amount',
+          'Term',
+          'Installment',
+          'Start Date',
+          'End Date',
+          'Status',
+        ]) {
+          expect(block, contains("ResponsiveCol('$col'"));
+        }
+      });
+
+      test('${screen.split('/').last}: Apply button lang ang naglo-load', () {
+        final block = _historyBlock(_readNormalized(screen));
+
+        // Ang buong-table shimmer ay para lang sa UNANG load.
+        expect(block, contains('if (st.isLoading && !st.hasLoaded)'));
+        expect(block, contains('_buildHistoryFilterCard(st)'));
+        // Spinner sa loob ng Apply button habang nag-a-apply.
+        expect(block, contains('onPressed: st.isLoading ? null'));
+        expect(block, contains('CircularProgressIndicator'));
       });
 
       test('${screen.split('/').last}: may Previous Loan pill tab', () {
@@ -165,6 +290,29 @@ void main() {
           _historyBlock(_readNormalized(_hmScreen)),
           reason:
               'Dapat kapareho ng HM ang Employee screen — i-run ang scripts/sync_employee_screens.py');
+    });
+  });
+
+  group('Source guard: hidden na ang Completed tab', () {
+    test('HM at Employee: wala nang Completed pill', () {
+      for (final screen in {_hmScreen, _empScreen}) {
+        final src = _readNormalized(screen);
+        expect(src, isNot(contains("'completed', 'Completed'")));
+        expect(src, contains("'loan_history', 'Previous Loan'"));
+      }
+    });
+
+    test('lumang /completed URL: redirect sa Previous Loan', () {
+      final router = _readNormalized('lib/core/router/app_router.dart')
+          .replaceAll(RegExp(r'\s+'), ' ');
+      expect(
+          router,
+          contains(
+              'path: RouteConstants.hmLoanRecordsCompleted, redirect: (ctx, s) => RouteConstants.hmLoanApplicationsHistory'));
+      expect(
+          router,
+          contains(
+              'path: RouteConstants.empLoansCompleted, redirect: (ctx, s) => RouteConstants.empLoansHistory'));
     });
   });
 
@@ -252,6 +400,45 @@ void main() {
       expect(ds.dateTo, isNull);
     });
 
+    test('hasLoaded: false habang first load, true pagkatapos', () async {
+      final ds = _FakeHistoryDs();
+      ds.response = {
+        'data': [_historyRow()],
+        'meta': {'page': 1, 'total_pages': 1, 'total': 1},
+      };
+      final notifier = HmLoanHistoryNotifier(ds);
+
+      // Dito pa lang Naglo-load: shimmer ang tama, hindi blangkong table.
+      expect(notifier.state.hasLoaded, isFalse);
+      await Future<void>.delayed(Duration.zero);
+      expect(notifier.state.hasLoaded, isTrue);
+    });
+
+    test('filter reload: hindi binubura ang table habang naglo-load', () async {
+      final ds = _FakeHistoryDs();
+      ds.response = {
+        'data': [_historyRow()],
+        'meta': {'page': 1, 'total_pages': 1, 'total': 1},
+      };
+      final notifier = HmLoanHistoryNotifier(ds);
+      await Future<void>.delayed(Duration.zero);
+      expect(notifier.state.loans, hasLength(1));
+
+      // Slow request para ma-observe ang loading state.
+      final gate = Completer<void>();
+      ds.gate = gate.future;
+      notifier.setSearch('april');
+
+      expect(notifier.state.isLoading, isTrue);
+      expect(notifier.state.hasLoaded, isTrue);
+      expect(notifier.state.loans, hasLength(1),
+          reason: 'dapat hindi mawala ang table habang nag-a-apply');
+
+      gate.complete();
+      await Future<void>.delayed(Duration.zero);
+      expect(notifier.state.isLoading, isFalse);
+    });
+
     test('pagination: page + meta ay naka-parse sa state', () async {
       final ds = _FakeHistoryDs();
       ds.response = {
@@ -329,11 +516,158 @@ void main() {
       expect(loan.lastPaymentAt, isNull);
       expect(loan.progress, 0);
       expect(loan.totalPaid, 0);
-    });
-
-    test('out-of-range na progress ay kino-clamp sa 0..1', () {
+    });    test('out-of-range na progress ay kino-clamp sa 0..1', () {
       expect(LoanModel.fromJson(_historyRow(progress: 1.4)).progress, 1);
       expect(LoanModel.fromJson(_historyRow(progress: -0.2)).progress, 0);
+    });
+  });
+
+  group('Loan Details side panel (View ng Previous Loan)', () {
+    test('HM at Employee: ang View button ay nagbubukas ng side panel', () {
+      for (final screen in {_hmScreen, _empScreen}) {
+        final src = _readNormalized(screen);
+        expect(src, contains('loan_details_side_panel.dart'));
+        expect(
+            src,
+            contains(
+                'showLoanDetailsSidePanel(context, loanId: loan.id, loan: loan)'));
+        expect(src, isNot(contains('showHmLoanHistoryModal')),
+            reason: 'gitnang dialog dati — side panel na ngayon');
+        expect(
+            src, contains('onPressed: () => _openLoanDetails(context, loan)'),
+            reason: 'View button ng Previous Loan table');
+        expect(src, contains('onTap: () => _openLoanDetails(context, loan)'),
+            reason: 'row tap — pareho ang bukas na panel');
+      }
+    });
+
+    test('panel: naka-slide mula kanan at kumpleto ang sections', () {
+      final src = _readNormalized(_panelFile);
+      expect(src, contains('Alignment.centerRight'));
+      expect(src, contains('begin: const Offset(1, 0)'),
+          reason: 'slide-in mula sa kanan');
+      // Mas malapad (560) para hindi maputol ang address at history.
+      expect(src, contains('560.0'));
+      expect(src, contains('thumbVisibility: true'),
+          reason: 'dapat may visible scrollbar — hindi mukhang naputol');
+      for (final label in const [
+        "'Loan ID'",
+        "'Client Information'",
+        "'Client Name'",
+        "'Phone Number'",
+        "'Email'",
+        "'Address'",
+        "'Loan Information'",
+        "'Term'",
+        "'Installment Amount'",
+        "'Start Date'",
+        "'End Date'",
+        "'Approval Date'",
+        "'Completion Date'",
+        "'Transaction Reference'",
+        "'Payment Schedule'",
+        "'Due Date'",
+        "'Paid Date'",
+        "'Payment History'",
+        "'Date & Time'",
+        "'Successful'",
+        "'Notes'",
+        "'Download Receipt'",
+      ]) {
+        expect(src, contains(label));
+      }
+    });
+
+    testWidgets('lumalabas sa KANAN at tama ang nilalaman', (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      late BuildContext hostContext;
+      await tester.pumpWidget(MaterialApp(
+        home: Builder(builder: (context) {
+          hostContext = context;
+          return const Scaffold(body: SizedBox.expand());
+        }),
+      ));
+
+      showLoanDetailsSidePanel(
+        hostContext,
+        loanId: 'loan-1',
+        loadDetails: (_) async => _detailsPayload(),
+      );
+      await tester.pumpAndSettle();
+
+      // Nasa KANAN ng screen — hindi gitna (dating dialog).
+      final rect = tester.getRect(find.byType(LoanDetailsSidePanel));
+      expect(rect.right, 1400);
+      expect(rect.left, closeTo(840, 1));
+
+      // Loan ID + status (bayad na kahit `active` pa ang hilaw).
+      expect(find.text('Loan Details'), findsOneWidget);
+      expect(find.text('LN-2025-0012'), findsOneWidget);
+      expect(find.text('Completed'), findsOneWidget);
+
+      // Financial summary — apat sa isang row.
+      expect(find.text('Loan Amount'), findsOneWidget);
+      expect(find.text('₱50,000'), findsOneWidget);
+      expect(find.text('Total Amount Payable'), findsOneWidget);
+      expect(find.text('(20% flat rate)'), findsOneWidget);
+      expect(find.text('₱60,000'), findsOneWidget);
+      expect(find.text('Total Amount Paid'), findsOneWidget);
+      expect(find.text('Remaining Balance'), findsOneWidget);
+      expect(find.text('₱0'), findsOneWidget);
+
+      // Client Information.
+      expect(find.text('Client Information'), findsOneWidget);
+      expect(find.text('Maria Santos Dela Cruz'), findsOneWidget);
+      expect(find.text('+63 917 555 1234'), findsOneWidget);
+      expect(find.text('maria@example.com'), findsOneWidget);
+      expect(
+          find.text('123 Mabini St., Poblacion, Makati, Metro Manila, 1210'),
+          findsOneWidget);
+
+      // Loan Information.
+      expect(find.text('Loan Information'), findsOneWidget);
+      expect(find.text('3 months (Monthly)'), findsOneWidget);
+      expect(find.text('TRX-20250510-0012'), findsOneWidget);
+
+      // Payment Schedule + Payment History.
+      expect(find.text('Payment Schedule'), findsOneWidget);
+      expect(find.text('Paid'), findsNWidgets(3));
+      expect(find.text('Payment History'), findsOneWidget);
+      expect(find.text('Successful'), findsOneWidget);
+      expect(find.text('GCB-123456'), findsOneWidget);
+
+      // Notes + Download Receipt.
+      expect(find.text('Notes'), findsOneWidget);
+      expect(find.text('Loan fully paid. No outstanding balance.'),
+          findsOneWidget);
+      expect(find.text('Download Receipt'), findsOneWidget);
+    });
+
+    testWidgets('bigong load: may error at gumagana ang Retry', (tester) async {
+      var calls = 0;
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: LoanDetailsSidePanel(
+            loanId: 'loan-1',
+            loadDetails: (_) async {
+              calls++;
+              if (calls == 1) throw Exception('boom');
+              return _detailsPayload();
+            },
+          ),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Failed to load loan details.'), findsOneWidget);
+      await tester.tap(find.text('Retry'));
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      expect(find.text('Loan Information'), findsOneWidget);
     });
   });
 }

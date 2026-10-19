@@ -21,6 +21,7 @@ import '../../../shared/widgets/branded_loading_screen.dart';
 import '../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../shared/widgets/legal_links.dart';
 import '../../../shared/widgets/offline_toast.dart';
+import '../../../shared/widgets/philippine_flag.dart';
 import '../../../shared/widgets/security/mpin_keypad.dart';
 import '../providers/auth_provider.dart';
 import 'otp_verify_screen.dart';
@@ -793,10 +794,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // Watawat ng Pilipinas — tugma sa `+63`
-                                      // na prefix ng numero.
-                                      const Text('🇵🇭',
-                                          style: TextStyle(fontSize: 15)),
+                                      // Watawat ng Pilipinas — iginuhit (hindi
+                                      // emoji) para lumabas sa lahat ng platform.
+                                      const PhilippineFlag(width: 20),
                                       const SizedBox(width: 8),
                                       Text(
                                         formatMpinPhone(phone),
@@ -1233,10 +1233,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                         mainAxisSize:
                                                             MainAxisSize.min,
                                                         children: [
-                                                          Text('🇵🇭',
-                                                              style: TextStyle(
-                                                                  fontSize:
-                                                                      16)),
+                                                          PhilippineFlag(
+                                                              width: 20),
                                                           SizedBox(width: 6),
                                                           Text(
                                                             '+63',

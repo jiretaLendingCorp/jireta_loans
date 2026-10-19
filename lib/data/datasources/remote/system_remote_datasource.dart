@@ -11,6 +11,12 @@ class SystemRemoteDataSource {
     return (res.data['configs'] as List?) ?? [];
   }
 
+  /// Min/max loan amount + interest rate na itinakda ng Head Manager.
+  Future<Map<String, dynamic>> getLoanSettings() async {
+    final res = await _client.get(ApiEndpoints.systemGetLoanSettings);
+    return (res.data as Map?)?.cast<String, dynamic>() ?? const {};
+  }
+
   Future<void> updateSystemConfig(String configKey, String configValue) async {
     await _client.patch(ApiEndpoints.systemUpdateConfig, data: {
       'config_key': configKey,

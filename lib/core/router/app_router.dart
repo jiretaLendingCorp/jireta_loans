@@ -615,9 +615,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmLoanRecordsOngoing,
           builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+      // Tinanggal ang "Completed" tab (nasa Previous Loan na ito) — i-redirect
+      // ang lumang URL para hindi mabuksan ang hidden na tab.
       GoRoute(
           path: RouteConstants.hmLoanRecordsCompleted,
-          builder: (ctx, s) => const HmLoanApplicationsListScreen()),
+          redirect: (ctx, s) => RouteConstants.hmLoanApplicationsHistory),
       GoRoute(
           path: RouteConstants.hmLoanRecordsPipeline,
           builder: (ctx, s) => const HmLoanApplicationsListScreen()),
@@ -742,9 +744,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.empLoansOngoing,
           builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+      // Tinanggal ang "Completed" tab (Employee) — redirect sa Previous Loan.
       GoRoute(
           path: RouteConstants.empLoansCompleted,
-          builder: (ctx, s) => const EmpLoanApplicationsScreen()),
+          redirect: (ctx, s) => RouteConstants.empLoansHistory),
       GoRoute(
           path: RouteConstants.empLoansPipeline,
           builder: (ctx, s) => const EmpLoanApplicationsScreen()),

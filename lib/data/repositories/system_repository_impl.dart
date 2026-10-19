@@ -10,6 +10,9 @@ class SystemRepositoryImpl implements ISystemRepository {
   Future<List<dynamic>> getSystemConfig() => _ds.getSystemConfig();
 
   @override
+  Future<Map<String, dynamic>> getLoanSettings() => _ds.getLoanSettings();
+
+  @override
   Future<void> updateSystemConfig(String configKey, String configValue) =>
       _ds.updateSystemConfig(configKey, configValue);
 

@@ -16,6 +16,7 @@ import { errorResponse, handleCors, jsonResponse } from '../_shared/cors.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { getInterestRatePct, getLoanLimits } from '../_shared/system_config.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-config';
@@ -30,6 +31,10 @@ serve(async (req: Request) => {
       case 'get-config':
         // ── [moved from functions/system-get-config/index.ts] ─────────
         return await handleGetConfig(req);
+      case 'get-loan-settings':
+        // Minimum/maximum loan amount + interest rate para sa loan application
+        // (lender) at walk-in wizard (HM/Employee).
+        return await handleGetLoanSettings(req);
       case 'get-sms-templates':
         // ── [moved from functions/system-get-sms-templates/index.ts] ──
         return await handleGetSmsTemplates(req);
@@ -66,6 +71,36 @@ async function handleGetConfig(req: Request) {
     if (error) return errorResponse('Failed to fetch system config', 500, 'DB_ERROR');
 
     return jsonResponse({ configs: data ?? [] });
+}
+
+// ── [Loan settings para sa application forms] ─────────────────────────────
+// Binabasa ang `system_config` limits at interest rate. HM-only ang buong
+// config, pero kailangan ito ng lender (Apply Loan) at ng staff (In-Office)
+// kaya hiwalay na action at sensitive keys lang ang ibinabalik.
+async function handleGetLoanSettings(req: Request) {
+    const authResult = await requireAuth(req);
+    if (!isAuthUser(authResult)) return authResult;
+
+    const allowedRoles: readonly string[] = [
+        ROLES.HEAD_MANAGER,
+        ROLES.EMPLOYEE,
+        ROLES.LENDER,
+    ];
+    if (!allowedRoles.includes(authResult.role)) {
+        return errorResponse('Access denied', 403, 'FORBIDDEN');
+    }
+
+    const db = getAdminClient();
+    const [limits, interestRate] = await Promise.all([
+        getLoanLimits(db),
+        getInterestRatePct(db),
+    ]);
+
+    return jsonResponse({
+        min_amount: limits.min,
+        max_amount: limits.max,
+        interest_rate: interestRate,
+    });
 }
 
 // ── [moved from functions/system-get-sms-templates/index.ts] ────────────────

@@ -6,7 +6,7 @@
 import {
   assertEquals,
 } from "https://deno.land/std@0.168.0/testing/asserts.ts";
-import { getInterestRatePct } from "./system_config.ts";
+import { getInterestRatePct, getLoanLimits } from "./system_config.ts";
 import type { DbClient } from "./types.ts";
 
 function fakeDb(value: string | null, error?: unknown): DbClient {
@@ -43,4 +43,58 @@ Deno.test("getInterestRatePct falls back to 20 on missing/invalid values", async
 
 Deno.test("getInterestRatePct falls back to 20 on a DB error", async () => {
   assertEquals(await getInterestRatePct(fakeDb(null, { message: "boom" })), 20);
+});
+
+// ── getLoanLimits ────────────────────────────────────────────────────────────
+function fakeLimitsDb(
+  rows: Array<{ config_key: string; config_value: string }> | null,
+  error?: unknown,
+): DbClient {
+  return {
+    from: () => ({
+      select: () => ({
+        in: async () =>
+          error ? { data: null, error } : { data: rows, error: null },
+      }),
+    }),
+  } as unknown as DbClient;
+}
+
+Deno.test("getLoanLimits reads the configured min/max", async () => {
+  assertEquals(
+    await getLoanLimits(fakeLimitsDb([
+      { config_key: "min_loan_amount", config_value: "3500" },
+      { config_key: "max_loan_amount", config_value: "600000" },
+    ])),
+    { min: 3500, max: 600000 },
+  );
+});
+
+Deno.test("getLoanLimits falls back to 3000/500000 on missing rows", async () => {
+  assertEquals(await getLoanLimits(fakeLimitsDb(null)), { min: 3000, max: 500000 });
+  assertEquals(await getLoanLimits(fakeLimitsDb([])), { min: 3000, max: 500000 });
+});
+
+Deno.test("getLoanLimits ignores invalid or reversed values", async () => {
+  assertEquals(
+    await getLoanLimits(fakeLimitsDb([
+      { config_key: "min_loan_amount", config_value: "abc" },
+      { config_key: "max_loan_amount", config_value: "500000" },
+    ])),
+    { min: 3000, max: 500000 },
+  );
+  assertEquals(
+    await getLoanLimits(fakeLimitsDb([
+      { config_key: "min_loan_amount", config_value: "700000" },
+      { config_key: "max_loan_amount", config_value: "500000" },
+    ])),
+    { min: 3000, max: 500000 },
+  );
+});
+
+Deno.test("getLoanLimits falls back on a DB error", async () => {
+  assertEquals(
+    await getLoanLimits(fakeLimitsDb(null, { message: "boom" })),
+    { min: 3000, max: 500000 },
+  );
 });

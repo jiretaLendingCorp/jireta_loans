@@ -15,6 +15,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { getInterestRatePct } from '../_shared/system_config.ts';
 
 // ── [moved from in-office-save-step] ────────────────────────────────────────
 const db = () => getAdminClient();
@@ -272,10 +273,14 @@ async function saveStep2(applicationId: string, data: Record<string, unknown>) {
 // ── [moved from functions/in-office-save-step/index.ts] ─────────────────────
 async function saveStep3(applicationId: string, data: Record<string, unknown>) {
   const client = db();
+  // Interest rate mula sa System Settings ng Head Manager — hindi na 20.00.
+  const configuredRate = await getInterestRatePct(client);
   const { error } = await client.from('application_loan_details').upsert({
     application_id: applicationId,
     principal_amount: toNumberOrNull(data.principal_amount),
-    interest_rate: data.interest_rate != null ? toNumberOrNull(data.interest_rate) ?? 20.00 : 20.00,
+    interest_rate: data.interest_rate != null
+      ? toNumberOrNull(data.interest_rate) ?? configuredRate
+      : configuredRate,
     payment_frequency: data.frequency ?? data.payment_frequency ?? null,
     term_days: toNumberOrNull(data.term_days),
     term_periods: toNumberOrNull(data.term_periods),

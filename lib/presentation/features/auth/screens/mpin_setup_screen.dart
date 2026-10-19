@@ -21,6 +21,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/widgets/dialogs/loading_dialog.dart';
 import '../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../shared/widgets/philippine_flag.dart';
 import '../../../shared/widgets/security/mpin_keypad.dart';
 
 /// Hakbang ng setup: gumawa ng bagong MPIN, tapos kumpirmahin.
@@ -281,10 +282,9 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  // Watawat ng Pilipinas — tugma sa `+63`
-                                  // na prefix ng numero.
-                                  const Text('🇵🇭',
-                                      style: TextStyle(fontSize: 15)),
+                                  // Watawat ng Pilipinas — iginuhit (hindi
+                                  // emoji) para lumabas sa lahat ng platform.
+                                  const PhilippineFlag(width: 20),
                                   const SizedBox(width: 8),
                                   Text(
                                     formatMpinPhone(phone),

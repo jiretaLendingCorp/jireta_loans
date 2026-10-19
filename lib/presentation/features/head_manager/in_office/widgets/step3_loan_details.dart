@@ -1,11 +1,14 @@
 // lib/presentation/features/head_manager/in_office/widgets/step3_loan_details.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../data/models/loan_settings.dart';
 import '../../../../../domain/repositories/i_loan_repository.dart';
+import '../../../../shared/providers/loan_settings_provider.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import 'package:jireta_loans/presentation/shared/utils/interest_label.dart';
 
@@ -31,11 +34,43 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
   bool _loadingPreview = false;
   String? _previewError;
 
-  static const double _minAmount = 3000;
-  static const double _maxAmount = 500000;
+  // Min/max mula sa System Settings ng Head Manager (hindi hardcoded).
+  double _minAmount = LoanSettings.defaults.minAmount;
+  double _maxAmount = LoanSettings.defaults.maxAmount;
 
   double get _amount =>
       double.tryParse(_amountCtrl.text.replaceAll(',', '')) ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoanSettings();
+  }
+
+  Future<void> _loadLoanSettings() async {
+    final settings = await ref.read(loanSettingsProvider.future);
+    if (!mounted) return;
+    _applyLoanSettings(settings);
+  }
+
+  /// Pareho ang daan ng initial load at realtime update (kapag nag-save ng
+  /// config ang Head Manager) — isang lugar lang ang nagbabago ng limits.
+  void _applyLoanSettings(LoanSettings settings) {
+    if (!mounted) return;
+    if (settings.minAmount == _minAmount &&
+        settings.maxAmount == _maxAmount) {
+      return;
+    }
+    setState(() {
+      _minAmount = settings.minAmount;
+      _maxAmount = settings.maxAmount;
+    });
+    if (_amount >= _minAmount && _amount <= _maxAmount) _loadPreview();
+  }
+
+  String _peso(num value) => '₱${_fmt.format(value)}';
+
+  static final _fmt = NumberFormat('#,##0', 'en_PH');
 
   @override
   void dispose() {
@@ -86,6 +121,11 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
 
   @override
   Widget build(BuildContext context) {
+    // Realtime: kapag nag-save ng bagong limits ang Head Manager, agad
+    // napapalitan ang label/validation dito sa wizard.
+    ref.listen<AsyncValue<LoanSettings>>(loanSettingsProvider, (_, next) {
+      next.whenData(_applyLoanSettings);
+    });
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -107,7 +147,7 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
           const SizedBox(height: 20),
           AppTextField(
             controller: _amountCtrl,
-            label: 'Loan Amount (₱3,000 – ₱500,000) *',
+            label: 'Loan Amount (${_peso(_minAmount)} – ${_peso(_maxAmount)}) *',
             keyboardType: TextInputType.number,
             prefixIcon: Icons.attach_money,
             maxLength: 12,
@@ -120,9 +160,9 @@ class _Step3LoanDetailsState extends ConsumerState<Step3LoanDetails> {
           ),
           const SizedBox(height: 8),
           if (_amount > 0 && (_amount < _minAmount || _amount > _maxAmount))
-            const Text(
-              'Amount must be between ₱3,000 and ₱500,000',
-              style: TextStyle(color: AppColors.error, fontSize: 12),
+            Text(
+              'Amount must be between ${_peso(_minAmount)} and ${_peso(_maxAmount)}',
+              style: const TextStyle(color: AppColors.error, fontSize: 12),
             ),
           const SizedBox(height: 16),
           const Text(

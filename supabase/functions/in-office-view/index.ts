@@ -22,7 +22,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule } from '../_shared/schedule.ts';
-import { getInterestRatePct } from '../_shared/system_config.ts';
+import { getInterestRatePct, getLoanLimits } from '../_shared/system_config.ts';
 import { geocodeInBackground } from '../_shared/geocode.ts';
 
 // ── [moved from in-office-submit] ───────────────────────────────────────────
@@ -443,9 +443,16 @@ async function handleSubmit(req: Request) {
     // principal_amount may arrive as "10,000" string; sanitize before truthiness check.
     const rawPrincipal = s3.principal_amount;
     const sanitizedPrincipal = rawPrincipal != null ? Number(String(rawPrincipal).replace(/,/g, '')) : NaN;
-    if (!rawPrincipal || Number.isNaN(sanitizedPrincipal) || sanitizedPrincipal < 3000) {
+    // Limits mula sa System Settings ng Head Manager (hindi hardcoded 3000-500000).
+    const loanLimits = await getLoanLimits(db);
+    if (!rawPrincipal || Number.isNaN(sanitizedPrincipal) ||
+        sanitizedPrincipal < loanLimits.min || sanitizedPrincipal > loanLimits.max) {
       console.error('in-office-view submit: invalid principal_amount', { application_id, rawPrincipal, sanitizedPrincipal });
-      return errorResponse('Step 3 is incomplete: valid principal_amount required (3000-500000)', 400, 'INCOMPLETE_WIZARD');
+      return errorResponse(
+        `Step 3 is incomplete: amount must be between ₱${loanLimits.min.toLocaleString('en-US')} and ₱${loanLimits.max.toLocaleString('en-US')}`,
+        400,
+        'INCOMPLETE_WIZARD',
+      );
     }
     // Normalize s3 principal for later use.
     s3.principal_amount = sanitizedPrincipal;

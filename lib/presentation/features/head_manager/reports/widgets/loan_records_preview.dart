@@ -105,6 +105,95 @@ List<Map<String, dynamic>> interestPreviewRows(
         },
     ];
 
+/// Kabuuang halaga ng report para sa napiling panahon (Beginning Date –
+/// Ending Date):
+///   * [collected]     — Halagang nakolekta na (Total − Outstanding).
+///   * [outstanding]   — Halagang hindi pa nakokolekta.
+///   * [income]        — Kabuuang kita (interest).
+///   * [total]         — Kabuuang halaga (Total Payable) sa panahon.
+///   * [principal]     — Kabuuang principal ng mga loan.
+class LoanReportTotals {
+  final double principal;
+  final double collected;
+  final double outstanding;
+  final double income;
+  final double total;
+
+  const LoanReportTotals({
+    this.principal = 0,
+    this.collected = 0,
+    this.outstanding = 0,
+    this.income = 0,
+    this.total = 0,
+  });
+}
+
+/// Numero lang ang binibilang — ang `N/A` / blangko ay binabalewala sa halip
+/// na gawing zero ang buong column.
+double? _reportNum(dynamic v) {
+  if (v is num) return v.toDouble();
+  final s = (v ?? '').toString().replaceAll(',', '').trim();
+  return num.tryParse(s)?.toDouble();
+}
+
+/// Kinukuha ang mga kabuuan ng report mula sa hilaw na `interest_report` rows
+/// (kailangan ang `outstandingBalance` para sa nakolekta / hindi pa
+/// nakokolekta). Ang row na walang outstanding data ay hindi idinadagdag sa
+/// `collected` — hindi ito itinuturing na fully paid.
+LoanReportTotals loanReportTotals(List<Map<String, dynamic>> rows) {
+  var principal = 0.0;
+  var collected = 0.0;
+  var outstanding = 0.0;
+  var income = 0.0;
+  var total = 0.0;
+
+  for (final r in rows) {
+    final p = _reportNum(reportColumnValue(r, ['principalAmount', 'amount']));
+    final i = _reportNum(
+        reportColumnValue(r, ['interestAmount', 'interest_amount']));
+    final t = _reportNum(reportColumnValue(r, ['totalPayable', 'total_payable']));
+    final o = _reportNum(
+        reportColumnValue(r, ['outstandingBalance', 'outstanding_balance']));
+
+    if (p != null) principal += p;
+    if (i != null) income += i;
+    if (t != null) total += t;
+    if (o != null) outstanding += o;
+    if (t != null && o != null) {
+      final paid = t - o;
+      if (paid > 0) collected += paid;
+    }
+  }
+
+  return LoanReportTotals(
+    principal: principal,
+    collected: collected,
+    outstanding: outstanding,
+    income: income,
+    total: total,
+  );
+}
+
+/// Rows na ine-export — may huling `TOTAL` row na nagbubuod sa Amount,
+/// Interest at Total ng buong naka-filter na report (hindi lang sa kasalukuyang
+/// page), tulad ng kabuuang hinihingi sa dulo ng report.
+List<Map<String, dynamic>> interestPreviewRowsWithTotals(
+  List<Map<String, dynamic>> rows,
+) {
+  final out = interestPreviewRows(rows);
+  if (out.isEmpty) return out;
+  final totals = loanReportTotals(rows);
+  out.add({
+    // Nasa Loan Name column ang TOTAL para malapit sa mga halaga.
+    'Loan Record': reportBlank,
+    'Loan Name': 'TOTAL',
+    'Amount': totals.principal,
+    'Interest': totals.income,
+    'Total': totals.total,
+  });
+  return out;
+}
+
 /// Puting panel na may manipis na border — iisang estilo para sa lahat ng
 /// section ng Reports page (filter bar, summary cards, table, history).
 Widget reportPanel({
@@ -153,9 +242,15 @@ class LoanRecordsPreview extends StatefulWidget {
   final List<Map<String, dynamic>> rows;
 
   /// Tinatawag kada may pagbabago sa filter. Ang ibinibigay na rows ay
-  /// Amount / Interest / Total lang (kapareho ng nasa table) — ito ang
-  /// ipinapasa sa Excel/PDF export para tugma ang file sa nakikita sa screen.
+  /// Amount / Interest / Total lang (kapareho ng nasa table) at may huling
+  /// `TOTAL` row — ito ang ipinapasa sa Excel/PDF export para tugma ang file
+  /// sa nakikita sa screen.
   final ValueChanged<List<Map<String, dynamic>>>? onFilteredChanged;
+
+  /// Tinatawag kasabay ng [onFilteredChanged] — ang kabuuan ng panahon
+  /// (Beginning/Ending Date, nakolekta, hindi pa nakokolekta, kita) na
+  /// nakalagay sa PDF/Excel export.
+  final ValueChanged<ReportSummary>? onSummaryChanged;
 
   /// Napiling panahon — kapag may [onPickDateRange], may date pill sa may
   /// kanan ng search (tulad ng "Sep 01, 2025 – Sep 30, 2025" sa mockup).
@@ -182,6 +277,7 @@ class LoanRecordsPreview extends StatefulWidget {
     super.key,
     required this.rows,
     this.onFilteredChanged,
+    this.onSummaryChanged,
     this.dateRange,
     this.onPickDateRange,
     this.exportActions,
@@ -209,6 +305,18 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     // Ipaalam agad sa screen ang buong set — ito ang unang ine-export kung
     // walang babaguhin sa filter.
     WidgetsBinding.instance.addPostFrameCallback((_) => _notifyParent());
+  }
+
+  @override
+  void didUpdateWidget(covariant LoanRecordsPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Bagong date range / bagong report → bagong rows. Bumalik sa page 1 at
+    // i-refresh ang ine-export para tugma ito sa bagong report (hindi ang
+    // lumang rows ng dating panahon).
+    if (!identical(oldWidget.rows, widget.rows)) {
+      _page = 1;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _notifyParent());
+    }
   }
 
   @override
@@ -249,8 +357,23 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     return list;
   }
 
-  void _notifyParent() =>
-      widget.onFilteredChanged?.call(interestPreviewRows(_filtered));
+  void _notifyParent() {
+    final filtered = _filtered;
+    widget.onFilteredChanged
+        ?.call(interestPreviewRowsWithTotals(filtered));
+
+    final totals = loanReportTotals(filtered);
+    final range = widget.dateRange;
+    widget.onSummaryChanged?.call(ReportSummary(
+      beginningDate:
+          range == null ? '—' : DateFormat('MMM dd, yyyy').format(range.start),
+      endingDate:
+          range == null ? '—' : DateFormat('MMM dd, yyyy').format(range.end),
+      collected: totals.collected,
+      outstanding: totals.outstanding,
+      income: totals.income,
+    ));
+  }
 
   /// Kapag nagbago ang filter, bumalik sa unang page para hindi makita ang
   /// blangkong page (hal. naging 2 rows na lang mula sa 30).
@@ -264,16 +387,8 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
 
   // ─────────────────────────── UI ───────────────────────────
 
-  /// Numero lang ang sinasama sa totals — ang `N/A` (walang interest data) ay
-  /// binabalewala sa halip na gawing zero ang buong column.
-  static double? _num(dynamic v) {
-    if (v is num) return v.toDouble();
-    final s = (v ?? '').toString().replaceAll(',', '').trim();
-    return num.tryParse(s)?.toDouble();
-  }
-
   double _sum(List<Map<String, dynamic>> rows, String label) =>
-      rows.fold<double>(0, (total, r) => total + (_num(r[label]) ?? 0));
+      rows.fold<double>(0, (total, r) => total + (_reportNum(r[label]) ?? 0));
 
   static String _money(double v) => NumberFormat('#,##0.00', 'en_PH').format(v);
 
@@ -281,6 +396,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
   Widget build(BuildContext context) {
     final filtered = _filtered;
     final rows = interestPreviewRows(filtered);
+    final reportTotals = loanReportTotals(filtered);
     final total = rows.length;
     final totalPages = total == 0 ? 1 : (total / _pageSize).ceil();
     final page = _page > totalPages ? totalPages : _page;
@@ -300,8 +416,18 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
             child: _buildFilterCard(),
           ),
           const SizedBox(height: 16),
-          _buildSummaryCards(rows),
-          const SizedBox(height: 16),
+          // LOAN SUMMARY sa TAAS — ang mga summary card.
+          const Padding(
+            padding: EdgeInsets.only(left: 4, bottom: 10),
+            child: Text('Loan Summary',
+                style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+          ),
+          _buildSummaryCards(reportTotals, filtered.length),
+          const SizedBox(height: 28),
+          // LOAN RECORDS sa GITNA — ang table ng mga loan.
           const Padding(
             padding: EdgeInsets.only(left: 4, bottom: 10),
             child: Text('Loan Records',
@@ -310,7 +436,11 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
                     fontWeight: FontWeight.w800,
                     color: AppColors.textPrimary)),
           ),
-          _buildTableCard(items, page, totalPages, total, hasStatus: hasStatus),
+          _buildTableCard(items, page, totalPages, total,
+              hasStatus: hasStatus, totalsRow: rows),
+          const SizedBox(height: 20),
+          // Beginning Date / Ending Date / mga halaga — nasa PINAKABABA.
+          _buildPeriodSummary(reportTotals),
         ],
       ),
     );
@@ -442,12 +572,16 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
               const Icon(Icons.date_range_rounded,
                   size: 16, color: AppColors.textSecondary),
               const SizedBox(width: 8),
-              Text(
-                '${DateFormat('MMM dd, yyyy').format(range.start)} – ${DateFormat('MMM dd, yyyy').format(range.end)}',
-                style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary),
+              Flexible(
+                child: Text(
+                  '${DateFormat('MMM dd, yyyy').format(range.start)} – ${DateFormat('MMM dd, yyyy').format(range.end)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary),
+                ),
               ),
               const SizedBox(width: 6),
               const Icon(Icons.keyboard_arrow_down_rounded,
@@ -459,9 +593,10 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
 
   // ── 2) Summary cards ──
 
-  /// Apat na summary card — Loans, Total Amount, Total Interest, Total Payable.
-  /// Apat kada row sa malapad na viewport, dalawa kapag masikip.
-  Widget _buildSummaryCards(List<Map<String, dynamic>> rows) {
+  /// Mga summary card ng report — Loans, Total Amount, Total Income, Total
+  /// Payable, Amount Collected, at Not Yet Collected. Apat kada
+  /// row sa malapad na viewport, dalawa kapag masikip.
+  Widget _buildSummaryCards(LoanReportTotals totals, int loanCount) {
     return LayoutBuilder(
       builder: (context, c) {
         final perRow = c.maxWidth >= 700 ? 4 : (c.maxWidth >= 420 ? 2 : 1);
@@ -469,37 +604,162 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
         final cards = [
           _PreviewStatCard(
               label: 'Loans',
-              value: '${rows.length}',
-              caption: 'Loans sa period',
+              value: '$loanCount',
+              caption: 'Loans in period',
               icon: Icons.description_outlined,
               color: AppColors.deepNavy),
           _PreviewStatCard(
               label: 'Total Amount',
-              value: '₱${_money(_sum(rows, 'Amount'))}',
+              value: '₱${_money(totals.principal)}',
               caption: 'Principal amount',
               icon: Icons.payments_outlined,
               color: AppColors.info),
           _PreviewStatCard(
-              label: 'Total Interest',
-              value: '₱${_money(_sum(rows, 'Interest'))}',
-              caption: 'Interest earned',
+              label: 'Total Income',
+              value: '₱${_money(totals.income)}',
+              caption: 'Total income',
               icon: Icons.percent_rounded,
               color: AppColors.goldDark),
           _PreviewStatCard(
               label: 'Total Payable',
-              value: '₱${_money(_sum(rows, 'Total'))}',
-              caption: 'Amount to collect',
+              value: '₱${_money(totals.total)}',
+              caption: 'Total amount for the period',
               icon: Icons.account_balance_wallet_outlined,
               color: AppColors.riderGreen),
+          _PreviewStatCard(
+              label: 'Amount Collected',
+              value: '₱${_money(totals.collected)}',
+              caption: 'Amount collected',
+              icon: Icons.savings_outlined,
+              color: AppColors.success),
+          _PreviewStatCard(
+              label: 'Not Yet Collected',
+              value: '₱${_money(totals.outstanding)}',
+              caption: 'Amount not yet collected',
+              icon: Icons.schedule_rounded,
+              color: AppColors.warning),
         ];
-        return Wrap(
-          spacing: 12,
-          runSpacing: 12,
-          children: [
-            for (final card in cards) SizedBox(width: w, child: card),
-          ],
-        );
+        // Bawat row ay centered — kapag hindi puno ang huling row (hal.
+        // Amount Collected at Not Yet Collected), nasa GITNA ito.
+        final rows = <Widget>[];
+        for (var start = 0; start < cards.length; start += perRow) {
+          final end = math.min(start + perRow, cards.length);
+          rows.add(Padding(
+            padding: EdgeInsets.only(bottom: end < cards.length ? 12 : 0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                for (var i = start; i < end; i++) ...[
+                  if (i > start) const SizedBox(width: 12),
+                  SizedBox(width: w, child: cards[i]),
+                ],
+              ],
+            ),
+          ));
+        }
+        return Column(children: rows);
       },
+    );
+  }
+
+  /// "Loan Summary" — Beginning Date, Ending Date, at ang mga kabuuan ng
+  /// napiling panahon, na may TOTAL row sa dulo (halimbawa ng format ng
+  /// report). Naka-horizontal scroll sa makitid na viewport para hindi
+  /// mag-overflow ang mga column.
+  Widget _buildPeriodSummary(LoanReportTotals totals) {
+    final range = widget.dateRange;
+    final beginning = range == null
+        ? '—'
+        : DateFormat('MMM dd, yyyy').format(range.start);
+    final ending =
+        range == null ? '—' : DateFormat('MMM dd, yyyy').format(range.end);
+    final headline = <String>[
+      'Beginning Date',
+      'Ending Date',
+      'Amount Collected',
+      'Amount to Collect',
+      'Total Income',
+      'Total Amount',
+    ];
+    final values = <String>[
+      beginning,
+      ending,
+      '₱${_money(totals.collected)}',
+      '₱${_money(totals.outstanding)}',
+      '₱${_money(totals.income)}',
+      '₱${_money(totals.total)}',
+    ];
+    final totalCells = <String>[
+      '',
+      'TOTAL',
+      '₱${_money(totals.collected)}',
+      '₱${_money(totals.outstanding)}',
+      '₱${_money(totals.income)}',
+      '₱${_money(totals.total)}',
+    ];
+
+    return reportPanel(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(14),
+        child:          // Punuin ang buong lapad ng card (walang blangkong space sa
+          // kanan); sa makitid na viewport lang ito nagiging horizontal
+          // scroll.
+          ResponsiveTableScroll(
+            minWidth: 900,
+            child: Column(
+              children: [
+                _periodRow(headline, header: true),
+                _periodRow(values),
+                _periodRow(totalCells, total: true),
+              ],
+            ),
+          ),
+      ),
+    );
+  }
+
+  /// Isang row ng Loan Summary — header, value, o TOTAL row.
+  Widget _periodRow(List<String> cells,
+      {bool header = false, bool total = false}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
+      decoration: BoxDecoration(
+        color: header
+            ? const Color(0xFFF8F9FB)
+            : (total ? AppColors.surfaceVariant : Colors.white),
+        border: header
+            ? const Border(bottom: BorderSide(color: AppColors.border))
+            : (total
+                ? const Border(top: BorderSide(color: AppColors.border))
+                : const Border(bottom: BorderSide(color: Color(0xFFF0F0F0)))),
+      ),
+      child: Row(
+        children: [
+          for (final cell in cells)
+            Expanded(
+              child: Text(
+                header ? cell.toUpperCase() : cell,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: header ? 10.5 : 12.5,
+                  fontWeight: total
+                      ? FontWeight.w800
+                      : (header ? FontWeight.w700 : FontWeight.w600),
+                  letterSpacing: header ? 0.4 : 0,
+                  color: header
+                      ? AppColors.textSecondary
+                      : (total
+                          ? AppColors.textPrimary
+                          : AppColors.textPrimary),
+                  fontFeatures: total || !header
+                      ? const [FontFeature.tabularFigures()]
+                      : null,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -511,6 +771,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     int totalPages,
     int total, {
     required bool hasStatus,
+    required List<Map<String, dynamic>> totalsRow,
   }) {
     return Container(
       decoration: BoxDecoration(
@@ -567,6 +828,9 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
                   ),
               ],
             ),
+            // TOTAL row — kabuuan ng buong naka-filter na report (hindi lang
+            // ng kasalukuyang page), nakahanay sa mga column ng table.
+            _buildTableTotal(totalsRow, hasStatus: hasStatus),
             _buildPagination(page, totalPages, total),
           ],
         ],
@@ -621,7 +885,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
 
     // Ang halagang ₱ lang ang naka-format; ang `N/A` (walang datos) ay
     // ipinapakita pa rin bilang text.
-    final n = _num(v);
+    final n = _reportNum(v);
     return Text(
       n == null ? reportCellValue(v) : '₱${_money(n)}',
       maxLines: 1,
@@ -633,6 +897,48 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
         // Tabular figures: pantay-pantay ang lapad ng digits kaya naka-kolumna
         // (nakatabular) ang mga halaga sa ilalim ng kanilang header.
         fontFeatures: const [FontFeature.tabularFigures()],
+      ),
+    );
+  }
+
+  /// Huling row ng table: "TOTAL" + kabuuan ng Amount / Interest / Total.
+  Widget _buildTableTotal(List<Map<String, dynamic>> rows,
+      {required bool hasStatus}) {
+    final cells = <Widget>[
+      const Text('TOTAL',
+          style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
+              color: AppColors.deepNavy)),
+      for (final c in _tableCols.skip(1))
+        Text(
+          '₱${_money(_sum(rows, c.label))}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w800,
+            color: c.total ? AppColors.deepNavy : AppColors.textPrimary,
+            fontFeatures: const [FontFeature.tabularFigures()],
+          ),
+        ),
+      if (hasStatus) const SizedBox.shrink(),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceVariant,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: Row(
+        children: [
+          for (var i = 0; i < cells.length; i++)
+            Expanded(
+              flex: i < _tableCols.length ? _tableCols[i].flex : 2,
+              child: cells[i],
+            ),
+        ],
       ),
     );
   }

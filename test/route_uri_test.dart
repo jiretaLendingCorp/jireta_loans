@@ -68,6 +68,17 @@ void main() {
           contains("empLoansPipeline =\n      '/employee/loan-records/pipeline/:status'"));
     });
 
+    test('Employee tabs ay EMPLOYEE paths — hindi HM (dashboard bug)', () {
+      final src = readNormalized(
+          'lib/presentation/features/employee/loans/screens/emp_loan_applications_screen.dart');
+      // Kapag HM path ang ginamit mula sa employee session, nire-redirect ng
+      // role guard sa dashboard — kaya kailangang employee constants.
+      expect(src, isNot(contains('RouteConstants.hmLoanRecords')));
+      expect(src, contains('RouteConstants.empLoansOngoing'));
+      expect(src, contains('RouteConstants.empLoansCompleted'));
+      expect(src, contains('RouteConstants.empLoansPipeline'));
+    });
+
     test('legacy paths ay may redirect (hindi 404)', () {
       expect(routes,
           contains("hmLoanApplicationsLegacy = '/hm/loan-applications'"));

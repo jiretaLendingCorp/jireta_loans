@@ -13,7 +13,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { DbClient } from './types.ts';
-import { DEFAULT_INTEREST_RATE_PCT } from './schedule.ts';
+import {
+  DEFAULT_INTEREST_RATE_PCT,
+  MAX_LOAN_AMOUNT,
+  MIN_LOAN_AMOUNT,
+} from './schedule.ts';
+
+/** Loan amount bounds na itinatakda ng Head Manager sa System Settings. */
+export interface LoanLimits {
+  min: number;
+  max: number;
+}
 
 /**
  * Binabasa ang `system_config.interest_rate` (porsyento, hal. "20") at
@@ -39,3 +49,46 @@ export async function getInterestRatePct(db: DbClient): Promise<number> {
   }
   return parsed;
 }
+
+function parsePositiveAmount(raw: unknown, fallback: number): number {
+  const text = String(raw ?? '').trim();
+  if (text === '') return fallback;
+  const parsed = Number(text);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
+  return parsed;
+}
+
+/**
+ * Binabasa ang `system_config.min_loan_amount` / `max_loan_amount` — ito ang
+ * aktwal na minimum at maximum na tinatanggap ng loan application. Dati,
+ * naka-fix ang validation sa ₱3,000–₱500,000 kahit may setting ang Head
+ * Manager, kaya hindi umiiral ang pagbabago niya.
+ *
+ * Ligtas na default (₱3,000–₱500,000) kapag kulang, sira, o baligtad ang
+ * values (min > max).
+ */
+export async function getLoanLimits(db: DbClient): Promise<LoanLimits> {
+  const fallback: LoanLimits = { min: MIN_LOAN_AMOUNT, max: MAX_LOAN_AMOUNT };
+  const { data, error } = await db
+    .from('system_config')
+    .select('config_key, config_value')
+    .in('config_key', ['min_loan_amount', 'max_loan_amount']);
+
+  if (error || !data) return fallback;
+
+  const byKey: Record<string, unknown> = {};
+  for (const row of data as Array<Record<string, unknown>>) {
+    const key = String(row.config_key ?? '');
+    if (key) byKey[key] = row.config_value;
+  }
+
+  const min = parsePositiveAmount(byKey['min_loan_amount'], fallback.min);
+  const max = parsePositiveAmount(byKey['max_loan_amount'], fallback.max);
+  if (min > max) return fallback;
+  return { min, max };
+}
+
+export const DEFAULT_LOAN_LIMITS: LoanLimits = {
+  min: MIN_LOAN_AMOUNT,
+  max: MAX_LOAN_AMOUNT,
+};

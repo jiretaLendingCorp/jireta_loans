@@ -22,6 +22,11 @@ import '../../../../shared/providers/realtime_refresh_mixin.dart';
 class HmLoanHistoryState {
   final List<LoanModel> loans;
   final bool isLoading;
+
+  /// Nakapag-load na ba kahit isang beses? Ipinapakita lang ang BUONG-table
+  /// shimmer kapag `false` — sa mga susunod na filter/search, mananatili ang
+  /// table at ang Apply button lang ang naglo-load.
+  final bool hasLoaded;
   final String? error;
   final String search;
   final String? dateFrom;
@@ -33,6 +38,7 @@ class HmLoanHistoryState {
   const HmLoanHistoryState({
     this.loans = const [],
     this.isLoading = false,
+    this.hasLoaded = false,
     this.error,
     this.search = '',
     this.dateFrom,
@@ -50,6 +56,7 @@ class HmLoanHistoryState {
   HmLoanHistoryState copyWith({
     List<LoanModel>? loans,
     bool? isLoading,
+    bool? hasLoaded,
     String? error,
     String? search,
     Object? dateFrom = _unset,
@@ -61,6 +68,7 @@ class HmLoanHistoryState {
       HmLoanHistoryState(
         loans: loans ?? this.loans,
         isLoading: isLoading ?? this.isLoading,
+        hasLoaded: hasLoaded ?? this.hasLoaded,
         error: error,
         search: search ?? this.search,
         dateFrom: dateFrom == _unset ? this.dateFrom : dateFrom as String?,
@@ -116,6 +124,7 @@ class HmLoanHistoryNotifier extends StateNotifier<HmLoanHistoryState>
       state = state.copyWith(
         loans: loans,
         isLoading: false,
+        hasLoaded: true,
         currentPage: meta['page'] as int? ?? 1,
         totalPages: meta['total_pages'] as int? ?? 1,
         totalCount: (serverTotal - removed).clamp(0, serverTotal),
@@ -124,7 +133,9 @@ class HmLoanHistoryNotifier extends StateNotifier<HmLoanHistoryState>
       if (seq != _requestSeq) return;
       if (silent) return;
       state = state.copyWith(
-          isLoading: false, error: ErrorHandler.handle(e).message);
+          isLoading: false,
+          hasLoaded: true,
+          error: ErrorHandler.handle(e).message);
     }
   }
 

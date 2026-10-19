@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/validators.dart';
 import '../providers/emp_lender_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -18,6 +19,10 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
   late final TextEditingController _firstNameCtrl;
   late final TextEditingController _lastNameCtrl;
   late final TextEditingController _phoneCtrl;
+  late final TextEditingController _emailCtrl;
+
+  /// Ang email na nakalabas sa field — para hindi maipadala kapag hindi binago.
+  String _shownEmail = '';
   bool _isSaving = false;
 
   @override
@@ -27,6 +32,11 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
     _firstNameCtrl = TextEditingController(text: d['first_name'] ?? '');
     _lastNameCtrl = TextEditingController(text: d['last_name'] ?? '');
     _phoneCtrl = TextEditingController(text: d['phone'] ?? '');
+    final rawEmail = (d['email'] as String?) ?? '';
+    // `${phone}@jireta.temp` = internal GoTrue credential lang — huwag ipakita.
+    _emailCtrl = TextEditingController(
+        text: rawEmail.toLowerCase().endsWith('@jireta.temp') ? '' : rawEmail);
+    _shownEmail = _emailCtrl.text;
   }
 
   @override
@@ -34,6 +44,7 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
     _firstNameCtrl.dispose();
     _lastNameCtrl.dispose();
     _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     super.dispose();
   }
 
@@ -46,6 +57,10 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
         'first_name': _firstNameCtrl.text.trim(),
         'last_name': _lastNameCtrl.text.trim(),
         'phone': _phoneCtrl.text.trim(),
+        // Ipinapadala lang kapag TALAGANG binago ang email.
+        if (_emailCtrl.text.trim().toLowerCase() !=
+            _shownEmail.trim().toLowerCase())
+          'email': _emailCtrl.text.trim(),
       });
       if (mounted) Navigator.of(context).pop();
     } catch (e) {
@@ -86,6 +101,8 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
                       ]),
                       const SizedBox(height: 14),
                       _field('Phone Number', _phoneCtrl, maxLength: 11),
+                      const SizedBox(height: 14),
+                      _emailField(),
                     ],
                   ),
                 ),
@@ -156,7 +173,27 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
     );
   }
 
-Widget _field(String label, TextEditingController ctrl,
+  /// Email ng lender — para maayos ang blangko/maling email sa People.
+  Widget _emailField() {
+    return TextFormField(
+      controller: _emailCtrl,
+      keyboardType: TextInputType.emailAddress,
+      decoration: const InputDecoration(
+        labelText: 'Email',
+        hintText: 'name@example.com',
+        border: OutlineInputBorder(borderRadius: BorderRadius.zero),
+      ),
+      validator: (v) {
+        final value = (v ?? '').trim();
+        if (value.isEmpty) return null;
+        return AppValidators.isValidEmail(value)
+            ? null
+            : 'Enter a valid email address';
+      },
+    );
+  }
+
+  Widget _field(String label, TextEditingController ctrl,
     {bool required = true,
     TextInputType keyboardType = TextInputType.text,
     int? maxLength}) {

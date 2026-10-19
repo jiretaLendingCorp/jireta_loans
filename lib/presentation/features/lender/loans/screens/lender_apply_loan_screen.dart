@@ -26,6 +26,8 @@ import '../../../../shared/widgets/signature_pad.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../account_upgrade/screens/valid_id_scanner_screen.dart';
 import '../../../../../data/models/loan_model.dart';
+import '../../../../../data/models/loan_settings.dart';
+import '../../../../shared/providers/loan_settings_provider.dart';
 import '../../account_upgrade/providers/lender_account_upgrade_provider.dart';
 import '../../profile/providers/lender_profile_provider.dart';
 import '../providers/lender_loan_provider.dart';
@@ -59,10 +61,12 @@ class LenderApplyLoanScreen extends ConsumerStatefulWidget {
 }
 
 class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
-  static const double _minAmount = 3000;
-  static const double _maxAmount = 500000;
+  // Min/max ay galing sa System Settings ng Head Manager — hindi na
+  // hardcoded sa ₱3,000–₱500,000.
+  double _minAmount = LoanSettings.defaults.minAmount;
+  double _maxAmount = LoanSettings.defaults.maxAmount;
 
-  double _amount = 3000;
+  double _amount = LoanSettings.defaults.minAmount;
   String _frequency = 'daily';
   int? _termPeriods;
   final _purposeCtrl = TextEditingController();
@@ -230,9 +234,40 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(lenderAccountUpgradeProvider.notifier).loadStatus();
       ref.read(lenderLoanProvider.notifier).loadLoans();
+      _loadLoanSettings();
       _refreshPreview();
     });
   }
+
+  /// Kinukuha ang aktwal na min/max ng Head Manager at iniaayon ang slider,
+  /// initial amount, at error messages.
+  Future<void> _loadLoanSettings() async {
+    final settings = await ref.read(loanSettingsProvider.future);
+    if (!mounted) return;
+    _applyLoanSettings(settings);
+  }
+
+  /// Isang lugar lang ang nag-a-apply ng settings — pareho ito sa initial load
+  /// at sa realtime update kapag nag-save ng config ang Head Manager.
+  void _applyLoanSettings(LoanSettings settings) {
+    if (!mounted) return;
+    final minChanged = settings.minAmount != _minAmount;
+    final maxChanged = settings.maxAmount != _maxAmount;
+    if (!minChanged && !maxChanged) return;
+    setState(() {
+      _minAmount = settings.minAmount;
+      _maxAmount = settings.maxAmount;
+      if (_amount < _minAmount || _amount > _maxAmount) {
+        _amount = _amount.clamp(_minAmount, _maxAmount).toDouble();
+      }
+      if (_amountCtrl.text.trim().isNotEmpty) {
+        _amountCtrl.text = _formatAmountInput(_amount.round());
+      }
+    });
+    _refreshPreview();
+  }
+
+  String _pesoLabel(num value) => '₱${NumberFormat('#,##0').format(value)}';
 
   void _onPurposeChanged() {
     if (mounted) setState(() {});
@@ -398,7 +433,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       if (parsed == null || parsed == 0) {
         _amountError = 'Please enter a loan amount.';
       } else if (parsed < _minAmount || parsed > _maxAmount) {
-        _amountError = 'Amount must be between ₱3,000 and ₱500,000.';
+        _amountError =
+            'Amount must be between ${_pesoLabel(_minAmount)} and ${_pesoLabel(_maxAmount)}.';
         _amount = parsed.clamp(_minAmount, _maxAmount).toDouble();
       } else {
         _amountError = null;
@@ -982,15 +1018,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             },
             onChangeEnd: (_) => _refreshPreview(),
           ),
-          const Row(
+          Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('₱3,000',
-                  style:
-                      TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-              Text('₱500,000',
-                  style:
-                      TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              Text(_pesoLabel(_minAmount),
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
+              Text(_pesoLabel(_maxAmount),
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textSecondary)),
             ],
           ),
           const SizedBox(height: 20),
@@ -1801,6 +1837,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Realtime: kapag nag-save ng bagong loan limits ang Head Manager,
+    // awtomatikong nagre-refresh ang provider at napapalitan ang slider/labels.
+    ref.listen<AsyncValue<LoanSettings>>(loanSettingsProvider, (_, next) {
+      next.whenData(_applyLoanSettings);
+    });
     final loanState = ref.watch(lenderLoanProvider);
     final accountUpgradeState = ref.watch(lenderAccountUpgradeProvider);
     final fmt = NumberFormat('#,##0.00', 'en_PH');

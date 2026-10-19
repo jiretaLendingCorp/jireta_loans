@@ -4,6 +4,8 @@
 // card na may soft navy/gold shadows, PlayfairDisplay heading, premium gradient
 // CTA, focus/hover states sa inputs, at laging nakikitang password
 // requirements panel + strength meter.
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,6 +46,13 @@ class _ForceChangePasswordScreenState
   bool _confirmHovered = false;
   bool _btnHovered = false;
 
+  /// Kapag `true`, walang error na ibinabalik ang mga validator — para
+  /// ma-clear ang validation messages nang HINDI binubura ang naka-type na
+  /// password. Pansamantala lang ito tuwing 2 segundo pagkatapos ng failed
+  /// submit.
+  bool _suppressValidation = false;
+  Timer? _clearValidationTimer;
+
   @override
   void initState() {
     super.initState();
@@ -64,6 +73,7 @@ class _ForceChangePasswordScreenState
 
   @override
   void dispose() {
+    _clearValidationTimer?.cancel();
     for (final f in [_currentFocus, _newFocus, _confirmFocus]) {
       f.removeListener(_onFocusChange);
       f.dispose();
@@ -75,7 +85,12 @@ class _ForceChangePasswordScreenState
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      _scheduleValidationClear();
+      return;
+    }
+    // Valid na ang form — huwag nang hintayin ang clear timer.
+    _clearValidationTimer?.cancel();
     final ok = await ref.read(authProvider.notifier).forceChangePassword(
           currentPassword: _currentCtrl.text,
           newPassword: _newCtrl.text,
@@ -95,6 +110,21 @@ class _ForceChangePasswordScreenState
         ),
       );
     }
+  }
+
+  /// Binubura ang validation messages pagkalipas ng 2 segundo — nananatili
+  /// ang laman ng mga field, kaya hindi kailangang i-retype ang password.
+  void _scheduleValidationClear() {
+    _clearValidationTimer?.cancel();
+    _clearValidationTimer = Timer(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      // I-on ang suppression para `null` ang ibalik ng lahat ng validator,
+      // saka i-validate para maalis ang errorText ng bawat field.
+      _suppressValidation = true;
+      _formKey.currentState?.validate();
+      if (!mounted) return;
+      setState(() => _suppressValidation = false);
+    });
   }
 
   @override
@@ -260,8 +290,10 @@ class _ForceChangePasswordScreenState
               hint: 'Enter your current password',
               textInputAction: TextInputAction.next,
               onSubmitted: (_) => _newFocus.requestFocus(),
-              validator: (v) =>
-                  v == null || v.isEmpty ? 'Enter your current password' : null,
+              validator: (v) => _suppressValidation ||
+                      (v != null && v.isNotEmpty)
+                  ? null
+                  : 'Enter your current password',
             ),
             const SizedBox(height: 18),
 
@@ -280,6 +312,7 @@ class _ForceChangePasswordScreenState
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => _confirmFocus.requestFocus(),
               validator: (v) {
+                if (_suppressValidation) return null;
                 if (v == null || v.isEmpty) return 'Enter a new password';
                 if (v.length < 8) return 'At least 8 characters';
                 if (!RegExp(r'[A-Z]').hasMatch(v)) {
@@ -323,6 +356,7 @@ class _ForceChangePasswordScreenState
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _submit(),
               validator: (v) {
+                if (_suppressValidation) return null;
                 if (v == null || v.isEmpty) return 'Re-enter your new password';
                 if (v != _newCtrl.text) return 'Passwords do not match';
                 return null;

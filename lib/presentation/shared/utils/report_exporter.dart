@@ -61,9 +61,102 @@ String _readableDate(dynamic raw, String s) {
   return s;
 }
 
-String _cell(String ref, dynamic v) {
-  return '<c r="$ref" t="inlineStr"><is><t>${_xmlEscape(reportCellValue(v))}</t></is></c>';
+String _cell(String ref, dynamic v) =>
+    _textCell(ref, reportCellValue(v));
+
+String _textCell(String ref, String text) =>
+    '<c r="$ref" t="inlineStr"><is><t>${_xmlEscape(text)}</t></is></c>';
+
+/// Cell ng XLSX — blangko para sa [ReportBlank], at `₱50,000.00` para sa
+/// money columns.
+String _cellFor(String ref, dynamic v, {bool money = false}) {
+  if (v is ReportBlank) return '<c r="$ref"/>';
+  if (money) {
+    final n = _exportNum(v);
+    if (n != null) return _textCell(ref, _summaryMoney(n, '₱'));
+  }
+  return _cell(ref, v);
 }
+
+/// Sentinel para sa TUNAY na blangkong cell sa exports — hindi ito nagiging
+/// `N/A` (tulad ng `null` / `''`) kaya isang TOTAL lang ang nasa kaliwa ng
+/// TOTAL row.
+class ReportBlank {
+  const ReportBlank();
+}
+
+const ReportBlank reportBlank = ReportBlank();
+
+/// Mga column na pera — naka-format na may comma, `.00`, at currency prefix.
+const Set<String> _moneyColumns = {'Amount', 'Interest', 'Total'};
+
+bool _isMoneyColumn(String label) => _moneyColumns.contains(label);
+
+double? _exportNum(dynamic v) {
+  if (v is num) return v.toDouble();
+  final s = (v ?? '')
+      .toString()
+      .replaceAll(RegExp(r'[₱,\s]'), '')
+      .replaceAll('PHP', '')
+      .trim();
+  return num.tryParse(s)?.toDouble();
+}
+
+/// Summary ng napiling panahon na nakalagay sa TAAS ng PDF/Excel report —
+/// tugma sa format ng Reports page:
+///
+/// Beginning Date | Ending Date | Amount Collected |
+/// Amount to Collect | Income
+///
+/// Sinusundan ito ng TOTAL row na nagbubuod sa tatlong halaga. Pareho ito sa
+/// nakikita sa screen, kaya hindi na kailangang buksan ang app para makita ang
+/// kabuuan ng panahon.
+class ReportSummary {
+  final String beginningDate;
+  final String endingDate;
+  final double collected;
+  final double outstanding;
+  final double income;
+
+  const ReportSummary({
+    required this.beginningDate,
+    required this.endingDate,
+    required this.collected,
+    required this.outstanding,
+    required this.income,
+  });
+
+  static const List<String> headers = [
+    'Beginning Date',
+    'Ending Date',
+    'Amount Collected',
+    'Amount to Collect',
+    'Income',
+  ];
+
+  /// Isang row ng halaga. [currency] = `₱` sa Excel; `PHP ` sa PDF dahil ang
+  /// built-in na Helvetica ay walang glyph para sa peso sign.
+  List<String> values({required String currency}) => [
+        beginningDate,
+        endingDate,
+        _summaryMoney(collected, currency),
+        _summaryMoney(outstanding, currency),
+        _summaryMoney(income, currency),
+      ];
+
+  /// TOTAL row ng summary — nasa Ending Date column ang `TOTAL` (malapit sa
+  /// mga halaga), at blangko ang Beginning Date cell.
+  List<dynamic> totals({required String currency}) => [
+        reportBlank,
+        'TOTAL',
+        _summaryMoney(collected, currency),
+        _summaryMoney(outstanding, currency),
+        _summaryMoney(income, currency),
+      ];
+}
+
+String _summaryMoney(double v, String currency) =>
+    '$currency${NumberFormat('#,##0.00', 'en_PH').format(v)}';
 
 List<String> _columnsOf(List<Map<String, dynamic>> rows) {
   final cols = <String>[];
@@ -77,30 +170,59 @@ List<String> _columnsOf(List<Map<String, dynamic>> rows) {
 }
 
 /// Builds a minimal, valid .xlsx workbook from a list of row maps.
+///
+/// Kapag may [summary], naka-print ito sa TAAS ng table (Beginning Date /
+/// Ending Date / Amount Collected / Amount to Collect / Income) na
+/// may TOTAL row, saka isang blangkong row bago ang detalyadong table.
 Uint8List buildXlsx(
   List<Map<String, dynamic>> rows, {
   String sheetName = 'Sheet1',
+  ReportSummary? summary,
 }) {
   final cols = _columnsOf(rows);
-  final colLetters = [for (var i = 0; i < cols.length; i++) _colLetter(i)];
 
   final sheet = StringBuffer(
-      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>');
+      '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+      // A4 print setup: laging A4 (paperSize 9), landscape, at fit sa isang
+      // page ang lapad — automatic kapag ini-print mula sa Excel.
+      '<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>'
+      '<sheetData>');
 
-  final headerCells = [
-    for (var i = 0; i < cols.length; i++) _cell('${colLetters[i]}1', cols[i])
-  ].join();
-  sheet.write('<row r="1">$headerCells</row>');
-
-  for (var ri = 0; ri < rows.length; ri++) {
-    final rn = ri + 2;
+  var rn = 1;
+  void writeRow(List<dynamic> values, {Set<int> moneyIndexes = const {}}) {
     final cells = [
-      for (var i = 0; i < cols.length; i++)
-        _cell('${colLetters[i]}$rn', rows[ri][cols[i]])
+      for (var i = 0; i < values.length; i++)
+        _cellFor('${_colLetter(i)}$rn', values[i],
+            money: moneyIndexes.contains(i)),
     ].join();
     sheet.write('<row r="$rn">$cells</row>');
+    rn++;
   }
-  sheet.write('</sheetData></worksheet>');
+
+  final moneyIndexes = <int>{
+    for (var i = 0; i < cols.length; i++)
+      if (_isMoneyColumn(cols[i])) i,
+  };
+
+  if (summary != null) {
+    writeRow(['Loan Summary']);
+    writeRow(ReportSummary.headers);
+    writeRow(summary.values(currency: '₱'));
+    writeRow(summary.totals(currency: '₱'));
+    rn++; // blangkong row sa pagitan ng summary at ng detalye
+  }
+
+  writeRow(['Loan Records']);
+  writeRow(cols);
+  for (final r in rows) {
+    writeRow([for (final c in cols) r[c]], moneyIndexes: moneyIndexes);
+  }
+  sheet.write('</sheetData>');
+  sheet.write('<pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" '
+      'header="0.3" footer="0.3"/>');
+  sheet.write('<pageSetup paperSize="9" orientation="landscape" '
+      'fitToWidth="1" fitToHeight="0"/>');
+  sheet.write('</worksheet>');
 
   final safeSheet = _xmlEscape(sheetName);
   const contentTypes = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
@@ -142,16 +264,20 @@ Future<Uint8List> buildPdf({
   required String title,
   required List<Map<String, dynamic>> rows,
   List<String>? columns,
+  ReportSummary? summary,
 }) async {
   final cols = columns ?? _columnsOf(rows);
+  // Ang Amount / Interest / Total ay naka-`PHP 50,000.00` (comma + .00) —
+  // kapareho ng itsura ng Loan Summary sa itaas ng report.
   final data = [
     for (final r in rows)
-      [for (final c in cols) reportCellValue(r[c])],
+      [for (final c in cols) _pdfCellText(r[c], c)],
   ];
 
   final doc = pw.Document();
   doc.addPage(
     pw.MultiPage(
+      // A4 automatic — landscape para magkasya ang table sa isang page.
       pageFormat: PdfPageFormat.a4.landscape,
       margin: const pw.EdgeInsets.all(20),
       header: (ctx) => pw.Row(
@@ -181,7 +307,47 @@ Future<Uint8List> buildPdf({
           style: pw.TextStyle(
               fontSize: 16, fontWeight: pw.FontWeight.bold),
         ),
+        if (summary != null) ...[
+          pw.SizedBox(height: 12),
+          pw.Text('Loan Summary',
+              style:
+                  pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 6),
+          pw.TableHelper.fromTextArray(
+            headers: ReportSummary.headers,
+            data: <List<dynamic>>[
+              summary.values(currency: 'PHP '),
+              [
+                for (final v in summary.totals(currency: 'PHP '))
+                  v is ReportBlank ? '' : v,
+              ],
+            ],
+            border: const pw.TableBorder(
+              top: pw.BorderSide(color: PdfColors.grey400, width: 0.4),
+              bottom: pw.BorderSide(color: PdfColors.grey400, width: 0.4),
+              left: pw.BorderSide(color: PdfColors.grey400, width: 0.4),
+              right: pw.BorderSide(color: PdfColors.grey400, width: 0.4),
+              horizontalInside:
+                  pw.BorderSide(color: PdfColors.grey400, width: 0.4),
+              verticalInside:
+                  pw.BorderSide(color: PdfColors.grey400, width: 0.4),
+            ),
+            headerStyle: pw.TextStyle(
+              fontSize: 8,
+              fontWeight: pw.FontWeight.bold,
+              color: PdfColors.white,
+            ),
+            headerDecoration: const pw.BoxDecoration(
+                color: PdfColors.blueGrey800),
+            cellStyle: const pw.TextStyle(fontSize: 8),
+            cellPadding: const pw.EdgeInsets.all(4),
+            cellAlignment: pw.Alignment.centerLeft,
+          ),
+        ],
         pw.SizedBox(height: 14),
+        pw.Text('Loan Records',
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 6),
         if (rows.isEmpty)
           pw.Text(
             'No data available.',
@@ -216,6 +382,17 @@ Future<Uint8List> buildPdf({
     ),
   );
   return doc.save();
+}
+
+/// Text ng isang cell sa PDF — blangko para sa [ReportBlank], at
+/// `PHP 50,000.00` para sa money columns.
+String _pdfCellText(dynamic v, String column) {
+  if (v is ReportBlank) return '';
+  if (_isMoneyColumn(column)) {
+    final n = _exportNum(v);
+    if (n != null) return _summaryMoney(n, 'PHP ');
+  }
+  return reportCellValue(v);
 }
 
 String sanitizeFileName(String name) =>

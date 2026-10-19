@@ -5,6 +5,7 @@ import '../../../core/di/injection.dart';
 import '../../../core/errors/error_handler.dart';
 import '../../../core/extensions/context_extensions.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/utils/validators.dart';
 import '../../../data/datasources/remote/user_remote_datasource.dart';
 import 'forms/app_date_picker.dart';
 import 'philippines_address_field.dart';
@@ -54,6 +55,10 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
   /// Ang identifier ng account (email, o para sa head manager: kahit pangalan
   /// lang, hal. "juan").
   final _emailCtrl = TextEditingController();
+
+  /// Ang nakuhang email na NAKALABAS sa field — para hindi maipadala ang
+  /// email kapag hindi naman ito binago (lalo na ang `@jireta.temp`).
+  String _shownEmail = '';
   // Staff-only fields (head_manager / employee live in employee_profiles).
   String? _gender;
   String? _civilStatus;
@@ -66,10 +71,10 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
       widget.initialRole == 'head_manager' ||
       widget.initialRole == 'employee';
 
-  /// Na-e-edit ang Email/identifier para sa HEAD MANAGER lang — at WALANG
-  /// @gmail.com / email-format validation (puwedeng pangalan lang, hal. "juan").
-  /// Ang ibang roles ay read-only pa rin (identidad ng pag-login nila).
-  bool get _canEditEmail => widget.initialRole == 'head_manager';
+  /// Puwede nang i-edit ang Email sa People para sa LAHAT ng role — kapag
+  /// blangko o mali ang naka-record na email, kailangang maitama ito roon.
+  /// Ang server ang humahawak ng format, uniqueness, at GoTrue credential.
+  bool get _canEditEmail => true;
 
   String _label(String code) =>
       code.isEmpty ? code : code[0].toUpperCase() + code.substring(1);
@@ -108,7 +113,13 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         _initCity = data['city'] as String?;
         _initBarangay = data['barangay'] as String?;
         _zipCtrl.text = (data['zip_code'] as String?) ?? '';
-        _emailCtrl.text = (data['email'] as String?) ?? '';
+        final rawEmail = (data['email'] as String?) ?? '';
+        // Ang `${phone}@jireta.temp` ay internal GoTrue credential lang ng
+        // phone login — hindi ito totoong email, kaya blangko ang field para
+        // makapaglagay ng totoong email.
+        _emailCtrl.text =
+            rawEmail.toLowerCase().endsWith('@jireta.temp') ? '' : rawEmail;
+        _shownEmail = _emailCtrl.text;
         _gender = _asKnownCode(data['gender'], _genders);
         _civilStatus = _asKnownCode(data['civil_status'], _civilStatuses);
         final dobRaw = (data['date_of_birth'] as String?)?.trim();
@@ -157,10 +168,15 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
         'last_name': _lastCtrl.text.trim(),
         'suffix': _suffixCtrl.text.trim(),
         'phone_number': _phoneCtrl.text.trim(),
-        // Head manager lang: ipinapadala ang identifier (email o pangalan
-        // lang). Walang format validation dito — ang server ang humahawak ng
-        // duplicate at ng GoTrue credential.
-        if (_canEditEmail) 'email': _emailCtrl.text.trim(),
+        // Ipinapadala lang kapag TALAGANG binago — para hindi mabura ang
+        // email (o ang internal na `@jireta.temp` credential) kapag hindi ito
+        // ginalaw. Head manager: identifier lang (puwedeng "juan"); ibang
+        // roles: valid email format. Ang server ang may huling saysay sa
+        // duplicate at GoTrue credential.
+        if (_canEditEmail &&
+            _emailCtrl.text.trim().toLowerCase() !=
+                _shownEmail.trim().toLowerCase())
+          'email': _emailCtrl.text.trim(),
         if (_isStaff)
           'employee_profile': {
             if (_gender != null) 'gender': _gender,
@@ -295,23 +311,32 @@ class _EditUserModalState extends ConsumerState<EditUserModal> {
                           ],
                         ),
                         const SizedBox(height: 12),
-                        // HEAD MANAGER: editable ang identifier at walang
-                        // email-format validation — puwedeng pangalan lang
-                        // (hal. juan). Iba pang roles: read-only pa rin.
+                        // Editable na ang email ng lahat ng role. Head
+                        // manager: identifier lang, walang email-format check
+                        // (hal. "juan"); ibang roles: dapat valid email.
                         TextFormField(
                           controller: _emailCtrl,
                           readOnly: !_canEditEmail,
+                          keyboardType: TextInputType.emailAddress,
                           decoration: InputDecoration(
-                            labelText:
-                                _canEditEmail ? 'Email / Username' : 'Email',
+                            labelText: _isStaff ? 'Email / Username' : 'Email',
+                            hintText: 'name@example.com',
                             border: const OutlineInputBorder(
                                 borderRadius: BorderRadius.zero),
                           ),
-                          validator: _canEditEmail
-                              ? (v) => (v == null || v.trim().isEmpty)
-                                  ? 'Email is required'
-                                  : null
-                              : null,
+                          validator: (v) {
+                            final value = (v ?? '').trim();
+                            if (value.isEmpty) {
+                              // Staff: kailangang may email/identifier.
+                              // Lender/rider: opsyonal (pwedeng i-clear).
+                              return _isStaff ? 'Email is required' : null;
+                            }
+                            if (widget.initialRole != 'head_manager' &&
+                                !AppValidators.isValidEmail(value)) {
+                              return 'Enter a valid email address';
+                            }
+                            return null;
+                          },
                         ),
                         const SizedBox(height: 12),
                         _f('Phone Number', _phoneCtrl, maxLength: 11),

@@ -20,7 +20,7 @@ import '../../disbursements/screens/hm_disbursement_details_screen.dart';
 import '../providers/hm_loan_provider.dart';
 import '../providers/hm_loan_history_provider.dart';
 import '../widgets/approve_reject_modal.dart';
-import '../widgets/loan_history_modal.dart';
+import '../widgets/loan_details_side_panel.dart';
 import '../../in_office/providers/hm_in_office_provider.dart';
 import '../../in_office/widgets/in_office_wizard.dart';
 import '../../disbursements/providers/hm_disbursement_provider.dart';
@@ -64,7 +64,7 @@ class _HmLoanApplicationsListScreenState
     // aktibong loan; "Ongoing" lang ang status label nito sa table.
     FilterTabDef(
         'active', 'Ongoing Loan', Icons.account_balance_wallet_outlined),
-    FilterTabDef('completed', 'Completed', Icons.verified_rounded),
+    // Tinanggal ang "Completed" tab — nasa Previous Loan na ito.
     FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
     FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
     // Tapos nang magbayad (`completed`) + malapit nang matapos (isang
@@ -214,18 +214,21 @@ class _HmLoanApplicationsListScreenState
               // Toolbar stays visible for both modes; search filters the
               // currently visible list. For In-Office we still show the
               // same outer box (no inner box) with placeholder "Search".
-              _buildToolbar(loanState, inOfficeState, disbState, historyState,
-                  isInOffice, isDisbursements, isLoanHistory),
-              const SizedBox(height: 16),
+              // Previous Loan has its own Search & Filter panel sa tabi ng
+              // table (gaya ng design), kaya hindi na kailangan ang global
+              // toolbar doon. Ibang tabs: toolbar pa rin ang nagfi-filter.
+              if (!isLoanHistory) ...[
+                _buildToolbar(loanState, inOfficeState, disbState,
+                    historyState, isInOffice, isDisbursements, isLoanHistory),
+                const SizedBox(height: 16),
+              ],
               if (isInOffice) ...[
                 _buildInOfficeSection(inOfficeState),
               ] else if (isDisbursements) ...[
                 _buildDisbursementSection(disbState),
               ] else if (isLoanHistory) ...[
+                // Kasama na sa history card ang pagination footer.
                 _buildLoanHistorySection(historyState),
-                // Pagination bar — palaging nakikita kahit isang page lang.
-                const SizedBox(height: 16),
-                _buildHistoryPagination(historyState),
               ] else ...[
                 if (loanState.isLoading)
                   _buildLoadingShimmer()
@@ -390,205 +393,637 @@ class _HmLoanApplicationsListScreenState
   // — HINDI kasama ang ongoing/"for completion". Server-side ang filter
   // (`loans-view?fn=get-history`) dahil DERIVED ang outstanding balance — wala
   // itong column sa `loans` kaya hindi mai-filter sa query ng client.
+  //
+  // Layout: stat cards sa itaas, tapos ang Loan History table (kaliwa) at ang
+  // Search & Filter + Loan Details panel (kanan) — gaya ng "Previous Loans"
+  // design. Sa makitid na viewport, naka-stack ang panel sa ilalim.
   Widget _buildLoanHistorySection(HmLoanHistoryState st) {
-    if (st.isLoading) return _buildLoadingShimmer();
-    if (st.loans.isEmpty) {
-      final isFiltered = st.search.isNotEmpty;
-      return EmptyStateWidget(
-        title: isFiltered ? 'No matching loans' : 'No Previous Loans Yet',
-        message: isFiltered
-            ? 'Walang loan na tugma sa hinahanap. Subukan ang ibang termino.'
-            : 'Lalabas dito ang mga loan na tapos nang bayaran (completed).',
-        icon: isFiltered ? Icons.search_off_rounded : Icons.history_rounded,
-      );
-    }
-    return _Entrance(child: _buildLoanHistoryTable(st.loans));
+    // Buong-table shimmer lang sa UNANG load. Kapag nag-apply ng filter/
+    // search, mananatili ang table at ang Apply button lang ang maglo-load —
+    // hindi na "nawawala" ang buong table tuwing filter.
+    if (st.isLoading && !st.hasLoaded) return _buildLoadingShimmer();
+
+    final filtered = st.loans;
+
+    final tableCard = Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0A000000), blurRadius: 14, offset: Offset(0, 4)),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 14),
+            child: Row(
+              children: [
+                const Text(
+                  'Loan History',
+                  style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.textPrimary),
+                ),
+                const Spacer(),
+                if (st.totalCount > 0)
+                  Text(
+                    '${st.totalCount} ${st.totalCount == 1 ? 'loan' : 'loans'}',
+                    style: const TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textTertiary),
+                  ),
+              ],
+            ),
+          ),
+          const Divider(height: 1, color: AppColors.border),
+          if (filtered.isEmpty)
+            _buildHistoryEmpty(st)
+          else
+            _buildLoanHistoryTable(filtered),
+          const Divider(height: 1, color: AppColors.border),
+          _buildHistoryPagination(st),
+        ],
+      ),
+    );
+
+    return _Entrance(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Previous Loans',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w800,
+              color: AppColors.textPrimary,
+              letterSpacing: -0.3,
+            ),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'View your past loan transactions and their status.',
+            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          ),
+          const SizedBox(height: 18),
+          _buildHistoryStats(st),
+          const SizedBox(height: 20),
+          // Filter bar sa ITAAS ng Loan History card — full width ang table
+          // kaya kita lahat ng columns (hindi na kailangang mag-scroll).
+          _buildHistoryFilterCard(st),
+          const SizedBox(height: 16),
+          tableCard,
+        ],
+      ),
+    );
   }
 
-  /// Progreso ng bayad kada loan — Principal · Total Paid · Outstanding ·
-  /// Progress % · Status · Huling Bayad.
-  // NAKA-TABLE ito sa lahat ng desktop na lapad: `minTableWidth: 880` —
-  // kapareho ng Disbursements tab ng parehong screen (ang unang bersyon ay 1120
-  // kaya bumabagsak sa stacked-card layout sa ~1080px na viewport, kahit
-  // desktop pa). Sa mas makitid pa, ang `ResponsiveTableScroll` ang
-  // nagpapa-horizontal-scroll sa table, hindi ang layout ang nagbabago.
+  /// Apat na stat cards ng Previous Loans — Total, Completed, Ongoing,
+  /// Overdue — para agad makita ang breakdown ng mga dating loan.
+  Widget _buildHistoryStats(HmLoanHistoryState st) {
+    final total = st.totalCount > 0 ? st.totalCount : st.loans.length;
+    // Previous Loan = completed lang (server-side ang filter), kaya lahat ng
+    // nasa tab na ito ay completed.
+    final completed = total;
+    final ongoing =
+        st.loans.where((loan) => _historyStatusKey(loan) == 'ongoing').length;
+    final overdue =
+        st.loans.where((loan) => _historyStatusKey(loan) == 'overdue').length;
+    String pct(int count) =>
+        total == 0 ? '0%' : '${(count / total * 100).toStringAsFixed(1)}%';
+
+    Widget card({
+      required String title,
+      required int value,
+      required String subtitle,
+      required IconData icon,
+      required Color color,
+    }) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.10),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textSecondary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$value',
+                    style: const TextStyle(
+                        fontSize: 22,
+                        height: 1.05,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textTertiary),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final columns = constraints.maxWidth >= 720 ? 4 : 2;
+        const spacing = 12.0;
+        final width =
+            (constraints.maxWidth - spacing * (columns - 1)) / columns;
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            SizedBox(
+              width: width,
+              child: card(
+                title: 'Total Loans',
+                value: total,
+                subtitle: 'All time',
+                icon: Icons.receipt_long_rounded,
+                color: AppColors.info,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: card(
+                title: 'Completed',
+                value: completed,
+                subtitle: pct(completed),
+                icon: Icons.check_circle_rounded,
+                color: AppColors.success,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: card(
+                title: 'Ongoing',
+                value: ongoing,
+                subtitle: pct(ongoing),
+                icon: Icons.access_time_filled_rounded,
+                color: AppColors.warning,
+              ),
+            ),
+            SizedBox(
+              width: width,
+              child: card(
+                title: 'Overdue',
+                value: overdue,
+                subtitle: pct(overdue),
+                icon: Icons.cancel_rounded,
+                color: AppColors.error,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Search + Date Range + Apply Filters na bar sa ITAAS ng table — walang
+  /// title at walang malaking card wrapper, para hindi humaharang sa table.
+  Widget _buildHistoryFilterCard(HmLoanHistoryState st) {
+    const labelStyle = TextStyle(
+        fontSize: 11.5,
+        fontWeight: FontWeight.w700,
+        color: AppColors.textPrimary);
+
+    // Sariling Container ang search field (hindi InputDecoration) para
+    // siguradong 48px ang taas — kapantay ng Date Range at Apply Filters.
+    final searchField = Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.search_rounded,
+              size: 17, color: AppColors.textTertiary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: TextField(
+              controller: _searchCtrl,
+              textInputAction: TextInputAction.search,
+              onSubmitted: (_) => ref
+                  .read(hmLoanHistoryProvider.notifier)
+                  .setSearch(_searchCtrl.text.trim()),
+              style: const TextStyle(
+                  fontSize: 12.5, color: AppColors.textPrimary),
+              decoration: const InputDecoration(
+                hintText: 'Search by Loan ID or client name...',
+                hintStyle:
+                    TextStyle(fontSize: 12, color: AppColors.textTertiary),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    final dateField = SearchDateFilter(
+      value: _dateRange,
+      onChanged: _onDateRangeChanged,
+    );
+
+    // Habang nag-a-apply ng filters, SPINNER LANG DITO ang lumalabas — hindi
+    // na shimmer ng buong table.
+    final applyButton = SizedBox(
+      height: 48,
+      child: ElevatedButton.icon(
+        onPressed: st.isLoading
+            ? null
+            : () => ref
+                .read(hmLoanHistoryProvider.notifier)
+                .setSearch(_searchCtrl.text.trim()),
+        icon: st.isLoading
+            ? const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              )
+            : const Icon(Icons.tune_rounded, size: 17),
+        label: const Text(
+          'Apply Filters',
+          maxLines: 1,
+          softWrap: false,
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
+        ),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.deepNavy,
+          foregroundColor: Colors.white,
+          disabledBackgroundColor: AppColors.deepNavy.withValues(alpha: 0.65),
+          disabledForegroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      ),
+    );
+
+    Widget fieldColumn(String label, Widget child) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label, style: labelStyle),
+          const SizedBox(height: 6),
+          child,
+        ],
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth >= 700) {
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: fieldColumn('Search', searchField)),
+              const SizedBox(width: 12),
+              fieldColumn('Date Range', dateField),
+              const SizedBox(width: 12),
+              SizedBox(width: 170, child: applyButton),
+            ],
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            fieldColumn('Search', searchField),
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: fieldColumn('Date Range', dateField),
+            ),
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: applyButton),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildHistoryEmpty(HmLoanHistoryState st) {
+    final isFiltered = st.search.isNotEmpty || _dateRange != null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 44),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            isFiltered ? Icons.search_off_rounded : Icons.history_rounded,
+            size: 42,
+            color: AppColors.textTertiary,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            isFiltered ? 'No matching loans' : 'No Previous Loans Yet',
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                color: AppColors.textPrimary),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            isFiltered
+                ? 'Try a different search term or date range.'
+                : 'Completed loans will appear here.',
+            textAlign: TextAlign.center,
+            style:
+                const TextStyle(fontSize: 12.5, color: AppColors.textSecondary),
+          ),
+          if (isFiltered) ...[
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: _clearHistoryFilters,
+              icon: const Icon(Icons.clear_all_rounded, size: 16),
+              label: const Text('Clear filters'),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  void _clearHistoryFilters() {
+    _searchCtrl.clear();
+    if (_dateRange != null) {
+      _onDateRangeChanged(null);
+    }
+    ref.read(hmLoanHistoryProvider.notifier).setSearch('');
+  }
+
+  /// Status key na ginagamit ng stats at ng status pill. Ang loan na tapos nang
+  /// bayaran (outstanding 0) ay Completed kahit `active` pa ang hilaw na status.
+  String _historyStatusKey(LoanModel loan) {
+    if (loan.isFullyPaid || loan.status == 'completed') return 'completed';
+    if (loan.status == 'overdue') return 'overdue';
+    if (loan.status == 'active') return 'ongoing';
+    return loan.status;
+  }
+
+  /// End date ng loan para sa Previous Loans table. Kapag walang `due_date`
+  /// sa payload (madalas sa lumang completed loans), gamitin ang huling
+  /// schedule, huling bayad, o ang huling update ng loan — hindi '—'.
+  DateTime? _historyEndDate(LoanModel loan) {
+    if (loan.dueDate != null) return loan.dueDate;
+    final schedules = loan.schedules;
+    if (schedules != null && schedules.isNotEmpty) {
+      DateTime? latest;
+      for (final schedule in schedules) {
+        final raw = schedule['due_date'];
+        final parsed = raw is String ? DateTime.tryParse(raw) : null;
+        if (parsed != null && (latest == null || parsed.isAfter(latest))) {
+          latest = parsed;
+        }
+      }
+      if (latest != null) return latest;
+    }
+    if (loan.lastPaymentAt != null) return loan.lastPaymentAt;
+    if (loan.isFullyPaid || loan.status == 'completed') return loan.updatedAt;
+    final start = loan.releaseDate ?? loan.createdAt;
+    if (loan.termDays > 0) return start.add(Duration(days: loan.termDays));
+    if (loan.termPeriods > 0) {
+      switch (loan.frequency) {
+        case 'daily':
+          return start.add(Duration(days: loan.termPeriods));
+        case 'weekly':
+          return start.add(Duration(days: loan.termPeriods * 7));
+        default:
+          return DateTime(start.year, start.month + loan.termPeriods, start.day);
+      }
+    }
+    return null;
+  }
+
+  /// Term label para sa table. Kapag 0 ang `term_days`/`term_periods` sa
+  /// payload, tantiyahin mula sa start at end date — hindi "0 days".
+  String _historyTermLabel(LoanModel loan) {
+    if (loan.termPeriods > 0) {
+      final unit = _plural(loan.termPeriods, loan.termUnit);
+      return '${loan.termPeriods} $unit';
+    }
+    if (loan.termDays > 0) {
+      return '${loan.termDays} ${_plural(loan.termDays, 'days')}';
+    }
+    // Walang term sa payload? Tantiyahin mula sa total payable at monthly
+    // due (bilang ng installments) — para may makita pa ring Term.
+    if (loan.installmentAmount > 0 && loan.totalPayable > 0) {
+      final periods = (loan.totalPayable / loan.installmentAmount).round();
+      if (periods > 0) return '$periods ${_plural(periods, loan.termUnit)}';
+    }
+    final start = loan.releaseDate ?? loan.createdAt;
+    final end = _historyEndDate(loan);
+    if (end != null) {
+      final days = end.difference(start).inDays;
+      if (days >= 30) {
+        final months = (days / 30).round();
+        return '$months ${months == 1 ? 'month' : 'months'}';
+      }
+      // Same-day start/end: minimum 1 araw pa rin ang term — hindi '—'.
+      return '${days <= 1 ? 1 : days} ${days <= 1 ? 'day' : 'days'}';
+    }
+    return '—';
+  }
+
+  /// "1 day" / "3 months" — hindi "1 days".
+  String _plural(int count, String unit) =>
+      count == 1 && unit.endsWith('s')
+          ? unit.substring(0, unit.length - 1)
+          : unit;
+
+  /// Table ng Previous Loans — Loan ID (may pangalan ng client sa ilalim) ·
+  /// Amount · Term · Installment · Start Date · End Date · Status · Actions.
+  // NAKA-TABLE ito sa lahat ng desktop na lapad: `minTableWidth: 880` — sa
+  // mas makitid, ang `ResponsiveListCard` mismo ang nagpapalit sa stacked
+  // cards para hindi mag-overflow.
   Widget _buildLoanHistoryTable(List<LoanModel> loans) {
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final dayFmt = DateFormat('MMM dd, yyyy');
-    final timeFmt = DateFormat('h:mm a');
 
     return ResponsiveListCard(
+      // Full-width na ang table ngayon (nasa itaas na ang filter bar), kaya
+      // 880 ang minimum — kapareho ng ibang desktop tables sa screen.
       minTableWidth: 880,
+      // Nasa loob na ito ng isang puting card (title + table + pagination),
+      // kaya transparent na ang border/shadow ng inner table.
+      radius: 0,
+      outerBorder: const Border.fromBorderSide(BorderSide.none),
+      outerShadow: const [],
+      headerTextStyle: const TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w700,
+          color: AppColors.textSecondary,
+          letterSpacing: 0.2),
       columns: const [
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
-        ResponsiveCol('Principal', icon: Icons.payments_outlined, flex: 2),
-        ResponsiveCol('Total Paid', icon: Icons.savings_outlined, flex: 2),
-        // flex 3 (hindi 2) para kasya ang buong "Outstanding" header nang
-        // walang ellipsis sa 880px na table.
-        ResponsiveCol('Outstanding',
-            icon: Icons.account_balance_wallet_outlined, flex: 3),
-        // Progress flex 2 / Status flex 3: ang "For Completion" (~108px kasama
-        // ang status dot) ang PINAKAMAHABANG laman ng table — kapag pantay ang
-        // bigay sa Status, dumadaan ito sa Last Payment column at natatakpan.
-        // Ang progress bar naman ay hindi kailangan ng malawak na column.
-        ResponsiveCol('Progress',
-            icon: Icons.trending_up_rounded, flex: 2),
-        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
-        ResponsiveCol('Last Payment',
-            icon: Icons.event_available_outlined, flex: 3),
+        ResponsiveCol('Loan ID', icon: Icons.tag_rounded, flex: 5),
+        ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 4),
+        ResponsiveCol('Term', icon: Icons.timelapse_rounded, flex: 3),
+        ResponsiveCol('Installment',
+            icon: Icons.calendar_month_outlined, flex: 4),
+        ResponsiveCol('Start Date',
+            icon: Icons.play_circle_outline_rounded, flex: 4),
+        ResponsiveCol('End Date',
+            icon: Icons.event_available_outlined, flex: 4),
+        ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 4),
       ],
       actionsCol: const ResponsiveActionsCol(
-          width: 96, alignment: Alignment.topLeft),
+          label: 'Actions',
+          icon: Icons.visibility_outlined,
+          width: 96,
+          alignment: Alignment.topLeft),
       rowHeight: 64,
       rowPadding: const EdgeInsets.symmetric(horizontal: 16),
       rowCrossAxisAlignment: CrossAxisAlignment.start,
       rows: loans.map((loan) {
         final lenderName =
             '${loan.lenderFirstName} ${loan.lenderLastName}'.trim();
-        final isFullyPaid = loan.isFullyPaid;
-        final progress = loan.progress.clamp(0.0, 1.0).toDouble();
-        final pct = progress * 100;
-        final accent = isFullyPaid ? AppColors.success : AppColors.goldDark;
-        final lastPayment = loan.lastPaymentAt;
+        final startDate = loan.releaseDate ?? loan.createdAt;
+        final endDate = _historyEndDate(loan);
         return ResponsiveRow(
-          onTap: () => _openHistory(context, loan),
+          onTap: () => _openLoanDetails(context, loan),
           cells: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  loan.loanNumber,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                      color: AppColors.textPrimary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  lenderName.isEmpty ? '—' : lenderName,
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textTertiary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-            Text(
-              '₱${fmt.format(loan.principalAmount)}',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.textPrimary),
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              '₱${fmt.format(loan.totalPaid)}',
-              style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.success),
-              overflow: TextOverflow.ellipsis,
-            ),
-            Text(
-              '₱${fmt.format(loan.outstandingBalance)}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: isFullyPaid
-                    ? AppColors.textSecondary
-                    : AppColors.deepNavy,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
-            // Progress % — parehong panuntunan ng "Outstanding & Progress"
-            // column ng Active Loans: porsyento + bar, berde kapag 100%.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${pct.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w800,
-                      color: accent),
-                ),
-                const SizedBox(height: 6),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress,
-                    minHeight: 6,
-                    backgroundColor: AppColors.divider,
-                    valueColor: AlwaysStoppedAnimation<Color>(accent),
-                  ),
-                ),
-              ],
-            ),
-            // Status — 'Completed' kapag bayad na lahat (kahit `active` pa ang
-            // hilaw na status), 'For Completion' kapag isang bayad na lang.
-            _StatusInline(
-              status: loan.status,
-              labelOverride: loan.completionLabel,
-              colorOverride: isFullyPaid
-                  ? AppColors.info
-                  : AppColors.goldDark,
-            ),
-            // Huling bayad — petsa sa unang linya, oras sa ilalim (kaparehong
-            // dalawang-linyang pattern ng "Applied" column ng loan table) para
-            // hindi maputol sa makitid na column.
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  lastPayment != null ? dayFmt.format(lastPayment) : 'N/A',
-                  style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: lastPayment != null
-                          ? AppColors.textPrimary
-                          : AppColors.textTertiary),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (lastPayment != null) ...[
-                  const SizedBox(height: 2),
+            // May right padding ang bawat cell — kung wala, dikit ang Loan ID
+            // sa katabing column (walang gap ang Expanded columns).
+            _cell(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                   Text(
-                    timeFmt.format(lastPayment),
+                    loan.loanNumber,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: AppColors.textPrimary),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  // Pangalan ng client sa ILALIM ng Loan ID — para buo ang
+                  // Loan ID at hindi ito napuputol ng hiwalay na column.
+                  Text(
+                    lenderName.isEmpty ? '—' : lenderName,
                     style: const TextStyle(
                         fontSize: 11, color: AppColors.textTertiary),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ],
+              ),
             ),
+            _cell(
+              Text(
+                '₱${fmt.format(loan.principalAmount)}',
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _cell(
+              Text(
+                _historyTermLabel(loan),
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _cell(
+              Text(
+                loan.installmentAmount > 0
+                    ? '₱${fmt.format(loan.installmentAmount)}'
+                    : '—',
+                style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _cell(
+              Text(
+                dayFmt.format(startDate),
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _cell(
+              Text(
+                endDate != null ? dayFmt.format(endDate) : '—',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            _cell(_buildHistoryStatusPill(loan)),
           ],
-          // "View" — buong kasaysayan ng loan: ang mga PAGBABAYAD (petsa at
-          // oras) at ang mga DATING loan ng kliyente.
           actions: Tooltip(
-            message: 'View loan history',
-            child: InkWell(
-              onTap: () => _openHistory(context, loan),
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: AppColors.deepNavy.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                      color: AppColors.deepNavy.withValues(alpha: 0.14)),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.visibility_outlined,
-                        size: 14, color: AppColors.deepNavy),
-                    SizedBox(width: 4),
-                    Text('View',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.deepNavy)),
-                  ],
+            message: 'View loan details',
+            child: OutlinedButton.icon(
+              onPressed: () => _openLoanDetails(context, loan),
+              icon: const Icon(Icons.visibility_outlined, size: 14),
+              label: const Text(
+                'View',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.info,
+                side: BorderSide(
+                    color: AppColors.info.withValues(alpha: 0.45)),
+                padding: const EdgeInsets.symmetric(horizontal: 9),
+                minimumSize: const Size(0, 30),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(7),
                 ),
               ),
             ),
@@ -598,43 +1033,194 @@ class _HmLoanApplicationsListScreenState
     );
   }
 
+  /// Data cell na may right gap — walang inter-column spacing ang
+  /// `ResponsiveListCard`, kaya dito nilalagay ang pagitan ng columns.
+  Widget _cell(Widget child) => Padding(
+        padding: const EdgeInsets.only(right: 10),
+        child: child,
+      );
+
+  Widget _buildHistoryStatusPill(LoanModel loan) {
+    final status = _historyStatusKey(loan);
+    final (Color color, String label) = switch (status) {
+      'completed' => (AppColors.success, 'Completed'),
+      'ongoing' => (AppColors.warning, 'Ongoing'),
+      'overdue' => (AppColors.error, 'Overdue'),
+      _ => (
+          AppColors.info,
+          status
+              .replaceAll('_', ' ')
+              .split(' ')
+              .map((word) =>
+                  word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+              .join(' ')
+        ),
+    };
+    // Plain na text + dot lang — walang background/border, hindi mukhang
+    // clickable na button.
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Flexible(
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color,
+                letterSpacing: 0.1),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// "Showing 1 - 10 of 12 loans" + numbered pages — footer ng history card.
   Widget _buildHistoryPagination(HmLoanHistoryState state) {
+    final total = state.totalCount;
+    final from = total == 0 ? 0 : (state.currentPage - 1) * 10 + 1;
+    final to = total == 0 ? 0 : from + state.loans.length - 1;
+    final label = total == 0
+        ? 'No loans to show'
+        : 'Showing $from - $to of $total ${total == 1 ? 'loan' : 'loans'}';
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      child: Row(
-        children: [
-          const Spacer(),
-          _PageBtn(
-            icon: Icons.chevron_left_rounded,
-            enabled: state.currentPage > 1,
-            onTap: () => ref
-                .read(hmLoanHistoryProvider.notifier)
-                .load(page: state.currentPage - 1),
-          ),
-          const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.deepNavy,
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              '${state.currentPage} / ${state.totalPages}',
-              style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: Colors.white),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _PageBtn(
-            icon: Icons.chevron_right_rounded,
-            enabled: state.currentPage < state.totalPages,
-            onTap: () => ref
-                .read(hmLoanHistoryProvider.notifier)
-                .load(page: state.currentPage + 1),
-          ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final summary = Text(
+            label,
+            style: const TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textTertiary),
+          );
+          final pager = _buildHistoryPager(state);
+          if (constraints.maxWidth < 480) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                summary,
+                if (state.totalPages > 1) ...[
+                  const SizedBox(height: 10),
+                  Align(alignment: Alignment.centerRight, child: pager),
+                ],
+              ],
+            );
+          }
+          return Row(
+            children: [
+              summary,
+              const Spacer(),
+              if (state.totalPages > 1) pager,
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHistoryPager(HmLoanHistoryState state) {
+    final totalPages = state.totalPages < 1 ? 1 : state.totalPages;
+    final pages = _historyPageNumbers(state.currentPage, totalPages);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildHistoryPageArrow(
+          Icons.chevron_left_rounded,
+          enabled: state.currentPage > 1,
+          onTap: () => ref
+              .read(hmLoanHistoryProvider.notifier)
+              .load(page: state.currentPage - 1),
+        ),
+        const SizedBox(width: 4),
+        if (pages.first > 1) ...[
+          const Text('…',
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+          const SizedBox(width: 4),
         ],
+        for (final number in pages) ...[
+          _buildHistoryPageButton(
+            number,
+            selected: number == state.currentPage,
+            onTap: () =>
+                ref.read(hmLoanHistoryProvider.notifier).load(page: number),
+          ),
+          const SizedBox(width: 4),
+        ],
+        if (pages.last < totalPages) ...[
+          const Text('…',
+              style: TextStyle(fontSize: 12, color: AppColors.textTertiary)),
+          const SizedBox(width: 4),
+        ],
+        _buildHistoryPageArrow(
+          Icons.chevron_right_rounded,
+          enabled: state.currentPage < totalPages,
+          onTap: () => ref
+              .read(hmLoanHistoryProvider.notifier)
+              .load(page: state.currentPage + 1),
+        ),
+      ],
+    );
+  }
+
+  List<int> _historyPageNumbers(int current, int total) {
+    if (total <= 5) return List.generate(total, (index) => index + 1);
+    var start = current - 2;
+    if (start < 1) start = 1;
+    if (start + 4 > total) start = total - 4;
+    return List.generate(5, (index) => start + index);
+  }
+
+  Widget _buildHistoryPageButton(int number,
+      {required bool selected, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? AppColors.deepNavy : Colors.transparent,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+              color: selected ? AppColors.deepNavy : AppColors.border),
+        ),
+        child: Text(
+          '$number',
+          style: TextStyle(
+              fontSize: 11.5,
+              fontWeight: FontWeight.w700,
+              color: selected ? Colors.white : AppColors.textSecondary),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildHistoryPageArrow(IconData icon,
+      {required bool enabled, required VoidCallback onTap}) {
+    return GestureDetector(
+      onTap: enabled ? onTap : null,
+      child: Container(
+        width: 30,
+        height: 30,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Icon(icon,
+            size: 17,
+            color: enabled ? AppColors.textPrimary : AppColors.textTertiary),
       ),
     );
   }
@@ -1188,10 +1774,11 @@ class _HmLoanApplicationsListScreenState
     );
   }
 
-  /// Loan History modal — mga pagbabayad (may petsa at oras) at ang mga
-  /// dating loan ng parehong kliyente.
-  void _openHistory(BuildContext context, LoanModel loan) =>
-      showHmLoanHistoryModal(context, loan: loan);
+  /// Loan Details panel — lumalabas sa KANAN (hindi gitnang dialog) kasama
+  /// ang Client/Loan Information, Payment Schedule, Payment History, Notes,
+  /// at Download Receipt.
+  void _openLoanDetails(BuildContext context, LoanModel loan) =>
+      showLoanDetailsSidePanel(context, loanId: loan.id, loan: loan);
 
   void _openDetails(BuildContext context, String loanId) {
     // Full-page navigation — hindi na modal, para buong screen ang details

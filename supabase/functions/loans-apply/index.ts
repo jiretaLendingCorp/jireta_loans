@@ -4,9 +4,9 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
+import { validateFrequency } from '../_shared/validators.ts';
 import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
-import { getInterestRatePct } from '../_shared/system_config.ts';
+import { getInterestRatePct, getLoanLimits } from '../_shared/system_config.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { sanitizeString } from '../_shared/validators.ts';
@@ -150,8 +150,17 @@ serve(async (req) => {
       // Every application must declare at least one emergency contact.
       return errorResponse('At least one emergency contact is required', 400, 'VALIDATION_ERROR');
     }
-    if (!validateLoanAmount(Number(principal))) {
-      return errorResponse('Loan amount must be between ₱3,000 and ₱500,000', 400, 'VALIDATION_ERROR');
+    // Ang minimum/maximum ay galing sa System Settings ng Head Manager
+    // (`system_config.min_loan_amount` / `max_loan_amount`) — hindi na
+    // hardcoded sa ₱3,000–₱500,000.
+    const limits = await getLoanLimits(getAdminClient());
+    const principalNum = Number(principal);
+    if (!Number.isFinite(principalNum) || principalNum < limits.min || principalNum > limits.max) {
+      return errorResponse(
+        `Loan amount must be between ₱${limits.min.toLocaleString('en-US')} and ₱${limits.max.toLocaleString('en-US')}`,
+        400,
+        'VALIDATION_ERROR',
+      );
     }
     if (!validateFrequency(frequency)) {
       return errorResponse('Invalid frequency. Use: daily, weekly, monthly', 400, 'VALIDATION_ERROR');

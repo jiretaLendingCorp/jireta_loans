@@ -188,6 +188,11 @@ class ApiEndpoints {
 
   // System
   static const String systemGetConfig = 'system-view?fn=get-config';
+
+  /// Min/max loan amount + interest rate para sa Apply Loan / In-Office wizard
+  /// (allowed sa head manager, employee, at lender).
+  static const String systemGetLoanSettings =
+      'system-view?fn=get-loan-settings';
   static const String systemUpdateConfig = 'system-update-config';
   static const String systemGetSmsTemplates =
       'system-view?fn=get-sms-templates';

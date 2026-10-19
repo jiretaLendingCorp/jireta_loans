@@ -15,11 +15,11 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validatePagination, validateLoanAmount, validateFrequency } from '../_shared/validators.ts';
+import { validatePagination, validateFrequency } from '../_shared/validators.ts';
 import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLastPaymentDatesBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule, maxPeriodsFor, termDaysFor, DEFAULT_INTEREST_RATE_PCT } from '../_shared/schedule.ts';
-import { getInterestRatePct } from '../_shared/system_config.ts';
+import { getInterestRatePct, getLoanLimits } from '../_shared/system_config.ts';
 import { searchUserIdsByName } from '../_shared/search.ts';
 
 // ── [moved from loans-get-schedule-preview] ─────────────────────────────────
@@ -547,7 +547,20 @@ async function handleGetSchedulePreview(req: Request) {
     const { principal, frequency, term_periods } = await req.json();
 
     if (!principal || !frequency) return errorResponse('principal and frequency are required', 400, 'VALIDATION_ERROR');
-    if (!validateLoanAmount(Number(principal))) return errorResponse('Amount must be ₱3,000–₱500,000', 400, 'VALIDATION_ERROR');
+    // Minimum/maximum at interest rate mula sa System Settings ng Head Manager.
+    const db = getAdminClient();
+    const [limits, interestRatePct] = await Promise.all([
+      getLoanLimits(db),
+      getInterestRatePct(db),
+    ]);
+    const principalNum = Number(principal);
+    if (!Number.isFinite(principalNum) || principalNum < limits.min || principalNum > limits.max) {
+      return errorResponse(
+        `Amount must be between ₱${limits.min.toLocaleString('en-US')} and ₱${limits.max.toLocaleString('en-US')}`,
+        400,
+        'VALIDATION_ERROR',
+      );
+    }
     if (!validateFrequency(frequency)) return errorResponse('Invalid frequency', 400, 'VALIDATION_ERROR');
 
     let periods: number | undefined;
@@ -562,8 +575,11 @@ async function handleGetSchedulePreview(req: Request) {
       }
     }
 
-    // Interest rate mula sa Head Manager setting (system_config.interest_rate).
-    const db = getAdminClient();
-    const interestRatePct = await getInterestRatePct(db);
-    return jsonResponse(computeSchedulePreview(Number(principal), frequency, periods, interestRatePct));
+    // Isinasama ang aktwal na limits sa response — para pantay ang UI at ang
+    // server kahit binago ng Head Manager ang settings.
+    return jsonResponse({
+      ...computeSchedulePreview(principalNum, frequency, periods, interestRatePct),
+      min_amount: limits.min,
+      max_amount: limits.max,
+    });
 }

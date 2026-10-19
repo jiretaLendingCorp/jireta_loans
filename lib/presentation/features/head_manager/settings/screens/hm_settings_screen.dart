@@ -8,8 +8,8 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
+import '../../../../shared/providers/loan_settings_provider.dart';
 import '../providers/hm_settings_provider.dart';
-import '../widgets/xendit_diagnostics_card.dart';
 
 class HmSettingsScreen extends StatelessWidget {
   const HmSettingsScreen({super.key});
@@ -165,11 +165,7 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          // HEAD MANAGER-only: Xendit sandbox diagnostics (connectivity check +
-          // hiwalay na test payment request). Hindi ito humihipo sa loan,
-          // payment, o disbursement records.
-          const XenditDiagnosticsCard(),
+          // Nakatago ang Xendit sandbox diagnostics card.
         ],
       ),
     );
@@ -266,6 +262,9 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
 
     if (allSaved) {
       ref.invalidate(systemConfigProvider);
+      // Agad na mapalitan ang min/max sa Apply Loan / In-Office wizard
+      // (realtime din ang provider, pero sigurado dito sa parehong app).
+      ref.invalidate(loanSettingsProvider);
       await SuccessDialog.show(
         context,
         title: 'Configuration Saved',
