@@ -35,6 +35,29 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- url_launcher / canLaunchUrl (iOS): ang canOpenURL ay nagbabalik ng
+	     false kapag hindi naka-declare ang scheme sa LSApplicationQueriesSchemes.
+	     Ginagamit ito ng app para sa:
+	       tel:  "Call us" ng Account Paused modal at Contact Us
+	       sms:  text ng rider sa borrower/lender (CI at collections)
+	       mailto: support/legal links
+	       https/http: Xendit checkout, Google Maps directions, report links
+	     Kung wala ang mga ito, tahimik na "walang app na makakabukas" sa iOS
+	     (gumagana lang sa Android).
+	-->
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>sms</string>
+		<string>mailto</string>
+		<string>https</string>
+		<string>http</string>
+	</array>
+	<!-- Puro HTTPS lang ang network traffic (walang custom crypto), kaya
+	     exempt sa US export compliance — hindi na lalabas ang tanong na ito
+	     sa bawat App Store upload. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSAppTransportSecurity</key>

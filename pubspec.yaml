@@ -28,7 +28,7 @@ dependencies:
   # callbacks). Sa 15.x, hindi tumatakbo ang native FCM setup kapag
   # naka-UIScene ang app (default na sa Flutter 3.41+) — kaya walang APNs/FCM
   # token at walang push sa iOS. Kailangan nito ang Firebase Apple SDK 12, kaya
-  # iOS 15.0 na ang minimum (tingnan ang ios/Podfile).
+  # iOS 15.5 na ang minimum (tingnan ang ios/Podfile at Runner.xcodeproj).
   firebase_core: ^4.15.0
   firebase_messaging: ^16.7.0
 

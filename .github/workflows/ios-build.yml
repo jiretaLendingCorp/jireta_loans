@@ -1,0 +1,111 @@
+name: iOS build (compile gate)
+
+# Layunin: mapatunayan sa bawat push na NAGKO-COMPILE ang iOS app — hindi lang
+# Android. Walang signing dito (`--no-codesign`), kaya hindi kailangan ng Apple
+# Developer account; ang device/TestFlight tests ay nasa
+# docs/IOS_TEST_CHECKLIST.md.
+#
+# Ano ang nahuhuli nito:
+#   • pod install errors (hal. deployment target 15.5 vs ML Kit)
+#   • Swift/Obj-C compile errors sa Runner, kasama ang AppDelegate
+#     (Firebase notification delegate, GMSServices.provideAPIKey)
+#   • nawawalang iOS config (Info.plist, entitlements, deep-link scheme)
+#   • Kotlin/Dart-side breakage na umaabot sa iOS build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "ios/**"
+      - "lib/**"
+      - "assets/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - "test/ios_platform_config_test.dart"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "ios/**"
+      - "lib/**"
+      - "pubspec.yaml"
+      - "pubspec.lock"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ios-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # macOS runner ang kailangan para sa Xcode/CocoaPods. Ang macos-15 ay may
+    # Xcode 16.x — lampas sa 15.3 na minimum ng Google ML Kit.
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          # Pareho sa Android workflow: stable channel + cache. Ang naka-pin
+          # na exact version ay madaling maging invalid kapag nag-release;
+          # ang iOS compile gate ay para mahuli ang breakage, hindi para
+          # i-freeze ang toolchain.
+          channel: stable
+          cache: true
+
+      - name: Toolchain versions
+        run: |
+          set -euo pipefail
+          flutter --version
+          xcodebuild -version
+          pod --version
+
+      # assets/env/.env ay git-ignored (may API keys). Kailangan itong
+      # umiral bago mag-build dahil naka-declare sa pubspec.yaml assets.
+      # Placeholder lang ang laman para sa compile gate — walang secrets na
+      # kailangan, at hindi ito nade-deploy.
+      - name: Write placeholder assets/env/.env
+        run: |
+          set -euo pipefail
+          mkdir -p assets/env
+          cat > assets/env/.env <<'EOF'
+          SUPABASE_URL=https://ci-placeholder.supabase.co
+          SUPABASE_ANON_KEY=ci-placeholder
+          EDGE_FUNCTIONS_URL=https://ci-placeholder.supabase.co/functions/v1
+          GOOGLE_MAPS_API_KEY=
+          XENDIT_PUBLIC_KEY=
+          APP_ENV=ci
+          EOF
+          echo "Wrote placeholder assets/env/.env (no secrets)."
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      - name: Cache CocoaPods
+        uses: actions/cache@v4
+        with:
+          path: ~/.cocoapods/repos
+          key: cocoapods-${{ runner.os }}-${{ hashFiles('ios/Podfile', 'pubspec.lock') }}
+          restore-keys: cocoapods-${{ runner.os }}-
+
+      - name: pod install
+        working-directory: ios
+        run: |
+          set -euo pipefail
+          pod install
+          # Dapat 15.5 ang target ng Runner at ng pods (ML Kit requirement).
+          grep -q "IPHONEOS_DEPLOYMENT_TARGET = 15.5" Runner.xcodeproj/project.pbxproj
+          echo "Deployment target OK: iOS 15.5"
+
+      - name: iOS config guard tests
+        run: flutter test test/ios_platform_config_test.dart
+
+      - name: Compile (no codesign)
+        run: |
+          set -euo pipefail
+          flutter build ios --debug --no-codesign
