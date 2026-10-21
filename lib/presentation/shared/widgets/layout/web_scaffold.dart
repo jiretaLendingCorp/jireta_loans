@@ -856,6 +856,13 @@ List<_NavItem> _empItems() => [
           'Collections',
           RouteConstants.empCollections,
         ),
+        // Read-only rider monitoring — kapareho ng HM entry, para makita ng
+        // employee ang expected vs confirmed collections ng bawat rider.
+        const _NavItem(
+          Icons.insights_outlined,
+          'Rider Monitoring',
+          RouteConstants.empRiderMonitoring,
+        ),
       ];
 
 /// Mga section ng LENDER role para sa sidebar — TATLONG items lang ito

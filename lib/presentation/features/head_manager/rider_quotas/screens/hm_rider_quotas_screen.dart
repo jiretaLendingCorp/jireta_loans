@@ -20,8 +20,28 @@ import '../../rider_monitoring/widgets/rider_monitoring_stat_card.dart';
 import '../providers/hm_rider_quotas_provider.dart';
 import '../widgets/rider_quota_form_dialog.dart';
 
+/// Quotas tab ng Rider Monitoring — HM **at employee** (read-only) na page.
+///
+/// Ang quota LIST ay bukas sa HM + EMPLOYEE (`collections-view?fn=rider-quotas`),
+/// pero HM lang ang pwedeng mag-assign/edit/close (`collections-manage`). Kaya
+/// kapag employee ang tumitingin: `canManage: false` → walang "Assign quota"
+/// button at walang edit/close actions, at employee URL ang tabs.
 class HmRiderQuotasScreen extends ConsumerStatefulWidget {
-  const HmRiderQuotasScreen({super.key});
+  /// Ruta ng Monitoring tab.
+  final String monitoringRoute;
+
+  /// Ruta ng Quotas tab (aktibong tab).
+  final String quotasRoute;
+
+  /// `false` = read-only (employee): walang assign/edit/close quota.
+  final bool canManage;
+
+  const HmRiderQuotasScreen({
+    super.key,
+    this.monitoringRoute = RouteConstants.hmRiderMonitoring,
+    this.quotasRoute = RouteConstants.hmRiderMonitoringQuotas,
+    this.canManage = true,
+  });
 
   @override
   ConsumerState<HmRiderQuotasScreen> createState() =>
@@ -141,8 +161,10 @@ class _HmRiderQuotasScreenState extends ConsumerState<HmRiderQuotasScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Monitoring / Quotas tabs — sariling URI bawat isa.
-              const RiderMonitoringSectionTabs(
-                activeRoute: RouteConstants.hmRiderMonitoringQuotas,
+              RiderMonitoringSectionTabs(
+                activeRoute: widget.quotasRoute,
+                monitoringRoute: widget.monitoringRoute,
+                quotasRoute: widget.quotasRoute,
               ),
               const SizedBox(height: 16),
               _QuotaSummaryCards(summary: state.summary),
@@ -231,11 +253,13 @@ class _HmRiderQuotasScreenState extends ConsumerState<HmRiderQuotasScreen> {
                           .read(hmRiderQuotasProvider.notifier)
                           .setSort(v ?? 'start_date:desc'),
                     ),
-                    FilledButton.icon(
-                      onPressed: state.isSaving ? null : _openAssignDialog,
-                      icon: const Icon(Icons.add_rounded, size: 18),
-                      label: const Text('Assign quota'),
-                    ),
+                    // HM lang ang pwedeng mag-assign (collections-manage).
+                    if (widget.canManage)
+                      FilledButton.icon(
+                        onPressed: state.isSaving ? null : _openAssignDialog,
+                        icon: const Icon(Icons.add_rounded, size: 18),
+                        label: const Text('Assign quota'),
+                      ),
                   ],
                 ),
               ),
@@ -270,8 +294,10 @@ class _HmRiderQuotasScreenState extends ConsumerState<HmRiderQuotasScreen> {
               else ...[
                 RiderQuotaTable(
                   state: state,
-                  onEdit: _openEditDialog,
-                  onClose: _confirmClose,
+                  // Employee: `null` ang callbacks → walang edit/close, at
+                  // "Read-only" ang tooltip ng lock icon.
+                  onEdit: widget.canManage ? _openEditDialog : null,
+                  onClose: widget.canManage ? _confirmClose : null,
                 ),
                 const SizedBox(height: 12),
                 RecordsPagination(
@@ -352,14 +378,17 @@ class _QuotaSummaryCards extends StatelessWidget {
 /// (tabular headers) at sa maliit na width (stacked cards).
 class RiderQuotaTable extends StatelessWidget {
   final HmRiderQuotasState state;
-  final ValueChanged<RiderQuota> onEdit;
-  final ValueChanged<RiderQuota> onClose;
+
+  /// `null` = read-only (employee): walang edit/close, lock icon lang ang
+  /// lalabas sa Actions column.
+  final ValueChanged<RiderQuota>? onEdit;
+  final ValueChanged<RiderQuota>? onClose;
 
   const RiderQuotaTable({
     super.key,
     required this.state,
-    required this.onEdit,
-    required this.onClose,
+    this.onEdit,
+    this.onClose,
   });
 
   @override
@@ -468,9 +497,9 @@ class RiderQuotaTable extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          if (q.isEditable)
+          if (q.isEditable && onEdit != null && onClose != null)
             IconButton(
-              onPressed: () => onEdit(q),
+              onPressed: () => onEdit!(q),
               tooltip: 'Edit quota',
               visualDensity: VisualDensity.compact,
               splashRadius: 18,
@@ -480,9 +509,9 @@ class RiderQuotaTable extends StatelessWidget {
                 color: AppColors.textSecondary,
               ),
             ),
-          if (q.isEditable)
+          if (q.isEditable && onEdit != null && onClose != null)
             IconButton(
-              onPressed: () => onClose(q),
+              onPressed: () => onClose!(q),
               tooltip: 'Close quota',
               visualDensity: VisualDensity.compact,
               splashRadius: 18,
@@ -492,9 +521,11 @@ class RiderQuotaTable extends StatelessWidget {
                 color: AppColors.statusRejected,
               ),
             ),
-          if (!q.isEditable)
+          if (!q.isEditable || onEdit == null || onClose == null)
             Tooltip(
-              message: 'Historical quota — read-only',
+              message: onEdit == null || onClose == null
+                  ? 'Read-only — head manager lang ang pwedeng mag-edit ng quota'
+                  : 'Historical quota — read-only',
               child: Icon(
                 Icons.lock_clock_outlined,
                 size: 18,

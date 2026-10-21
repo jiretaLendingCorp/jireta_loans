@@ -828,6 +828,31 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.empCollectionDetails,
           builder: (ctx, s) => EmpCollectionDetailsScreen(
               collectionId: s.pathParameters['id']!)),
+      // Rider Monitoring (read-only) para sa employee — parehong screen ng HM,
+      // pero employee URLs ang ginagamit at WALANG Quotas tab (HM-only ang
+      // pag-set ng quota). Ang backend (`collections-view?fn=rider-monitoring`)
+      // ay tumatanggap na ng HM + EMPLOYEE.
+      GoRoute(
+          path: RouteConstants.empRiderMonitoring,
+          builder: (ctx, s) => const HmRiderMonitoringScreen(
+                monitoringRoute: RouteConstants.empRiderMonitoring,
+                detailsRoute: RouteConstants.empRiderMonitoringDetails,
+                quotasRoute: RouteConstants.empRiderMonitoringQuotas,
+              )),
+      // Quotas tab (employee) — NAKA-REGISTER BAGO ang `:id` route para hindi
+      // ito maging rider id (`/employee/rider-monitoring/quotas`). Read-only:
+      // HM lang ang pwedeng mag-assign/edit/close quota.
+      GoRoute(
+          path: RouteConstants.empRiderMonitoringQuotas,
+          builder: (ctx, s) => const HmRiderQuotasScreen(
+                monitoringRoute: RouteConstants.empRiderMonitoring,
+                quotasRoute: RouteConstants.empRiderMonitoringQuotas,
+                canManage: false,
+              )),
+      GoRoute(
+          path: RouteConstants.empRiderMonitoringDetails,
+          builder: (ctx, s) =>
+              HmRiderMonitoringDetailsScreen(riderId: s.pathParameters['id']!)),
       GoRoute(
           path: RouteConstants.empPayments,
           builder: (ctx, s) => const EmpPaymentListScreen()),

@@ -11,10 +11,23 @@ import '../../../../shared/widgets/filter_pill_tab.dart';
 /// `/hm/rider-monitoring/quotas`) para deep-linkable, tama pa rin pagkatapos
 /// ng refresh/bookmark/browser back, at hindi ito basta client-side state.
 class RiderMonitoringSectionTabs extends StatelessWidget {
-  /// Kasalukuyang path (`RouteConstants.hmRiderMonitoring*`).
+  /// Kasalukuyang path (`RouteConstants.hmRiderMonitoring*` / employee).
   final String activeRoute;
 
-  const RiderMonitoringSectionTabs({super.key, required this.activeRoute});
+  /// Ruta ng Monitoring tab. Default: HM. Ginagamit din ito ng employee
+  /// (`/employee/rider-monitoring`) — isang widget lang para sa dalawang role.
+  final String monitoringRoute;
+
+  /// Ruta ng Quotas tab. `null` = HINDI ipinapakita ang Quotas tab — HM lang
+  /// ang pwedeng mag-set ng quota, kaya walang quota tab sa employee.
+  final String? quotasRoute;
+
+  const RiderMonitoringSectionTabs({
+    super.key,
+    required this.activeRoute,
+    this.monitoringRoute = RouteConstants.hmRiderMonitoring,
+    this.quotasRoute = RouteConstants.hmRiderMonitoringQuotas,
+  });
 
   static const _monitoring = FilterTabDef(
     'monitoring',
@@ -47,8 +60,8 @@ class RiderMonitoringSectionTabs extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _pill(context, _monitoring, RouteConstants.hmRiderMonitoring),
-          _pill(context, _quotas, RouteConstants.hmRiderMonitoringQuotas),
+          _pill(context, _monitoring, monitoringRoute),
+          if (quotasRoute != null) _pill(context, _quotas, quotasRoute!),
         ],
       ),
     );

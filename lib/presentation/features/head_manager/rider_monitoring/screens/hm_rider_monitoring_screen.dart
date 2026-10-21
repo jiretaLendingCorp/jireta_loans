@@ -21,8 +21,29 @@ import '../providers/hm_rider_monitoring_provider.dart';
 import '../widgets/rider_monitoring_section_tabs.dart';
 import '../widgets/rider_monitoring_stat_card.dart';
 
+/// Rider Collection Monitoring — HM **at employee** (read-only) na page.
+///
+/// Isang screen lang ito para sa dalawang role: ang ruta lang ang pinag-iba
+/// (`/hm/rider-monitoring*` vs `/employee/rider-monitoring*`) para tama ang
+/// deep links at browser back. May Quotas tab din ang employee, pero
+/// READ-ONLY (HM lang ang pwedeng mag-assign/edit/close sa
+/// `collections-manage`).
 class HmRiderMonitoringScreen extends ConsumerStatefulWidget {
-  const HmRiderMonitoringScreen({super.key});
+  /// Ruta ng list page (ito rin ang active tab).
+  final String monitoringRoute;
+
+  /// Ruta ng details page (`:id` placeholder).
+  final String detailsRoute;
+
+  /// Ruta ng Quotas tab; `null` = walang Quotas tab (employee).
+  final String? quotasRoute;
+
+  const HmRiderMonitoringScreen({
+    super.key,
+    this.monitoringRoute = RouteConstants.hmRiderMonitoring,
+    this.detailsRoute = RouteConstants.hmRiderMonitoringDetails,
+    this.quotasRoute = RouteConstants.hmRiderMonitoringQuotas,
+  });
 
   @override
   ConsumerState<HmRiderMonitoringScreen> createState() =>
@@ -84,8 +105,10 @@ class _HmRiderMonitoringScreenState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Monitoring / Quotas tabs — sariling URI bawat isa.
-              const RiderMonitoringSectionTabs(
-                activeRoute: RouteConstants.hmRiderMonitoring,
+              RiderMonitoringSectionTabs(
+                activeRoute: widget.monitoringRoute,
+                monitoringRoute: widget.monitoringRoute,
+                quotasRoute: widget.quotasRoute,
               ),
               const SizedBox(height: 16),
               RiderMonitoringSummaryCards(summary: state.summary),
@@ -182,7 +205,10 @@ class _HmRiderMonitoringScreenState
                   },
                 )
               else ...[
-                RiderMonitoringTable(state: state),
+                RiderMonitoringTable(
+                  state: state,
+                  detailsRoute: widget.detailsRoute,
+                ),
                 const SizedBox(height: 12),
                 RecordsPagination(
                   currentPage: state.page,
@@ -284,11 +310,19 @@ class RiderMonitoringSummaryCards extends StatelessWidget {
 /// desktop dahil masyadong mataas ang dating `minTableWidth`).
 class RiderMonitoringTable extends StatelessWidget {
   final HmRiderMonitoringState state;
-  const RiderMonitoringTable({super.key, required this.state});
+
+  /// Ruta ng details page (`:id` placeholder) — HM default; employee ang
+  /// ipinapasa ng employee route para hindi tumalon sa `/hm/...`.
+  final String detailsRoute;
+
+  const RiderMonitoringTable({
+    super.key,
+    required this.state,
+    this.detailsRoute = RouteConstants.hmRiderMonitoringDetails,
+  });
 
   void _openDetails(BuildContext context, RiderMonitoringRow row) {
-    final base = RouteConstants.hmRiderMonitoringDetails
-        .replaceFirst(':id', row.riderId);
+    final base = detailsRoute.replaceFirst(':id', row.riderId);
     final query = <String, String>{
       if (state.dateFrom != null) 'date_from': state.dateFrom!,
       if (state.dateTo != null) 'date_to': state.dateTo!,

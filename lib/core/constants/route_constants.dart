@@ -143,6 +143,14 @@ class RouteConstants {
       '/employee/account-upgrade/:id';
   static const String empCi = '/employee/ci';
   static const String empCiDetails = '/employee/ci/:id';
+  // Rider Monitoring (read-only) para sa employee — kapareho ng HM page,
+  // walang Quotas tab (HM-only ang pag-set ng quota).
+  static const String empRiderMonitoring = '/employee/rider-monitoring';
+  static const String empRiderMonitoringDetails =
+      '/employee/rider-monitoring/:id';
+  // Quotas tab (read-only sa employee — walang assign/edit/close).
+  static const String empRiderMonitoringQuotas =
+      '/employee/rider-monitoring/quotas';
   static const String empCollections = '/employee/collections';
   static const String empCollectionDetails = '/employee/collections/:id';
   static const String empPayments = '/employee/payments';
