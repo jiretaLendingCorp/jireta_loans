@@ -21,7 +21,11 @@ class MfaSettingsCard extends StatefulWidget {
   /// Walang card box — plain text rows lang, nakalapat sa page (rider profile).
   final bool flat;
 
-  const MfaSettingsCard({super.key, this.service, this.flat = false});
+  /// Ipakita pa rin ang icon kahit `flat` (hal. lender profile).
+  final bool showIcon;
+
+  const MfaSettingsCard(
+      {super.key, this.service, this.flat = false, this.showIcon = false});
 
   /// Opsyonal na service (pang-test / shared instance).
   final MfaService? service;
@@ -61,9 +65,7 @@ class _MfaSettingsCardState extends State<MfaSettingsCard> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = e is MfaFailure
-            ? e.message
-            : mfaFailureFrom(e).message;
+        _error = e is MfaFailure ? e.message : mfaFailureFrom(e).message;
       });
     }
   }
@@ -155,16 +157,12 @@ class _MfaSettingsCardState extends State<MfaSettingsCard> {
   Widget build(BuildContext context) {
     final enrolled = _status?.enrolled ?? false;
     final enabled = !_loading && _error == null;
-    return ModernMenuCard(flat: widget.flat, items: [
+    return ModernMenuCard(flat: widget.flat, showIcon: widget.showIcon, items: [
       ModernMenuItem(
-        icon: enrolled
-            ? Icons.verified_user_outlined
-            : Icons.shield_outlined,
+        icon: enrolled ? Icons.verified_user_outlined : Icons.shield_outlined,
         title: 'Two-Factor Authentication',
         subtitle: _subtitle,
-        onTap: !enabled
-            ? _load
-            : (enrolled ? _disable : _enable),
+        onTap: !enabled ? _load : (enrolled ? _disable : _enable),
         trailing: Switch.adaptive(
           value: enrolled,
           activeTrackColor: AppColors.success,

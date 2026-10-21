@@ -10,8 +10,8 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/input_formatters.dart';
 import '../../../../../core/utils/logger.dart';
-import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../loans/providers/lender_loan_provider.dart';
@@ -72,6 +72,21 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
   /// Default pa rin ang Cash on Delivery — ang GCash (Xendit) ay pwedeng
   /// piliin ng lender at pumupunta sa `/lender/pay-gcash`.
   String _selected = 'rider';
+  /// Controller ng EDITABLE na "Amount to Pay" — dito naglalagay ang lender ng
+  /// kung magkano ang babayaran niya (partial payment). Ang default ay ang
+  /// natitirang halaga ng installment.
+  late final TextEditingController _amountController;
+  /// Normalize sa `50,000.00` kapag umalis ang focus sa amount field.
+  late final FocusNode _amountFocus;
+  /// Inline error ng amount field (hal. sobra sa natitirang balanse).
+  String? _amountError;
+  /// Natitirang balanse ng LOAN (hindi lang ng installment) — ito ang totoong
+  /// limitasyon ng halagang pwedeng bayaran; ang sobra ay napupunta sa mga
+  /// susunod na installment.
+  double? _outstanding;
+  /// Ang huling halagang tinype ng lender bago siya lumipat sa GCash, para
+  /// maibalik ito kapag bumalik siya sa Cash on Delivery.
+  String _codAmountText = '';
   /// True habang nire-resolve ang installment (galing loan_id lang ang extra).
   /// Habang true, disabled ang Pay para hindi mag-toast ng "Missing...".
   bool _resolving = false;
@@ -91,6 +106,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
     _scheduleId = widget.extra['schedule_id'] as String? ?? '';
     _amount = (widget.extra['amount'] as num?)?.toDouble() ?? 0.0;
     _dueDate = widget.extra['due_date'] as String? ?? '';
+    _outstanding =
+        (widget.extra['outstanding_balance'] as num?)?.toDouble();
+    _amountController = TextEditingController(text: _amountText(_amount));
+    _amountFocus = FocusNode()..addListener(_onAmountFocusChange);
     // When arriving with only a loan (e.g. from the dashboard card), resolve the
     // next payable installment so the cash-collection request has a schedule.
     if (_scheduleId.isEmpty) {
@@ -107,7 +126,94 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
     WidgetsBinding.instance.removeObserver(this);
     _paymentSub?.close();
     _collectionSub?.close();
+    _amountFocus.dispose();
+    _amountController.dispose();
     super.dispose();
+  }
+
+  /// Text para sa amount field: auto-peso na may thousand separators at 2
+  /// decimals (`10,800.00`) — kapareho ng itsura ng ibang halaga sa app.
+  static String _amountText(double amount) =>
+      amount > 0 ? ThousandsSeparatorInputFormatter.format(amount) : '';
+
+  /// Kapag umalis ang focus sa amount field, gawing `50,000.00` (kumpletong
+  /// 2 decimals) ang halaga — habang nagta-type, `50,000` muna ang nakikita
+  /// para hindi nakakagulat ang cursor.
+  void _onAmountFocusChange() {
+    if (_amountFocus.hasFocus || !mounted) return;
+    final value = _enteredAmount;
+    if (value == null || value <= 0) return;
+    final formatted = ThousandsSeparatorInputFormatter.format(value);
+    if (_amountController.text == formatted) return;
+    setState(() {
+      _amountController.text = formatted;
+      _amountError = _validateAmount();
+    });
+  }
+
+  /// Pinakamalaking halagang pwedeng bayaran: ang natitirang balanse ng LOAN
+  /// kapag alam ito (pinapayagan ng backend ang advance payment), kung hindi
+  /// ay ang natitirang halaga ng installment.
+  double get _maxPayable {
+    final outstanding = _outstanding;
+    if (outstanding != null && outstanding > 0 && outstanding + 0.01 >= _amount) {
+      return outstanding;
+    }
+    return _amount;
+  }
+
+  double? get _enteredAmount {
+    final raw = _amountController.text.replaceAll(',', '').trim();
+    if (raw.isEmpty) return null;
+    final value = double.tryParse(raw);
+    if (value == null || !value.isFinite) return null;
+    return double.parse(value.toStringAsFixed(2));
+  }
+
+  /// Validation ng amount na inilagay ng lender. `null` = valid.
+  String? _validateAmount() {
+    final value = _enteredAmount;
+    if (value == null) return 'Enter how much you will pay.';
+    if (value <= 0) return 'Enter an amount greater than ₱0.00.';
+    final max = _maxPayable;
+    if (max > 0 && value > max + 0.01) {
+      return 'The most you can pay is ${max.toPeso()}.';
+    }
+    return null;
+  }
+
+  /// Helper text sa ilalim ng amount field — malinaw kung magkano ang pwedeng
+  /// ilagay, at na hindi buong installment ang kailangang bayaran.
+  String get _amountHelper {
+    if (_selected == 'gcash') {
+      return 'GCash pays this installment in full: ${_amount.toPeso()}.';
+    }
+    final max = _maxPayable;
+    if (max <= 0) return 'Enter how much you will pay.';
+    if (max - _amount > 0.01) {
+      return 'You can pay any amount up to ${max.toPeso()} — the extra goes to '
+          'your next installments.';
+    }
+    return 'You can pay any amount up to ${max.toPeso()} — partial payments are '
+        'allowed.';
+  }
+
+  /// Pagpalit ng paraan ng pagbabayad. Ang GCash (Xendit) ay eksaktong
+  /// installment amount ang sinisingil sa server, kaya read-only ang amount
+  /// habang ito ang napili — at ibinabalik ang tinype ng lender kapag bumalik
+  /// siya sa Cash on Delivery.
+  void _selectMethod(String value) {
+    if (_requesting || value == _selected) return;
+    setState(() {
+      if (value == 'gcash') {
+        _codAmountText = _amountController.text;
+        _amountController.text = _amountText(_amount);
+        _amountError = null;
+      } else if (_selected == 'gcash' && _codAmountText.isNotEmpty) {
+        _amountController.text = _codAmountText;
+      }
+      _selected = value;
+    });
   }
 
   /// Bumalik ang lender mula sa Xendit checkout (bagong tab sa web, o GCash app
@@ -164,11 +270,20 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
       target ??= schedules.isEmpty ? null : schedules.first;
       final resolved = target;
       if (resolved != null && mounted) {
-        final amt = (resolved['amount_due'] as num?)?.toDouble() ?? _amount;
+        final due = (resolved['amount_due'] as num?)?.toDouble() ?? _amount;
+        final paid = (resolved['amount_paid'] as num?)?.toDouble() ?? 0;
+        final remaining = due - paid;
+        final amt = remaining > 0 ? remaining : due;
+        // Ang buong LOAN ang tinitignan para sa maximum na pwedeng bayaran
+        // (advance payment), hindi lang ang installment na ito.
+        final outstanding =
+            ref.read(lenderLoanProvider).selectedLoan?.outstandingBalance;
         setState(() {
           _scheduleId = resolved['id'] as String? ?? _scheduleId;
           _amount = amt;
           _dueDate = resolved['due_date'] as String? ?? _dueDate;
+          if (outstanding != null && outstanding > 0) _outstanding = outstanding;
+          _amountController.text = _amountText(amt);
         });
       }
     } finally {
@@ -211,22 +326,27 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
     );
   }
 
-  /// Shared positive modal para sa matagumpay (o malamang naipadala) na
-  /// request — malinaw na confirmation imbes na error/tongue-twister text.
+  /// Diretso sa STATUS pagkatapos ng matagumpay (o malamang naipadala) na
+  /// request — hindi na nanatili sa Payment Method screen.
   ///
-  /// AUTO-CLOSE pagkatapos ng 3 segundo (isang "Close" button lang; walang
-  /// "View Collections" — nasa Payments tab pa rin naman ang collections).
-  Future<void> _showSubmittedDialog({
-    required String title,
-    required String message,
-  }) =>
-      SuccessDialog.showAutoDismiss(
-        context,
-        title: title,
-        message: message,
-        buttonText: 'Close',
-        duration: const Duration(seconds: 3),
-      );
+  /// Nasa Payment Schedule (`/lender/payments`) ang status ng bawat
+  /// installment: ang "Requested / Assigned / Accepted" chip ng collection at
+  /// ang outstanding balance. Dati, may success dialog lang tapos nanatili ang
+  /// lender sa parehong screen — hindi niya nakikita doon ang status ng
+  /// request na kauuwi lang niyang ipadala, kaya pinipindot niyang muli ang
+  /// Pay at "Already Pending" ang lumalabas.
+  ///
+  /// Toast muna bago mag-`go`: nasa ROOT overlay ang toast, kaya hindi ito
+  /// nawawala sa navigation. `go` (hindi `push`) ang gamit para hindi na
+  /// makabalik ang back button sa Payment Method screen.
+  void _goToPaymentStatus(String message) {
+    if (!mounted) return;
+    context.showSnackBarAsToast(SnackBar(
+      content: Text(message),
+      backgroundColor: AppColors.success,
+    ));
+    context.go(RouteConstants.lenderPayments);
+  }
 
   String _titleForError(String err) {
     final low = err.toLowerCase();
@@ -264,7 +384,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
     return 'Request Not Sent';
   }
 
-  Future<void> _requestCashCollection() async {
+  Future<void> _requestCashCollection(double amount) async {
     if (_scheduleId.isEmpty) {
       AppLogger.w('[PaymentMethod] _requestCashCollection called with empty schedule_id extra=${widget.extra}');
       _showInfo('Missing installment information. Please return to Payment Schedule and tap Pay again.');
@@ -279,8 +399,9 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
       context: context,
       builder: (_) => AlertDialog(
         title: const Text('Cash on Delivery'),
-        content: const Text(
-          'Are you sure you want to pay with Cash on Delivery?',
+        content: Text(
+          'Are you sure you want to pay ${amount.toPeso()} with Cash on '
+          'Delivery? The rider will collect exactly this amount from you.',
         ),
         actions: [
           TextButton(
@@ -299,13 +420,13 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
     final verified = await _authenticateForPayment();
     if (!verified || !mounted) return;
 
-    AppLogger.d('[PaymentMethod] User confirmed rider collection schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$_amount');
+    AppLogger.d('[PaymentMethod] User confirmed rider collection schedule=$_scheduleId loan=${widget.extra['loan_id']} amount=$amount');
     setState(() => _requesting = true);
     bool ok = false;
     try {
       ok = await ref
           .read(lenderPaymentProvider.notifier)
-          .requestRiderCollection(loanScheduleId: _scheduleId, amount: _amount);
+          .requestRiderCollection(loanScheduleId: _scheduleId, amount: amount);
     } catch (e, st) {
       AppLogger.e('[PaymentMethod] requestRiderCollection threw', e, st);
       if (kDebugMode) debugPrint('[PaymentMethod] exception: $e');
@@ -338,14 +459,12 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
 
     if (ok) {
       AppLogger.i('[PaymentMethod] rider request OK schedule=$_scheduleId');
-      await _showSubmittedDialog(
-        title: 'Successfully Submitted',
-        // Business process: ang pag-assign ng rider at paghahatid ng cash ay
-        // inaasahang matapos sa loob ng 1–2 business days.
-        message: 'Your Cash on Delivery request has been submitted. '
-            'Our office will assign a rider and deliver the cash within '
-            '1–2 business days. You will be notified once the cash is on '
-            'the way.',
+      // Business process: ang pag-assign ng rider at paghahatid ng cash ay
+      // inaasahang matapos sa loob ng 1–2 business days.
+      _goToPaymentStatus(
+        'Cash on Delivery request for ${amount.toPeso()} submitted. The status '
+        'is shown below — our office will assign a rider within 1–2 business '
+        'days.',
       );
     } else {
       final err = ref.read(lenderPaymentProvider).error;
@@ -365,11 +484,10 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
           low.contains('internal server error') ||
           low.contains('an error occurred');
       if (inconclusive) {
-        await _showSubmittedDialog(
-          title: 'Submission Received',
-          message: 'Your request was sent and is now being processed. '
-              'It usually takes 1–2 business days before the rider delivers '
-              'the cash. You will be notified once it is on the way.',
+        _goToPaymentStatus(
+          'Your request was sent and is now being processed. The status is '
+          'shown below — it usually takes 1–2 business days before the rider '
+          'collects the cash.',
         );
         return;
       }
@@ -454,6 +572,13 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
       unawaited(_payViaGcash());
       return;
     }
+    // Cash on Delivery / office: ang halagang TINYPE ng lender ang ipapadala.
+    final error = _validateAmount();
+    if (error != null) {
+      setState(() => _amountError = error);
+      return;
+    }
+    final amount = _enteredAmount!;
     if (_selected == 'office') {
       if (_hasPendingLocally()) {
         _showPendingDialog();
@@ -462,12 +587,12 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
       context.push(RouteConstants.lenderOfficePayment, extra: {
         'loan_id': widget.extra['loan_id'],
         'schedule_id': _scheduleId,
-        'amount': _amount,
+        'amount': amount,
         'due_date': _dueDate,
       });
       return;
     }
-    _requestCashCollection();
+    unawaited(_requestCashCollection(amount));
   }
 
   /// GCash checkout sa ISANG tap: habang tumatakbo ang request, processing
@@ -578,9 +703,20 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
                     // kaya dapat nakikita na ito bago pa pumili ng method.
                     // Label sa itaas, halaga sa ibaba nito — walang card/box.
                     _AmountDue(
-                      amount: _amount,
+                      controller: _amountController,
+                      focusNode: _amountFocus,
                       dueDate: _dueDate,
                       resolving: _resolving,
+                      // Binago lang ng lender ang halaga sa Cash on Delivery /
+                      // office — ang GCash ay laging buong installment.
+                      editable: _selected != 'gcash',
+                      helper: _amountHelper,
+                      errorText: _amountError,
+                      onChanged: (value) {
+                        // Burahin ang error kapag maayos na ang halaga.
+                        if (_amountError == null) return;
+                        setState(() => _amountError = _validateAmount());
+                      },
                     ),
                     const SizedBox(height: 22),
                     // Pangkalahatan ang label — dalawang paraan na ang
@@ -595,9 +731,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
                     _MethodCard(
                       value: 'rider',
                       groupValue: _selected,
-                      onSelect: _requesting
-                          ? null
-                          : (v) => setState(() => _selected = v),
+                      onSelect: _requesting ? null : _selectMethod,
                       icon: Icons.delivery_dining_outlined,
                       assetPath: 'assets/icons/paywithrider.jpg',
                       color: AppColors.riderGreen,
@@ -615,9 +749,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
                     _MethodCard(
                       value: 'gcash',
                       groupValue: _selected,
-                      onSelect: _requesting
-                          ? null
-                          : (v) => setState(() => _selected = v),
+                      onSelect: _requesting ? null : _selectMethod,
                       // Brand asset (hindi generic na icon) — `assets/images/gcash.png`.
                       icon: Icons.account_balance_wallet,
                       assetPath: 'assets/images/gcash.png',
@@ -791,18 +923,44 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
 
 /// Halagang babayaran para sa installment na ito — maliit na block na WALANG
 /// card/box, nasa itaas ng mga paraan ng pagbabayad: nasa TAAS ang label
-/// ("Amount to Pay") at nasa ILALIM nito ang halaga, tapos ang due date at isang
-/// manipis na divider.
+/// ("Amount to Pay") at nasa ILALIM nito ang EDITABLE na halaga, tapos ang
+/// helper text, due date at isang manipis na divider.
+///
+/// BAKIT EDITABLE: hindi laging buong installment ang binabayaran ng lender —
+/// pwedeng partial (hal. ₱200 lang muna sa ₱500 na due). Ang halagang ito ang
+/// ipinapadala sa collection request (`collections-manage?fn=request`), at doon
+/// hinahati ng server sa mga installment (partial / advance).
 class _AmountDue extends StatelessWidget {
-  final double amount;
+  final TextEditingController controller;
+  final FocusNode focusNode;
   final String dueDate;
   final bool resolving;
 
+  /// `false` habang GCash ang napili: doon eksaktong installment amount ang
+  /// sinisingil sa server, kaya hindi ito dapat i-edit.
+  final bool editable;
+  final String helper;
+  final String? errorText;
+  final ValueChanged<String>? onChanged;
+
   const _AmountDue({
-    required this.amount,
+    required this.controller,
+    required this.focusNode,
     required this.dueDate,
     required this.resolving,
+    required this.editable,
+    required this.helper,
+    this.errorText,
+    this.onChanged,
   });
+
+  static const _amountStyle = TextStyle(
+    fontFamily: 'PlayfairDisplay',
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    color: AppColors.lenderBlue,
+    height: 1.15,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -830,28 +988,70 @@ class _AmountDue extends StatelessWidget {
             ),
           )
         else
-          // FittedBox: kahit napakalaki ng halaga (o malaki ang font scale ng
-          // device) ay liliit ito imbes na umapaw sa gilid.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Text(
-                amount.toPeso(),
-                maxLines: 1,
-                style: const TextStyle(
-                  fontFamily: 'PlayfairDisplay',
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.lenderBlue,
-                  height: 1.15,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(top: 5),
+                child: Text('₱', style: _amountStyle),
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: TextField(
+                  key: const Key('payment_amount_field'),
+                  controller: controller,
+                  focusNode: focusNode,
+                  readOnly: !editable,
+                  // AUTO PESO: habang nagta-type, may thousand separators
+                  // (`50,000`) at hanggang 2 decimals lang — kapareho ng
+                  // `ThousandsSeparatorInputFormatter` ng loan amount fields.
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: const [
+                    ThousandsSeparatorInputFormatter(),
+                  ],
+                  onChanged: onChanged,
+                  style: _amountStyle,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    border: InputBorder.none,
+                    enabledBorder: InputBorder.none,
+                    focusedBorder: InputBorder.none,
+                    contentPadding: EdgeInsets.zero,
+                    hintText: '0.00',
+                    hintStyle: _amountStyle.copyWith(
+                        color: AppColors.textSecondary.withValues(alpha: 0.5)),
+                    // Pencil kapag pwedeng i-edit, lock kapag fixed (GCash) —
+                    // malinaw agad kung pwedeng palitan ang halaga.
+                    suffixIcon: Icon(
+                      editable ? Icons.edit_outlined : Icons.lock_outline,
+                      size: 17,
+                      color: AppColors.textSecondary,
+                    ),
+                    suffixIconConstraints:
+                        const BoxConstraints(minWidth: 26, minHeight: 26),
+                  ),
                 ),
               ),
+            ],
+          ),
+        if (!resolving) ...[
+          const SizedBox(height: 2),
+          Text(
+            errorText ?? helper,
+            key: const Key('payment_amount_helper'),
+            style: TextStyle(
+              fontSize: 12,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: errorText != null
+                  ? AppColors.error
+                  : context.cTextTertiary,
             ),
           ),
+        ],
         if (dueDate.isNotEmpty && !resolving) ...[
-          const SizedBox(height: 2),
+          const SizedBox(height: 6),
           Text(
             'Due $dueDate',
             style: TextStyle(

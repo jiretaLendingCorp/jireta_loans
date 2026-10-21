@@ -112,12 +112,12 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
 
   Future<void> loadDetails(String assignmentId, {bool silent = false}) async {
     if (!silent) {
-      state = state.copyWith(
-          isLoading: true, error: null, clearSelection: true);
+      state =
+          state.copyWith(isLoading: true, error: null, clearSelection: true);
     }
     try {
-      // Accepted collections are stored under status='accepted'/'in_progress', 
-      // so fetching without status (which defaults to 'assigned' on some backends) 
+      // Accepted collections are stored under status='accepted'/'in_progress',
+      // so fetching without status (which defaults to 'assigned' on some backends)
       // makes accepted items appear as "not found". Try multiple statuses and
       // fallback to unfiltered fetch. Also check already-loaded lists first.
       CollectionAssignmentModel? found;
@@ -154,7 +154,8 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
       var list = await _ds.getCollectionList(page: 1, limit: 100);
       var matches = list.where((c) => c.id == assignmentId);
       if (matches.isNotEmpty) {
-        state = state.copyWith(selectedCollection: matches.first, isLoading: false);
+        state =
+            state.copyWith(selectedCollection: matches.first, isLoading: false);
         return;
       }
       // 4) try each status tab that rider uses
@@ -168,10 +169,12 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
         'declined',
       ]) {
         try {
-          list = await _ds.getCollectionList(status: status, page: 1, limit: 100);
+          list =
+              await _ds.getCollectionList(status: status, page: 1, limit: 100);
           matches = list.where((c) => c.id == assignmentId);
           if (matches.isNotEmpty) {
-            state = state.copyWith(selectedCollection: matches.first, isLoading: false);
+            state = state.copyWith(
+                selectedCollection: matches.first, isLoading: false);
             return;
           }
         } catch (_) {}
@@ -287,6 +290,7 @@ class RiderCollectionNotifier extends StateNotifier<RiderCollectionState>
     required XFile proofPhoto,
     XFile? scenePhoto,
     String? signatureBase64,
+
     /// Ipinapasa sa backend bilang `amount_collected` — kapag wala pang
     /// verified payment, ito ang itatala ng `fn=upload-proof` (self-heal) kaya
     /// hindi na ma-stuck ang rider sa PAYMENT_NOT_RECORDED.

@@ -2,6 +2,8 @@
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/api_endpoints.dart';
 import '../../models/collection_assignment_model.dart';
+import '../../models/rider_collection_monitoring_model.dart';
+import '../../models/rider_quota_model.dart';
 
 class CollectionRemoteDataSource {
   final DioClient _client;
@@ -64,6 +66,76 @@ class CollectionRemoteDataSource {
     };
   }
 
+  /// HM/Employee: per-rider monitoring table + summary cards.
+  ///
+  /// `dateFrom`/`dateTo` ay `YYYY-MM-DD` (Manila). Ang server ang nagde-dedupe
+  /// ng schedules, payments at accounts — huwag i-recompute sa UI.
+  Future<RiderMonitoringPage> getRiderMonitoring({
+    String? riderId,
+    String? status,
+    String? dateFrom,
+    String? dateTo,
+    String? search,
+    String sort = 'rider_name',
+    String dir = 'asc',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.collectionsRiderMonitoring,
+      queryParams: {
+        if (riderId != null) 'rider_id': riderId,
+        if (status != null && status != 'all') 'status': status,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
+        if (search != null && search.isNotEmpty) 'search': search,
+        'sort': sort,
+        'dir': dir,
+        'page': page,
+        'limit': limit,
+      },
+    );
+    return RiderMonitoringPage.fromJson(
+        Map<String, dynamic>.from(res.data as Map));
+  }
+
+  /// HM/Employee: profile + accounts + verified payments + collection history
+  /// para sa isang rider lang. Role at data scoping ay server-side.
+  Future<RiderMonitoringDetail> getRiderMonitoringDetail(
+    String riderId, {
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.collectionsRiderMonitoringDetail,
+      queryParams: {
+        'rider_id': riderId,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
+      },
+    );
+    return RiderMonitoringDetail.fromJson(
+        Map<String, dynamic>.from(res.data as Map));
+  }
+
+  /// Rider: sariling totals para sa "My Collections" header.
+  Future<RiderMonitoringSummary> getMyCollectionSummary({
+    String? dateFrom,
+    String? dateTo,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.collectionsMySummary,
+      queryParams: {
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
+      },
+    );
+    final data = (res.data is Map) ? (res.data as Map)['data'] : null;
+    final summary = data is Map ? data['summary'] : null;
+    return RiderMonitoringSummary.fromJson(
+        Map<String, dynamic>.from((summary as Map?) ?? const {}));
+  }
+
   Future<void> assign({
     required String loanScheduleId,
     required String riderId,
@@ -83,6 +155,7 @@ class CollectionRemoteDataSource {
     required String loanScheduleId,
     required String riderId,
     String? collectionSchedule,
+
     /// Katapusan ng rider visit window ("From – To" na iskedyul).
     String? collectionScheduleEnd,
     String? notes,
@@ -211,6 +284,7 @@ class CollectionRemoteDataSource {
   Future<String?> uploadProof({
     required String assignmentId,
     required List<Map<String, dynamic>> proofs,
+
     /// Kapag WALA pang verified payment sa server, ito ang amount na itatala ng
     /// `fn=upload-proof` mismo (self-heal) — hindi na kailangang umulit ng
     /// rider mula Step 1 dahil sa PAYMENT_NOT_RECORDED.
@@ -234,5 +308,112 @@ class CollectionRemoteDataSource {
     final data = res.data;
     if (data is Map) return data['status'] as String?;
     return null;
+  }
+
+  /// HM/Employee: rider quota table + summary cards.
+  ///
+  /// `confirmed` at `status` ay galing sa `rider_quota_monitoring` RPC —
+  /// verified payments lang at nasa loob ng quota window (Asia/Manila).
+  Future<RiderQuotaPage> getRiderQuotas({
+    String? riderId,
+    String? period,
+    String? status,
+    String? dateFrom,
+    String? dateTo,
+    String? search,
+    String sort = 'start_date',
+    String dir = 'desc',
+    int page = 1,
+    int limit = 20,
+  }) async {
+    final res = await _client.get(
+      ApiEndpoints.collectionsRiderQuotas,
+      queryParams: {
+        if (riderId != null) 'rider_id': riderId,
+        if (period != null && period.isNotEmpty) 'period': period,
+        if (status != null && status != 'all') 'status': status,
+        if (dateFrom != null) 'date_from': dateFrom,
+        if (dateTo != null) 'date_to': dateTo,
+        if (search != null && search.isNotEmpty) 'search': search,
+        'sort': sort,
+        'dir': dir,
+        'page': page,
+        'limit': limit,
+      },
+    );
+    return RiderQuotaPage.fromJson(Map<String, dynamic>.from(res.data as Map));
+  }
+
+  /// HM/Employee: active riders para sa assign form dropdown.
+  Future<List<RiderQuotaRiderOption>> getRiderQuotaRiders() async {
+    final res = await _client.get(ApiEndpoints.collectionsRiderQuotaRiders);
+    final list = (res.data is Map) ? (res.data as Map)['data'] : null;
+    return ((list as List?) ?? const [])
+        .whereType<Map>()
+        .map((e) => RiderQuotaRiderOption.fromJson(Map<String, dynamic>.from(e)))
+        .toList(growable: false);
+  }
+
+  /// Rider: sariling quota, previous results at ang verified payments na
+  /// bumubuo sa kasalukuyang quota (rider id galing sa token).
+  Future<RiderQuotaSelf> getMyQuota() async {
+    final res = await _client.get(ApiEndpoints.collectionsMyQuota);
+    final data = (res.data is Map) ? (res.data as Map)['data'] : null;
+    return RiderQuotaSelf.fromJson(
+        Map<String, dynamic>.from((data as Map?) ?? const {}));
+  }
+
+  /// Head Manager: mag-assign ng quota. Ang dates ay `YYYY-MM-DD` (Manila).
+  Future<void> createRiderQuota({
+    required String riderId,
+    required String period,
+    required double targetAmount,
+    required String startDate,
+    required String endDate,
+    String? notes,
+  }) async {
+    await _client.post(
+      ApiEndpoints.collectionsCreateRiderQuota,
+      data: {
+        'rider_id': riderId,
+        'period': period,
+        'target_amount': targetAmount,
+        'start_date': startDate,
+        'end_date': endDate,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+  }
+
+  /// Head Manager: i-edit ang upcoming/active quota. Ang tapos nang period
+  /// ay tinatanggihan ng server (historical record).
+  Future<void> updateRiderQuota({
+    required String quotaId,
+    required String period,
+    required double targetAmount,
+    required String startDate,
+    required String endDate,
+    String? notes,
+  }) async {
+    await _client.patch(
+      ApiEndpoints.collectionsUpdateRiderQuota,
+      data: {
+        'quota_id': quotaId,
+        'period': period,
+        'target_amount': targetAmount,
+        'start_date': startDate,
+        'end_date': endDate,
+        if (notes != null && notes.isNotEmpty) 'notes': notes,
+      },
+    );
+  }
+
+  /// Head Manager: soft-close (is_active=false). Nananatili ang history at
+  /// hindi nababago ang mga naunang resulta.
+  Future<void> closeRiderQuota(String quotaId) async {
+    await _client.post(
+      ApiEndpoints.collectionsCloseRiderQuota,
+      data: {'quota_id': quotaId},
+    );
   }
 }

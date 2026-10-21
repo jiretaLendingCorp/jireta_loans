@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -312,10 +311,11 @@ class _NotifTile extends StatelessWidget {
                   if (createdAt != null) ...[
                     const SizedBox(height: 4),
                     Text(
-                      timeago.format(createdAt is DateTime
-                          ? ensureManila(createdAt)
-                          : ensureManila(DateTime.tryParse(createdAt.toString()) ??
-                              nowManila())),
+                      // `timeAgoManila` — tama ang batayan (nowManila) at
+                      // hindi na dinodoble ang +8h shift ng `ensureManila`
+                      // sa timestamp na dumaan na sa `parseManila`.
+                      timeAgoManila(
+                          parseManilaValue(createdAt) ?? nowManila()),
                       style: TextStyle(
                           fontSize: 11,
                           color: isRead

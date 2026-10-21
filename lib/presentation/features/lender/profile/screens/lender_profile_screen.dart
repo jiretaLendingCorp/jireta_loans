@@ -104,6 +104,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       icon: icon,
       rows: const [],
       flat: true,
+      // May icon ang bawat link — hindi plain text lang na mahirap i-scan.
+      showIcon: true,
       onTap: onTap,
     );
   }
@@ -225,7 +227,7 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         Consumer(builder: (context, ref, _) {
           final settings = ref.watch(appSettingsProvider);
           final notifier = ref.read(appSettingsProvider.notifier);
-          return ModernMenuCard(flat: true, items: [
+          return ModernMenuCard(flat: true, showIcon: true, items: [
             ModernMenuItem(
               icon: Icons.notifications_active_outlined,
               title: 'Push Notifications',
@@ -243,15 +245,15 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         // MPIN — 4-digit na pang-kumpirmasyon sa lahat ng submission kapag
         // walang password o biometrics ang phone.
         const ModernSectionLabel('Security'),
-        const MpinSettingsCard(flat: true),
+        const MpinSettingsCard(flat: true, showIcon: true),
         const SizedBox(height: 12),
         // Google Authenticator (TOTP) — second factor sa login. Ang status,
         // enrollment (QR + manual key) at disable ay dito; ang pagsusuri ng
         // code ay Supabase Auth (`mfa.challenge` / `mfa.verify`).
-        const MfaSettingsCard(flat: true),
+        const MfaSettingsCard(flat: true, showIcon: true),
         const SizedBox(height: 20),
         const ModernSectionLabel('General'),
-        ModernMenuCard(flat: true, items: [
+        ModernMenuCard(flat: true, showIcon: true, items: [
           ModernMenuItem(
             icon: Icons.description_outlined,
             title: 'Terms & Conditions',

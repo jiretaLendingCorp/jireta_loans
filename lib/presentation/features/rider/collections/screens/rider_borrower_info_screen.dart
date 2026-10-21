@@ -103,8 +103,7 @@ class _RiderBorrowerInfoScreenState
             title: 'GCash Number',
             icon: Icons.account_balance_wallet_outlined,
             child: Text(gcash.maskPhone(),
-                style:
-                    TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
           ),
           SizedBox(height: 16),
           if (addresses.isNotEmpty) _AddressesCard(addresses: addresses),
@@ -321,8 +320,8 @@ class _SectionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: TextStyle(
-                        fontSize: 12, color: context.cTextSecondary)),
+                    style:
+                        TextStyle(fontSize: 12, color: context.cTextSecondary)),
                 SizedBox(height: 2),
                 child,
               ],
@@ -384,8 +383,7 @@ class _AddressesCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(6),
@@ -398,8 +396,8 @@ class _AddressesCard extends StatelessWidget {
                   ),
                   SizedBox(height: 4),
                   Text(full.isEmpty ? '—' : full,
-                      style: TextStyle(
-                          fontSize: 14, color: context.cTextPrimary)),
+                      style:
+                          TextStyle(fontSize: 14, color: context.cTextPrimary)),
                 ],
               ),
             );

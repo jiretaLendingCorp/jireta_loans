@@ -2,8 +2,8 @@
 // lib/presentation/features/rider/notifications/screens/rider_notifications_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:timeago/timeago.dart' as timeago;
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/notification_model.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
@@ -176,11 +176,13 @@ class _NotificationTile extends StatelessWidget {
       {super.key, required this.notification, required this.onTap});
 
   IconData _iconFor(String type) {
+    // Collection tasks/updates ang gawain ng rider — scooter (`delivery_dining`)
+    // ang icon, kapareho ng bell dropdown. Dati, `payments` dito at van
+    // (`local_shipping`) sa dropdown.
+    if (type.startsWith('collection')) return Icons.delivery_dining_rounded;
     switch (type) {
       case 'ci_assigned':
         return Icons.search;
-      case 'collection_assigned':
-        return Icons.payments;
       case 'assignment_accepted':
         return Icons.check_circle;
       case 'assignment_declined':
@@ -269,7 +271,7 @@ class _NotificationTile extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 13, color: context.cTextSecondary)),
                   const SizedBox(height: 4),
-                  Text(timeago.format(notification.createdAt),
+                  Text(timeAgoManila(notification.createdAt),
                       style: TextStyle(
                           fontSize: 11, color: context.cTextTertiary)),
                 ],

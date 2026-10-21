@@ -606,7 +606,15 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final schedule = col.loanSchedule as Map<String, dynamic>? ?? {};
     final isOffice = col.collectionType == 'office';
-    final amount = col.amountCollected ?? (schedule['amount_due'] as num?)?.toDouble() ?? 0.0;
+    // AMOUNT NA HININGI ng lender (`requested_amount`) — hindi ang naka-default
+    // na installment amount. Hal. ₱200 ang due pero ₱5,000 ang hininging bayad
+    // (partial/advance) — ₱5,000 dapat ang lumabas dito, kapareho ng nasa
+    // notification ("requested a rider to collect of ₱5,000"). Ang
+    // `amount_collected` ang mas tumpak kapag may naitala nang koleksyon.
+    final amount = col.amountCollected ??
+        col.requestedAmount ??
+        (schedule['amount_due'] as num?)?.toDouble() ??
+        0.0;
     final status = (col.status?.toString() ?? '').toLowerCase();
     final accent = _accentForStatus(status);
     final canAssign = col.status == 'requested' && !isOffice;

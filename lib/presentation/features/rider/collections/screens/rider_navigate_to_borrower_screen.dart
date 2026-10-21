@@ -230,8 +230,7 @@ class _BottomCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: context.cBorder),
         boxShadow: const [
-          BoxShadow(
-              color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
+          BoxShadow(color: Colors.black12, blurRadius: 8, offset: Offset(0, 2)),
         ],
       ),
       child: Column(
@@ -266,15 +265,13 @@ class _BottomCard extends StatelessWidget {
                 minimumSize: const Size(double.infinity, 48),
               ),
               onPressed: canDirections ? onDirections : onSearch,
-              icon: Icon(
-                  canDirections ? Icons.navigation : Icons.map_outlined,
+              icon: Icon(canDirections ? Icons.navigation : Icons.map_outlined,
                   size: 20),
               label: Text(
                 canDirections
                     ? 'Open Directions in Maps'
                     : 'Search Address in Maps',
-                style: TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 15),
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
               ),
             ),
           ),

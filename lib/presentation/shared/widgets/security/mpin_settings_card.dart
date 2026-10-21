@@ -19,7 +19,10 @@ class MpinSettingsCard extends StatefulWidget {
   /// Walang card box — plain text row lang, nakalapat sa page (rider profile).
   final bool flat;
 
-  const MpinSettingsCard({super.key, this.flat = false});
+  /// Ipakita pa rin ang icon kahit `flat` (hal. lender profile).
+  final bool showIcon;
+
+  const MpinSettingsCard({super.key, this.flat = false, this.showIcon = false});
 
   @override
   State<MpinSettingsCard> createState() => _MpinSettingsCardState();
@@ -119,7 +122,7 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
 
   @override
   Widget build(BuildContext context) {
-    return ModernMenuCard(flat: widget.flat, items: [
+    return ModernMenuCard(flat: widget.flat, showIcon: widget.showIcon, items: [
       ModernMenuItem(
         icon: Icons.lock_outline_rounded,
         title: _isSet == true ? 'Change MPIN' : 'Set MPIN',

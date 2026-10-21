@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/date_extensions.dart';
+import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/collection_assignment_model.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
@@ -187,9 +188,12 @@ class _RiderCollectionListScreenState
   Widget _buildCard(BuildContext context, CollectionAssignmentModel c) {
     final loanSchedule = c.loanSchedule;
     final lenderName = c.lenderName.isEmpty ? 'Lender' : c.lenderName;
-    final amountDue = (c.amountDue == 0)
-        ? (loanSchedule?['installment_amount']?.toString() ?? '0.00')
-        : c.amountDue.toStringAsFixed(2);
+    // Ang halagang HININGI ng lender (`requested_amount`) ang ipinapakita —
+    // hindi ang default na installment amount. Hal. ₱200 ang due pero ₱5,000
+    // ang hininging kolektahin, kaya ₱5,000 ang dapat makita ni rider.
+    final amountToCollect = c.expectedAmount > 0
+        ? c.expectedAmount
+        : ((loanSchedule?['installment_amount'] as num?)?.toDouble() ?? 0);
     final dueDate = loanSchedule?['due_date'] != null
         ? DateTime.tryParse(loanSchedule!['due_date'].toString())
                 ?.toDateString() ??
@@ -259,7 +263,7 @@ class _RiderCollectionListScreenState
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _infoChip(Icons.money, '₱$amountDue due'),
+                _infoChip(Icons.money, '${amountToCollect.toCurrency} to collect'),
                 if (c.collectionSchedule != null)
                   _infoChip(
                       Icons.schedule, c.collectionSchedule!.toDateTimeString()),

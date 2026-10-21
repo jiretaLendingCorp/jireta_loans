@@ -52,7 +52,8 @@ class ApiEndpoints {
   static const String usersGetList = 'users-admin?fn=get-list';
   static const String usersArchive = 'users-admin?fn=archive';
   static const String usersUnarchive = 'users-admin?fn=unarchive';
-  static const String usersRestore = 'users-admin?fn=unarchive'; // alias for restore
+  static const String usersRestore =
+      'users-admin?fn=unarchive'; // alias for restore
   static const String usersResetPassword = 'users-admin?fn=reset-password';
   // Roles — archived role = all users with that role blocked; unarchived = restored
   static const String rolesArchive = 'users-admin?fn=archive-role';
@@ -112,6 +113,28 @@ class ApiEndpoints {
   static const String collectionsReject = 'collections-manage?fn=reject';
   static const String collectionsGetList = 'collections-view?fn=get-list';
   static const String collectionsGet = 'collections-view?fn=get';
+  // HM/Employee: per-rider monitoring (read-only) at isang rider detail.
+  static const String collectionsRiderMonitoring =
+      'collections-view?fn=rider-monitoring';
+  static const String collectionsRiderMonitoringDetail =
+      'collections-view?fn=rider-monitoring-detail';
+  // Rider: sariling confirmed/expected/remaining totals (rider id galing sa
+  // token, hindi sa query string).
+  static const String collectionsMySummary =
+      'collections-view?fn=my-collection-summary';
+  // Rider quotas (00187) — HM/Employee read, HM-only write, rider self read.
+  static const String collectionsRiderQuotas =
+      'collections-view?fn=rider-quotas';
+  static const String collectionsRiderQuotaRiders =
+      'collections-view?fn=rider-quota-riders';
+  static const String collectionsCreateRiderQuota =
+      'collections-manage?fn=create-rider-quota';
+  static const String collectionsUpdateRiderQuota =
+      'collections-manage?fn=update-rider-quota';
+  static const String collectionsCloseRiderQuota =
+      'collections-manage?fn=close-rider-quota';
+  // Rider: sariling quota (rider id galing sa token).
+  static const String collectionsMyQuota = 'collections-view?fn=my-quota';
 
   // Payments
   static const String paymentsRecordOffice = 'payments-manage?fn=record-office';
@@ -176,7 +199,8 @@ class ApiEndpoints {
   static const String inOfficeCreateDraft = 'in-office-create?fn=create-draft';
   static const String inOfficeSaveStep = 'in-office-create?fn=save-step';
   static const String inOfficeSubmit = 'in-office-view?fn=submit';
-  static const String inOfficeSubmitAccount = 'in-office-view?fn=submit-account';
+  static const String inOfficeSubmitAccount =
+      'in-office-view?fn=submit-account';
   static const String inOfficeGetList = 'in-office-view?fn=get-list';
   static const String inOfficeGetDetails = 'in-office-view?fn=get-details';
 

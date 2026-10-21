@@ -452,7 +452,9 @@ class _CollectionHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final peso = NumberFormat('#,##0.00', 'en_PH');
-    final amount = item.amountCollected ?? item.amountDue;
+    // Nakolekta kung meron; kung wala pa, ang HININGI ng lender
+    // (`requested_amount`) — hindi ang default na installment due.
+    final amount = item.collectibleAmount;
     final date = item.completedAt ?? item.collectionSchedule ?? item.createdAt;
     return _HistoryCard(
       keyId: 'coll_${item.id}',

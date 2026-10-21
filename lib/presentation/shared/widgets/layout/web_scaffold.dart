@@ -807,6 +807,13 @@ List<_NavItem> _hmItems() => [
           'Collections',
           RouteConstants.hmCollections,
         ),
+        // Read-only monitoring ng bawat rider — accounts, expected vs
+        // confirmed collections, overdue at remaining balances.
+        const _NavItem(
+          Icons.insights_outlined,
+          'Rider Monitoring',
+          RouteConstants.hmRiderMonitoring,
+        ),
         const _NavItem(
             Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
         const _NavItem(

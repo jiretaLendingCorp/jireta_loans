@@ -193,6 +193,20 @@ class CollectionAssignmentModel {
   double get amountDue =>
       (loanSchedule?['amount_due'] as num?)?.toDouble() ?? 0;
 
+  /// Ang halagang HININGI ng lender kapag siya ang nag-request ng koleksyon
+  /// (`requested_amount`) — maaaring partial o advance, kaya hindi ito laging
+  /// katulad ng installment amount. Kapag walang hiningi (hal. staff-created
+  /// ang assignment), ang installment amount ang gamit.
+  double get expectedAmount {
+    final requested = requestedAmount;
+    return requested != null && requested > 0 ? requested : amountDue;
+  }
+
+  /// Anong halaga ang dapat/makolekta: ang aktwal na nakolekta kung meron na,
+  /// kung wala pa ang [expectedAmount]. Ito ang dapat gamitin sa mga display
+  /// (rider/HM/employee), hindi ang `amount_due` ng installment.
+  double get collectibleAmount => amountCollected ?? expectedAmount;
+
   String get collectionTypeLabel {
     switch (collectionType) {
       case 'office':

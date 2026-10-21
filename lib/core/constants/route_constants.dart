@@ -56,8 +56,7 @@ class RouteConstants {
   static const String hmLoanApplications = '/hm/loan-records';
   // Mga embedded tab ng Loan Records na may SARILING URI — deep-linkable at
   // tama pa rin ang tab pagkatapos ng refresh/bookmark/browser back.
-  static const String hmLoanApplicationsInOffice =
-      '/hm/loan-records/in-office';
+  static const String hmLoanApplicationsInOffice = '/hm/loan-records/in-office';
   static const String hmLoanApplicationsDisbursements =
       '/hm/loan-records/disbursements';
   // "Previous Loan" tab (dating "Loan History") — `/previous-loan` na ang URI.
@@ -86,6 +85,16 @@ class RouteConstants {
   static const String hmCi = '/hm/ci';
   static const String hmCiDetails = '/hm/ci/:id';
   static const String hmCollections = '/hm/collections';
+  // Rider Collection Monitoring — read-only na per-rider monitoring page.
+  // Naka-register bago ang `hmCollectionDetails` sa router para walang
+  // collision sa static path.
+  static const String hmRiderMonitoring = '/hm/rider-monitoring';
+  static const String hmRiderMonitoringDetails = '/hm/rider-monitoring/:id';
+  // Quotas tab ng Rider Monitoring — SARILING URI para deep-linkable, at
+  // naka-register BAGO ang `:id` route sa router para walang collision.
+  static const String hmRiderMonitoringQuotas = '/hm/rider-monitoring/quotas';
+  // Dating hiwalay na pahina — redirect na lang sa bagong tab URI.
+  static const String hmRiderQuotas = '/hm/rider-quotas';
   // Tabs ng Collections ay may SARILING URI — deep-linkable at nabubuksan
   // muli (refresh / bookmark / browser back) nang tama ang tab.
   static const String hmCollectionPayments = '/hm/collections/payments';
@@ -118,10 +127,8 @@ class RouteConstants {
   static const String empLoansInOffice = '/employee/loan-records/in-office';
   static const String empLoansDisbursements =
       '/employee/loan-records/disbursements';
-  static const String empLoansHistory =
-      '/employee/loan-records/previous-loan';
-  static const String empLoansHistoryLegacy =
-      '/employee/loan-records/history';
+  static const String empLoansHistory = '/employee/loan-records/previous-loan';
+  static const String empLoansHistoryLegacy = '/employee/loan-records/history';
   static const String empLoansOngoing = '/employee/loan-records/ongoing';
   static const String empLoansCompleted = '/employee/loan-records/completed';
   static const String empLoansPipeline =
@@ -147,7 +154,8 @@ class RouteConstants {
   // Rider
   static const String riderDashboard = '/rider/dashboard';
   static const String riderDisbursements = '/rider/disbursements';
-  static const String riderDisbursementUploadProof = '/rider/disbursements/:id/proof';
+  static const String riderDisbursementUploadProof =
+      '/rider/disbursements/:id/proof';
   static const String riderHistory = '/rider/history';
   static const String riderCollections = '/rider/collections';
   static const String riderCollectionDetails = '/rider/collections/:id';
@@ -162,6 +170,7 @@ class RouteConstants {
   static const String riderNavigateToBorrowerCi = '/rider/ci/:id/navigate';
   static const String riderUploadCiDocuments = '/rider/ci/:id/upload';
   static const String riderSubmitCiReport = '/rider/ci/:id/submit';
+  static const String riderMyQuota = '/rider/my-quota';
   static const String riderLiveTracking = '/rider/live-tracking';
   static const String riderNotifications = '/rider/notifications';
   static const String riderProfile = '/rider/profile';

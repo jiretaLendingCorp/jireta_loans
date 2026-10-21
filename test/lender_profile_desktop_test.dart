@@ -161,6 +161,29 @@ void main() {
       expect((sections.dx - header.dx).abs(), lessThan(24));
     });
 
+    // REGRESSION: flat na row pero WALANG icon — plain text lang ang lahat ng
+    // item ("Personal Details", "Push Notifications", "Terms & Conditions"…),
+    // mahirap i-scan. Dapat may icon ang bawat item.
+    testWidgets('may icon ang bawat item sa profile', (tester) async {
+      await pumpProfile(tester, 1280);
+
+      for (final icon in const [
+        Icons.person_outline_rounded, // Personal Details
+        Icons.email_outlined, // Email
+        Icons.location_on_outlined, // Residence Address
+        Icons.notifications_active_outlined, // Push Notifications
+        Icons.lock_outline_rounded, // Change/ Set MPIN
+        Icons.description_outlined, // Terms & Conditions
+        Icons.privacy_tip_outlined, // Privacy Policy
+        Icons.support_agent_outlined, // Help Center
+        Icons.info_outline_rounded, // About Jireta
+      ]) {
+        expect(find.byIcon(icon), findsWidgets,
+            reason: 'Walang icon ($icon) sa profile item');
+      }
+      expect(tester.takeException(), isNull);
+    });
+
     // Text lang ang section titles — walang card at walang arrow. Bubukas ang
     // popup na may EXISTING details at pwedeng i-edit.
     testWidgets('pag-pindot ng section title, bubukas ang editable popup',

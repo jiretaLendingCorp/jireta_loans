@@ -23,6 +23,7 @@ const REPORT_TEMPLATES = [
   { key: 'loan_summary', name: 'Loan Summary Report', description: 'Overview of all loan applications with status breakdown', category: 'Loans' },
   { key: 'payment_report', name: 'Payment Report', description: 'All verified payments with method breakdown', category: 'Payments' },
   { key: 'collection_report', name: 'Collection Report', description: 'Cash and GCash collections by rider and period', category: 'Collections' },
+  { key: 'rider_collection_summary', name: 'Rider Collection Summary Report', description: 'Expected vs confirmed collections, remaining balances and overdue accounts per rider', category: 'Collections' },
   { key: 'lender_report', name: 'Lender Report', description: 'Registered lender accounts with account and verification status', category: 'Lenders' },
   { key: 'account_upgrade_report', name: 'Account Upgrade Report', description: 'Lender account upgrade submissions and verification status', category: 'Lenders' },
   { key: 'rider_report', name: 'Rider Report', description: 'Rider performance and assignment history', category: 'Riders' },

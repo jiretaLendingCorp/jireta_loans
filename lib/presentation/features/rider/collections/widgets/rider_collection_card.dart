@@ -20,7 +20,9 @@ class RiderCollectionCard extends StatelessWidget {
     final borrowerName = collection.lenderName.isEmpty
         ? 'Unknown Lender'
         : collection.lenderName;
-    final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
+    // HININGI ng lender (`requested_amount`) ang ipinapakita — hindi ang
+    // nakalimutang installment amount (₱200) kapag ₱5,000 ang hininging bayad.
+    final amountToCollect = collection.expectedAmount;
     final dueDate = schedule?['due_date'] as String?;
 
     return GestureDetector(
@@ -94,8 +96,8 @@ class RiderCollectionCard extends StatelessWidget {
                 children: [
                   _InfoChip(
                     icon: Icons.monetization_on_outlined,
-                    label: 'Amount Due',
-                    value: amountDue.toPeso(),
+                    label: 'Amount to Collect',
+                    value: amountToCollect.toPeso(),
                     color: AppColors.riderGreen,
                   ),
                   if (collection.collectionSchedule != null)

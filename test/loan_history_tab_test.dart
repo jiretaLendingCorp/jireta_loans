@@ -238,11 +238,15 @@ void main() {
           expect(block, contains(label));
         }
 
-        // Bare na filter bar sa itaas ng table: search + date + apply.
+        // Bare na filter bar sa itaas ng table: live search + date range.
         // Wala nang "Search & Filter" title at malaking card wrapper.
         expect(block, isNot(contains('Search & Filter')));
         expect(block, contains('Search by Loan ID or client name...'));
-        expect(block, contains('Apply Filters'));
+        // Walang "Apply Filters" button — live ang search sa bawat pag-type.
+        expect(block, isNot(contains('Apply Filters')));
+        // Isang box lang ang search field (hindi doble): walang filled na
+        // inner InputDecoration sa loob ng Container.
+        expect(block, contains('filled: false'));
         // Tinanggal ang asul na "Loan Details" info card sa ibaba ng table.
         expect(block, isNot(contains('_buildHistoryDetailsCard')));
         expect(block, contains('Showing \$from - \$to of \$total'));
@@ -265,15 +269,16 @@ void main() {
         }
       });
 
-      test('${screen.split('/').last}: Apply button lang ang naglo-load', () {
+      test('${screen.split('/').last}: live search na may debounce', () {
         final block = _historyBlock(_readNormalized(screen));
 
         // Ang buong-table shimmer ay para lang sa UNANG load.
         expect(block, contains('if (st.isLoading && !st.hasLoaded)'));
         expect(block, contains('_buildHistoryFilterCard(st)'));
-        // Spinner sa loob ng Apply button habang nag-a-apply.
-        expect(block, contains('onPressed: st.isLoading ? null'));
-        expect(block, contains('CircularProgressIndicator'));
+        // Walang Apply button; debounce ang nag-trigger ng `setSearch`.
+        expect(block, contains('_historySearchDebounce'));
+        expect(block, contains('.setSearch(value.trim())'));
+        expect(block, isNot(contains('onPressed: st.isLoading ? null')));
       });
 
       test('${screen.split('/').last}: may Previous Loan pill tab', () {

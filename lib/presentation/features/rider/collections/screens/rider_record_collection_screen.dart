@@ -145,7 +145,9 @@ class _RiderRecordCollectionScreenState
   }
 
   Widget _buildForm(CollectionAssignmentModel col) {
-    final amountDue = col.amountDue;
+    // Ang aktwal na dapat kolektahin: nakolekta na kung meron, kung wala pa
+    // ang HININGI ng lender (`requested_amount`) — hindi ang installment due.
+    final amountToCollect = col.collectibleAmount;
     final borrowerName = col.lenderName.isEmpty ? '—' : col.lenderName;
     final loanNumber = col.loanNumber.isEmpty ? '—' : col.loanNumber;
 
@@ -156,7 +158,7 @@ class _RiderRecordCollectionScreenState
         children: [
           _CollectionSummaryCard(
             borrowerName: borrowerName,
-            amountDue: amountDue,
+            amountToCollect: amountToCollect,
             loanNumber: loanNumber,
           ),
           SizedBox(height: 20),
@@ -190,9 +192,7 @@ class _RiderRecordCollectionScreenState
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   // Comma separator habang nagta-type: 32000 -> 32,000.
-                  inputFormatters: const [
-                    ThousandsSeparatorInputFormatter()
-                  ],
+                  inputFormatters: const [ThousandsSeparatorInputFormatter()],
                   validator: (v) {
                     if (v == null || v.isEmpty) return 'Amount is required';
                     final n = double.tryParse(v.replaceAll(',', ''));
@@ -254,8 +254,8 @@ class _RiderRecordCollectionScreenState
               minimumSize: const Size(double.infinity, 50),
             ),
             onPressed: () => context.pop(),
-            child: Text('Cancel',
-                style: TextStyle(fontWeight: FontWeight.w500)),
+            child:
+                Text('Cancel', style: TextStyle(fontWeight: FontWeight.w500)),
           ),
         ],
       ),
@@ -265,11 +265,11 @@ class _RiderRecordCollectionScreenState
 
 class _CollectionSummaryCard extends StatelessWidget {
   final String borrowerName;
-  final double amountDue;
+  final double amountToCollect;
   final String loanNumber;
   const _CollectionSummaryCard(
       {required this.borrowerName,
-      required this.amountDue,
+      required this.amountToCollect,
       required this.loanNumber});
 
   @override
@@ -301,8 +301,7 @@ class _CollectionSummaryCard extends StatelessWidget {
           SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.receipt_outlined,
-                  color: Colors.white70, size: 18),
+              Icon(Icons.receipt_outlined, color: Colors.white70, size: 18),
               SizedBox(width: 8),
               Text(loanNumber,
                   style: TextStyle(color: Colors.white70, fontSize: 13)),
@@ -312,9 +311,9 @@ class _CollectionSummaryCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Amount Due',
+              Text('Amount to Collect',
                   style: TextStyle(color: Colors.white70, fontSize: 13)),
-              Text(amountDue.toPeso(),
+              Text(amountToCollect.toPeso(),
                   style: TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,

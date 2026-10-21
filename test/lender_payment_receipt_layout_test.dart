@@ -83,8 +83,7 @@ void main() {
 
     await tester.pumpWidget(ProviderScope(
       overrides: [
-        lenderPaymentProvider
-            .overrideWith((ref) => _StubPaymentNotifier()),
+        lenderPaymentProvider.overrideWith((ref) => _StubPaymentNotifier()),
       ],
       child: MaterialApp.router(routerConfig: router),
     ));
@@ -92,8 +91,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   }
 
-  testWidgets('desktop: naka-center, max 720, walang overflow',
-      (tester) async {
+  testWidgets('desktop: naka-center, max 720, walang overflow', (tester) async {
     await pumpReceipt(tester, const Size(1366, 900));
 
     expect(tester.takeException(), isNull);
@@ -121,6 +119,40 @@ void main() {
     expect(find.text('JR-MVCJ6VFSQ9'), findsOneWidget);
     expect(find.text('LN-2026-605277'), findsOneWidget);
     expect(find.textContaining('200.00'), findsOneWidget);
+
+    // REGRESSION: walang `receipt_url` (GCash/Xendit) → dating walang button sa
+    // ilalim ng card. Dapat laging may "Download Receipt" (PDF ang ihahanda
+    // kapag walang hosted receipt) — TEXT LINK at nasa LOOB ng card, sa ilalim
+    // mismo ng "Date & Time". Walang "Print Receipt".
+    expect(find.text('Download Receipt'), findsOneWidget);
+    expect(find.text('Print Receipt'), findsNothing);
+
+    final dateY = tester.getTopLeft(find.text('Date & Time')).dy;
+    final downloadY = tester.getTopLeft(find.text('Download Receipt')).dy;
+    expect(downloadY, greaterThan(dateY),
+        reason: 'dapat nasa ilalim ng Date & Time ang Download Receipt');
+
+    // Nasa loob ng receipt card (may clip + decoration na Container).
+    final card = find.ancestor(
+      of: find.text('Download Receipt'),
+      matching: find.byWidgetPredicate(
+          (w) => w is Container && w.clipBehavior == Clip.antiAlias),
+    );
+    expect(card, findsWidgets, reason: 'wala sa loob ng card ang link');
+    final cardRect = tester.getRect(card.first);
+    final downloadRect = tester.getRect(find.text('Download Receipt'));
+    expect(downloadRect.top, greaterThan(cardRect.top));
+    expect(downloadRect.bottom, lessThan(cardRect.bottom),
+        reason: 'dapat nasa LOOB ng receipt card ang Download Receipt link');
+
+    // Naka-tapat sa "Date & Time" — parehong kaliwang gilid ng icon (±2px),
+    // kaya pantay ang hanay ng link at ng mga detalye.
+    final rowIconLeft =
+        tester.getTopLeft(find.byIcon(Icons.event_outlined)).dx;
+    final linkIconLeft =
+        tester.getTopLeft(find.byIcon(Icons.download_rounded)).dx;
+    expect((linkIconLeft - rowIconLeft).abs(), lessThan(2.5),
+        reason: 'hindi naka-tapat sa Date & Time ang Download Receipt link');
   });
 
   testWidgets('mobile: buong lapad, walang overflow', (tester) async {
@@ -135,5 +167,9 @@ void main() {
         reason: 'walang 720 na limit sa mobile');
     expect(find.text('Payment Successful'), findsOneWidget);
     expect(find.text('Paid'), findsOneWidget);
+    // Download Receipt din sa mobile — hindi lang sa desktop.
+    expect(find.text('Download Receipt'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('Download Receipt')).dy,
+        greaterThan(tester.getTopLeft(find.text('Date & Time')).dy));
   });
 }

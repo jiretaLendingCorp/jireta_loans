@@ -58,6 +58,24 @@ DateTime? parseManila(dynamic value) {
   return dt.isUtc ? dt.add(const Duration(hours: _manilaOffsetHours)) : dt;
 }
 
+/// "Time ago" para sa mga timestamp na galing na sa [parseManila] (Manila wall
+/// time na UTC-flagged), hal. "Just now", "5m ago", "2h ago", "3d ago".
+///
+/// BAKIT NAKA-"JUST NOW" ANG LAHAT: ang [parseManila] ay nagdadagdag ng +8h sa
+/// tunay na UTC instant pero UTC-flagged pa rin ang resulta. Kapag
+/// `DateTime.now()` (local wall time) ang ginamit na batayan, ang bawat
+/// notification ay 8 oras na "nasa hinaharap" at negatibo ang difference —
+/// kaya laging "Just now" ang lumalabas. Ang [nowManila] ay parehong
+/// UTC-flagged na Manila wall time, kaya tama ang difference.
+String timeAgoManila(DateTime time, {DateTime? now}) {
+  final diff = (now ?? nowManila()).difference(time);
+  if (diff.inMinutes < 1) return 'Just now';
+  if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+  if (diff.inHours < 24) return '${diff.inHours}h ago';
+  if (diff.inDays < 7) return '${diff.inDays}d ago';
+  return '${time.month}/${time.day}/${time.year}';
+}
+
 /// Katulad ng [parseManila] pero tumatanggap din ng [DateTime].
 ///
 /// Kapag [DateTime] na ang value (hal. galing app-side provider na dumaan na sa

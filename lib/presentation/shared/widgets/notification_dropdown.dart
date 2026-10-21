@@ -4,16 +4,17 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:timeago/timeago.dart' as timeago;
 
 import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/route_constants.dart';
 import '../../../core/services/fcm_service.dart';
+import '../../../core/utils/timezone.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/notification_model.dart';
 import '../../features/employee/notifications/providers/emp_notification_provider.dart';
 import '../../features/head_manager/notifications/providers/hm_notification_provider.dart';
 import '../../features/lender/notifications/providers/lender_notification_provider.dart';
+import '../../features/rider/notifications/providers/rider_notification_provider.dart';
 import '../providers/auth_state_provider.dart';
 import 'notification_badge.dart';
 
@@ -66,7 +67,9 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
   @override
   void dispose() {
     _wiggleCtrl.dispose();
-    _panelCtrl?.dispose();
+    // `_removeEntrySync` na ang nagdi-dispose ng `_panelCtrl` — kapag inulit
+    // dito, "AnimationController.dispose() called more than once" ang labas
+    // tuwing nawawala ang bell (logout, route change) habang bukas ang panel.
     _removeEntrySync();
     super.dispose();
   }
@@ -220,6 +223,8 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
       router.go(RouteConstants.empNotifications);
     } else if (role == AppConstants.roleLender) {
       router.go(RouteConstants.lenderNotifications);
+    } else if (role == AppConstants.roleRider) {
+      router.go(RouteConstants.riderNotifications);
     }
   }
 
@@ -244,13 +249,18 @@ class _NotificationBellButtonState extends ConsumerState<NotificationBellButton>
   @override
   Widget build(BuildContext context) {
     final role = ref.watch(authStateProvider).role ?? '';
+    // Rider din ang binibilang — dati walang rider branch, kaya laging 0 ang
+    // badge at "You're all caught up" ang laman ng panel kahit may
+    // notifications (hal. bagong collection task) ang rider.
     final unread = role == AppConstants.roleHeadManager
         ? ref.watch(hmNotificationProvider).unreadCount
         : role == AppConstants.roleEmployee
             ? ref.watch(empNotificationProvider).unreadCount
             : role == AppConstants.roleLender
                 ? ref.watch(lenderNotificationProvider).unreadCount
-                : 0;
+                : role == AppConstants.roleRider
+                    ? ref.watch(riderNotificationProvider).unreadCount
+                    : 0;
     _maybeWiggle(unread);
 
     return IconButton(
@@ -448,6 +458,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
     final isHm = role == AppConstants.roleHeadManager;
     final isEmp = role == AppConstants.roleEmployee;
     final isLender = role == AppConstants.roleLender;
+    final isRider = role == AppConstants.roleRider;
 
     final List<NotificationModel> notifications;
     final int unread;
@@ -493,6 +504,17 @@ class NotificationDropdownPanel extends ConsumerWidget {
           () => ref.read(lenderNotificationProvider.notifier).markAllRead();
       onMarkRead = (id) =>
           ref.read(lenderNotificationProvider.notifier).markRead(id);
+    } else if (isRider) {
+      final state = ref.watch(riderNotificationProvider);
+      notifications = state.notifications;
+      unread = state.unreadCount;
+      isLoading = state.isLoading;
+      error = state.error;
+      onRefresh = () => ref.read(riderNotificationProvider.notifier).load();
+      onMarkAllRead =
+          () => ref.read(riderNotificationProvider.notifier).markAllRead();
+      onMarkRead = (id) =>
+          ref.read(riderNotificationProvider.notifier).markRead(id);
     } else {
       notifications = const [];
       unread = 0;
@@ -509,9 +531,11 @@ class NotificationDropdownPanel extends ConsumerWidget {
         : notifications;
 
     return Container(
-      width: MediaQuery.of(context).size.width < 392
+      // 380px ang panel (dating 360) para may espasyo ang body text — sa
+      // 360px ay 2 linya lang ang kaya at napuputol ang mensahe.
+      width: MediaQuery.of(context).size.width < 412
           ? MediaQuery.of(context).size.width - 32
-          : 360,
+          : 380,
       constraints: const BoxConstraints(maxHeight: 460),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -534,12 +558,20 @@ class NotificationDropdownPanel extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
             child: Row(
               children: [
-                const Text(
-                  'Notifications',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
+                // Flexible + ellipsis: kasama ang unread chip at ang
+                // "Mark all read"/refresh, sasabitin ng header row ang 360px
+                // na panel kapag malaki ang text scale (o kapag mahaba ang
+                // salin ng "Notifications").
+                const Flexible(
+                  child: Text(
+                    'Notifications',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.textPrimary,
+                    ),
                   ),
                 ),
                 AnimatedSwitcher(
@@ -579,19 +611,24 @@ class NotificationDropdownPanel extends ConsumerWidget {
                 ),
                 const Spacer(),
                 if (unread > 0)
-                  TextButton(
-                    onPressed: onMarkAllRead,
-                    style: TextButton.styleFrom(
-                      minimumSize: const Size(0, 28),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
-                    ),
-                    child: const Text(
-                      'Mark all read',
-                      style: TextStyle(
-                        fontSize: 11.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.deepNavy,
+                  Flexible(
+                    child: TextButton(
+                      onPressed: onMarkAllRead,
+                      style: TextButton.styleFrom(
+                        minimumSize: const Size(0, 28),
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      child: const Text(
+                        'Mark all read',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.deepNavy,
+                        ),
                       ),
                     ),
                   ),
@@ -634,6 +671,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
               onMarkRead: onMarkRead,
               onOpen: onOpen,
               onRefresh: onRefresh,
+              rider: isRider,
             ),
           ),
           const Divider(height: 1, color: AppColors.divider),
@@ -653,6 +691,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
     required void Function(String id) onMarkRead,
     required void Function(NotificationModel n) onOpen,
     required VoidCallback onRefresh,
+    required bool rider,
   }) {
     if (isLoading && visible.isEmpty) {
       return const Padding(
@@ -770,7 +809,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          _typeIcon(n.type),
+                          _typeIcon(n.type, rider: rider),
                           size: 17,
                           color: _typeColor(n.type),
                         ),
@@ -825,10 +864,14 @@ class NotificationDropdownPanel extends ConsumerWidget {
                           ),
                           if (n.body.isNotEmpty) ...[
                             const SizedBox(height: 2),
+                            // Buong mensahe ang ipinapakita — kapag pinutol
+                            // (`maxLines` + ellipsis) ay hindi mabasa ang
+                            // kabuuan ("…remaining balance is ₱5,800.").
+                            // Scrollable ang listahan, kaya hindi ito
+                            // nag-o-overflow sa panel.
                             Text(
                               n.body,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
+                              overflow: TextOverflow.visible,
                               style: const TextStyle(
                                 fontSize: 11.5,
                                 color: AppColors.textSecondary,
@@ -838,7 +881,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
                           ],
                           const SizedBox(height: 3),
                           Text(
-                            timeago.format(n.createdAt),
+                            timeAgoManila(n.createdAt),
                             style: const TextStyle(
                               fontSize: 10.5,
                               color: AppColors.textTertiary,
@@ -861,12 +904,20 @@ class NotificationDropdownPanel extends ConsumerWidget {
   /// `account_upgrade_submitted`, `collection_pending_approval`,
   /// `ci_completed`), kaya ang dating exact-match na `switch` ay hindi tumutugma
   /// kahit isa at puro generic na bell ang icon sa lahat ng notification.
-  IconData _typeIcon(String? type) {
+  ///
+  /// [rider] = ang tumitingin ay rider: scooter (`delivery_dining`) ang icon ng
+  /// mga collection notification — dating van (`local_shipping`) kahit rider
+  /// naman ang tatanggap ng gawain.
+  IconData _typeIcon(String? type, {required bool rider}) {
     final t = (type ?? '').toLowerCase().trim();
     if (t.startsWith('account_upgrade_verified')) return Icons.verified_rounded;
     if (t.startsWith('account_upgrade_rejected')) return Icons.gpp_bad_outlined;
     if (t.startsWith('account_upgrade')) return Icons.verified_user_outlined;
-    if (t.startsWith('collection')) return Icons.local_shipping_outlined;
+    if (t.startsWith('collection')) {
+      return rider
+          ? Icons.delivery_dining_rounded
+          : Icons.local_shipping_outlined;
+    }
     if (t == 'ci' || t.startsWith('ci_')) return Icons.search_outlined;
     if (t.startsWith('payment')) return Icons.payment_outlined;
     if (t.startsWith('disbursement')) {

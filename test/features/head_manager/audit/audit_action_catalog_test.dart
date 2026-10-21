@@ -56,6 +56,10 @@ void main() {
         'collection_approve',
         'collection_reject',
         'collection_reconcile',
+        // Rider quota management (00187)
+        'rider_quota_create',
+        'rider_quota_update',
+        'rider_quota_close',
         // Disbursements
         'disbursement_selected',
         'disburse_gcash',

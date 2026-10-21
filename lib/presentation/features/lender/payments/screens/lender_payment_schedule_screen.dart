@@ -582,6 +582,13 @@ class _ScheduleTile extends ConsumerWidget {
                       _showLoanNotReadyDialog(context);
                       return;
                     }
+                    // Ang natitirang balanse ng BUONG loan ang ipinapasa para
+                    // alam ng Payment Method screen kung hanggang magkano lang
+                    // pwedeng maglagay ng halaga ang lender (partial/advance).
+                    final loanState = ref.read(lenderLoanProvider);
+                    final outstanding =
+                        (loanState.selectedLoan ?? loanState.activeLoan)
+                            ?.outstandingBalance;
                     context.push(RouteConstants.lenderPaymentMethod, extra: {
                       'loan_id': activeLoanId,
                       'schedule_id': schedule.id,
@@ -589,6 +596,8 @@ class _ScheduleTile extends ConsumerWidget {
                           ? schedule.remainingAmount
                           : schedule.amountDue,
                       'due_date': schedule.dueDate.toDateString(),
+                      if (outstanding != null && outstanding > 0)
+                        'outstanding_balance': outstanding,
                     });
                   },
                   child: Container(

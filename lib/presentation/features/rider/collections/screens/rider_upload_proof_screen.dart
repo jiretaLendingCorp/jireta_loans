@@ -87,8 +87,7 @@ class _RiderUploadProofScreenState
       // proof" pa rin ang lumalabas.
       final ok = status == 'completed' ||
           status == 'pending_approval' ||
-          (status == null &&
-              ref.read(riderCollectionProvider).error == null);
+          (status == null && ref.read(riderCollectionProvider).error == null);
 
       if (mounted) {
         if (ok) {
@@ -266,8 +265,7 @@ class _RiderUploadProofScreenState
                       padding: EdgeInsets.all(6),
                       decoration: BoxDecoration(
                           color: Colors.red, shape: BoxShape.circle),
-                      child: Icon(Icons.close,
-                          color: Colors.white, size: 16),
+                      child: Icon(Icons.close, color: Colors.white, size: 16),
                     ),
                   ),
                 ),
@@ -275,8 +273,7 @@ class _RiderUploadProofScreenState
                   bottom: 8,
                   left: 8,
                   child: Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: AppColors.riderGreen,
                       borderRadius: BorderRadius.circular(8),

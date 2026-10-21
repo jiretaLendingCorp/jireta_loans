@@ -1,4 +1,6 @@
 // lib/presentation/features/head_manager/loans/screens/hm_loan_applications_list_screen.dart
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -44,6 +46,10 @@ class _HmLoanApplicationsListScreenState
   final _searchCtrl = TextEditingController();
   DateTimeRange? _dateRange;
   final _scrollCtrl = ScrollController();
+
+  /// Debounce ng live search sa Previous Loans — live na ang filter bar
+  /// (walang apply button), kaya hindi dapat mag-request sa bawat letra.
+  Timer? _historySearchDebounce;
   // In-Office / Disbursements / Loan History ay may SARILING URI ngayon
   // (`/hm/loan-applications/in-office`, `.../disbursements`, `.../history`).
   // Ang URL ang source of truth ng tab — hindi na local state.
@@ -182,6 +188,7 @@ class _HmLoanApplicationsListScreenState
 
   @override
   void dispose() {
+    _historySearchDebounce?.cancel();
     _searchCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
@@ -399,8 +406,8 @@ class _HmLoanApplicationsListScreenState
   // design. Sa makitid na viewport, naka-stack ang panel sa ilalim.
   Widget _buildLoanHistorySection(HmLoanHistoryState st) {
     // Buong-table shimmer lang sa UNANG load. Kapag nag-apply ng filter/
-    // search, mananatili ang table at ang Apply button lang ang maglo-load —
-    // hindi na "nawawala" ang buong table tuwing filter.
+    // search, mananatili ang table habang nagre-refresh — hindi na
+    // "nawawala" ang buong table tuwing nagbabago ang filter.
     if (st.isLoading && !st.hasLoaded) return _buildLoadingShimmer();
 
     final filtered = st.loans;
@@ -621,8 +628,9 @@ class _HmLoanApplicationsListScreenState
     );
   }
 
-  /// Search + Date Range + Apply Filters na bar sa ITAAS ng table — walang
-  /// title at walang malaking card wrapper, para hindi humaharang sa table.
+  /// Search + Date Range na bar sa ITAAS ng table — walang title, walang
+  /// malaking card wrapper at walang apply-filters button. Live ang search:
+  /// may 350ms debounce bago mag-request.
   Widget _buildHistoryFilterCard(HmLoanHistoryState st) {
     const labelStyle = TextStyle(
         fontSize: 11.5,
@@ -630,7 +638,11 @@ class _HmLoanApplicationsListScreenState
         color: AppColors.textPrimary);
 
     // Sariling Container ang search field (hindi InputDecoration) para
-    // siguradong 48px ang taas — kapantay ng Date Range at Apply Filters.
+    // siguradong 48px ang taas — kapantay ng Date Range.
+    //
+    // `filled: false` ang TextField: kung hindi, ipininta ng global
+    // InputDecorationTheme ang filled na kahon NITO sa LOOB ng Container kaya
+    // may dobleng box na lumalabas sa search field.
     final searchField = Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -648,9 +660,22 @@ class _HmLoanApplicationsListScreenState
             child: TextField(
               controller: _searchCtrl,
               textInputAction: TextInputAction.search,
-              onSubmitted: (_) => ref
-                  .read(hmLoanHistoryProvider.notifier)
-                  .setSearch(_searchCtrl.text.trim()),
+              onChanged: (value) {
+                _historySearchDebounce?.cancel();
+                _historySearchDebounce =
+                    Timer(const Duration(milliseconds: 350), () {
+                  if (!mounted) return;
+                  ref
+                      .read(hmLoanHistoryProvider.notifier)
+                      .setSearch(value.trim());
+                });
+              },
+              onSubmitted: (value) {
+                _historySearchDebounce?.cancel();
+                ref
+                    .read(hmLoanHistoryProvider.notifier)
+                    .setSearch(value.trim());
+              },
               style: const TextStyle(
                   fontSize: 12.5, color: AppColors.textPrimary),
               decoration: const InputDecoration(
@@ -658,6 +683,7 @@ class _HmLoanApplicationsListScreenState
                 hintStyle:
                     TextStyle(fontSize: 12, color: AppColors.textTertiary),
                 border: InputBorder.none,
+                filled: false,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,
               ),
@@ -670,42 +696,6 @@ class _HmLoanApplicationsListScreenState
     final dateField = SearchDateFilter(
       value: _dateRange,
       onChanged: _onDateRangeChanged,
-    );
-
-    // Habang nag-a-apply ng filters, SPINNER LANG DITO ang lumalabas — hindi
-    // na shimmer ng buong table.
-    final applyButton = SizedBox(
-      height: 48,
-      child: ElevatedButton.icon(
-        onPressed: st.isLoading
-            ? null
-            : () => ref
-                .read(hmLoanHistoryProvider.notifier)
-                .setSearch(_searchCtrl.text.trim()),
-        icon: st.isLoading
-            ? const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                    strokeWidth: 2, color: Colors.white),
-              )
-            : const Icon(Icons.tune_rounded, size: 17),
-        label: const Text(
-          'Apply Filters',
-          maxLines: 1,
-          softWrap: false,
-          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700),
-        ),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.deepNavy,
-          foregroundColor: Colors.white,
-          disabledBackgroundColor: AppColors.deepNavy.withValues(alpha: 0.65),
-          disabledForegroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 14),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
-      ),
     );
 
     Widget fieldColumn(String label, Widget child) {
@@ -728,8 +718,6 @@ class _HmLoanApplicationsListScreenState
               Expanded(child: fieldColumn('Search', searchField)),
               const SizedBox(width: 12),
               fieldColumn('Date Range', dateField),
-              const SizedBox(width: 12),
-              SizedBox(width: 170, child: applyButton),
             ],
           );
         }
@@ -742,8 +730,6 @@ class _HmLoanApplicationsListScreenState
               alignment: Alignment.centerLeft,
               child: fieldColumn('Date Range', dateField),
             ),
-            const SizedBox(height: 12),
-            SizedBox(width: double.infinity, child: applyButton),
           ],
         );
       },

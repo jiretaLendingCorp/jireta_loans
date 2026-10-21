@@ -21,7 +21,8 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/image/xfile_preview.dart';
 // Isang breakpoint lang ang buong app para sa desktop layout.
 import '../../../../shared/widgets/layout/web_scaffold.dart'
-    show kDesktopBreakpoint;
+    show kDesktopBreakpoint, WebScaffold;
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/rider_collection_provider.dart';
 import '../../../../../core/utils/logger.dart';
@@ -241,8 +242,8 @@ class _RiderCollectionDetailsScreenState
     }
 
     if (_proofPhoto == null) {
-      context.showSnackBarAsToast(
-          const SnackBar(content: Text('Please add payment proof in Proof step')));
+      context.showSnackBarAsToast(const SnackBar(
+          content: Text('Please add payment proof in Proof step')));
       _goToStep(1);
       return;
     }
@@ -327,17 +328,16 @@ class _RiderCollectionDetailsScreenState
       // verified payment sa server, ito na mismo ang magre-record nito
       // (self-heal) kaya hindi na lalabas ang "Record the collected amount
       // first before uploading proof" at hindi na maiiwan sa in_progress.
-      String? proofStatus = await ref
-          .read(riderCollectionProvider.notifier)
-          .uploadProof(
-            assignmentId: widget.collectionId,
-            proofPhoto: _proofPhoto!,
-            signatureBase64: _signatureBase64,
-            amountCollected: recordAmount,
-            notes: _notesCtrl.text.trim().isEmpty
-                ? null
-                : _notesCtrl.text.trim(),
-          );
+      String? proofStatus =
+          await ref.read(riderCollectionProvider.notifier).uploadProof(
+                assignmentId: widget.collectionId,
+                proofPhoto: _proofPhoto!,
+                signatureBase64: _signatureBase64,
+                amountCollected: recordAmount,
+                notes: _notesCtrl.text.trim().isEmpty
+                    ? null
+                    : _notesCtrl.text.trim(),
+              );
 
       // Recovery: kapag PAYMENT_NOT_RECORDED (409) ang isinagot ng backend —
       // nawala/na-reverse ang verified payment habang in_progress pa ang
@@ -345,30 +345,28 @@ class _RiderCollectionDetailsScreenState
       // isang beses. Kung hindi, mananatiling stuck ang rider sa parehong
       // "Record the collected amount first before uploading proof" error.
       if (proofStatus == null && _isPaymentNotRecordedError()) {
-        final retryAmount =
-            recordAmount ?? double.tryParse(_amountCtrl.text.replaceAll(',', ''));
+        final retryAmount = recordAmount ??
+            double.tryParse(_amountCtrl.text.replaceAll(',', ''));
         if (retryAmount != null && retryAmount > 0) {
-          final okRecord = await ref
-              .read(riderCollectionProvider.notifier)
-              .recordCollection(
-                assignmentId: widget.collectionId,
-                amountCollected: retryAmount,
-                notes: _notesCtrl.text.trim().isEmpty
-                    ? null
-                    : _notesCtrl.text.trim(),
-              );
+          final okRecord =
+              await ref.read(riderCollectionProvider.notifier).recordCollection(
+                    assignmentId: widget.collectionId,
+                    amountCollected: retryAmount,
+                    notes: _notesCtrl.text.trim().isEmpty
+                        ? null
+                        : _notesCtrl.text.trim(),
+                  );
           if (okRecord) {
-            proofStatus = await ref
-                .read(riderCollectionProvider.notifier)
-                .uploadProof(
-                  assignmentId: widget.collectionId,
-                  proofPhoto: _proofPhoto!,
-                  signatureBase64: _signatureBase64,
-                  amountCollected: retryAmount,
-                  notes: _notesCtrl.text.trim().isEmpty
-                      ? null
-                      : _notesCtrl.text.trim(),
-                );
+            proofStatus =
+                await ref.read(riderCollectionProvider.notifier).uploadProof(
+                      assignmentId: widget.collectionId,
+                      proofPhoto: _proofPhoto!,
+                      signatureBase64: _signatureBase64,
+                      amountCollected: retryAmount,
+                      notes: _notesCtrl.text.trim().isEmpty
+                          ? null
+                          : _notesCtrl.text.trim(),
+                    );
           }
         }
       }
@@ -398,7 +396,8 @@ class _RiderCollectionDetailsScreenState
         await SuccessDialog.showAutoDismiss(
           context,
           title: 'Collection Recorded',
-          message: 'The collection was recorded and posted to the lender\'s loan balance.',
+          message:
+              'The collection was recorded and posted to the lender\'s loan balance.',
           buttonText: 'Done',
           duration: const Duration(seconds: 2),
         );
@@ -478,17 +477,151 @@ class _RiderCollectionDetailsScreenState
                   SizedBox(height: 8),
                   Text(state.error!,
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 12, color: context.cTextSecondary)),
+                      style: TextStyle(
+                          fontSize: 12, color: context.cTextSecondary)),
                   SizedBox(height: 16),
                   ElevatedButton(
-                    onPressed: () => ref.read(riderCollectionProvider.notifier).loadDetails(widget.collectionId),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.riderGreen),
+                    onPressed: () => ref
+                        .read(riderCollectionProvider.notifier)
+                        .loadDetails(widget.collectionId),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.riderGreen),
                     child: Text('Retry', style: TextStyle(color: Colors.white)),
                   ),
                 ],
               ),
             ),
           ),
+        );
+      }
+
+      // ISANG body lang ito para sa mobile at desktop — ang shell lang ang
+      // pinag-iba (tingnan sa ibaba).
+      final Widget pageBody = state.isLoading || !_detailsResolved
+          ? const ShimmerLoader()
+          : col == null
+              ? const Center(child: Text('Collection not found'))
+              : Builder(
+                  builder: (context) {
+                    try {
+                      // ── Fix: completed/declined collections are read-only.
+                      // Showing the 4-step wizard for a completed collection
+                      // is confusing (user reported "parang wizard na step").
+                      // For completed/declined/failed, show a simple details
+                      // receipt instead of the wizard.
+                      final isReadOnly = _isReadOnlyStatus(col.status);
+                      if (isReadOnly) {
+                        return Column(
+                          children: [
+                            Expanded(
+                              child: col.status == 'completed'
+                                  ? _buildCompletedBody(col)
+                                  : col.status == 'pending_approval'
+                                      ? _buildPendingApprovalBody(col)
+                                      : _buildDeclinedBody(col),
+                            ),
+                            _buildReadOnlyFooter(col),
+                          ],
+                        );
+                      }
+                      return Column(
+                        children: [
+                          Expanded(
+                            child: TabBarView(
+                              controller: _tabController,
+                              physics: const NeverScrollableScrollPhysics(),
+                              children: [
+                                _buildDetailsTab(col),
+                                _desktopCap(_buildProofTab(col)),
+                                _desktopCap(_buildReviewTab(col)),
+                              ],
+                            ),
+                          ),
+                          // Accept/Decline — naka-pin sa baba ng mobile view
+                          // habang 'assigned' pa (bago i-accept).
+                          if (col.status == 'assigned')
+                            _buildAcceptDeclineBar(col),
+                          // Back + Next — naka-pin sa baba sa Step 1 kapag
+                          // tuloy na ang koleksyon (accepted/in_progress).
+                          // Ang Back + Submit ay nasa loob ng Review tab.
+                        ],
+                      );
+                    } catch (e, st) {
+                      // Log full stack for debugging String vs bool
+                      debugPrint('RiderCollectionDetails build error: $e');
+                      debugPrint(st.toString());
+                      return Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16),
+                          child: SingleChildScrollView(
+                            child: Column(
+                              children: [
+                                Icon(Icons.bug_report,
+                                    color: AppColors.error, size: 36),
+                                SizedBox(height: 8),
+                                Text('Build error: $e',
+                                    style: TextStyle(
+                                        color: AppColors.error, fontSize: 12)),
+                                SizedBox(height: 8),
+                                Text(st.toString(),
+                                    style: TextStyle(
+                                        fontSize: 10,
+                                        color: context.cTextTertiary)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                );
+
+      final showStep = col != null && !_isReadOnlyStatus(col.status);
+      final stepLabel =
+          'Step ${_tabController.index + 1} of ${_steps.length}: ${_steps[_tabController.index]}';
+
+      // DESKTOP: huwag mawala ang SIDE NAV BAR kapag binuksan ang collection
+      // (mula sa dashboard card o sa Collections tab). `WebScaffold` ang
+      // nagbibigay ng rider sidebar + top bar. Dati, laging ang custom na
+      // `Scaffold` sa ibaba ang ginagamit — punong-puno ang page at wala nang
+      // paraan para lumipat ng pahina maliban sa back button.
+      if (MediaQuery.sizeOf(context).width >= kDesktopBreakpoint) {
+        return WebScaffold(
+          title: 'Collection',
+          roleOverride: AppConstants.roleRider,
+          leading: IconButton(
+            tooltip: 'Back',
+            icon: const Icon(Icons.arrow_back_rounded,
+                color: AppColors.textSecondary, size: 20),
+            onPressed: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                context.go(RouteConstants.riderCollections);
+              }
+            },
+          ),
+          actions: [
+            // Ang step label at status chip ay nasa mobile AppBar; sa desktop,
+            // sa top bar sila para hindi mawala ang konteksto.
+            if (showStep)
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 320),
+                child: Text(
+                  stepLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(fontSize: 12, color: context.cTextSecondary),
+                ),
+              ),
+            if (col != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 12),
+                child: StatusBadge(status: col.status),
+              ),
+          ],
+          body: pageBody,
         );
       }
 
@@ -504,14 +637,14 @@ class _RiderCollectionDetailsScreenState
             children: [
               const Text('Collection',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-              if (col != null && !_isReadOnlyStatus(col.status))
+              if (showStep)
                 Expanded(
                   child: Padding(
                     // Walang left padding — para naka-usog nang bahagya sa
                     // kaliwa ang step label (hindi gitna ng buong espasyo).
                     padding: const EdgeInsets.only(right: 24),
                     child: Text(
-                      'Step ${_tabController.index + 1} of ${_steps.length}: ${_steps[_tabController.index]}',
+                      stepLabel,
                       textAlign: TextAlign.center,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -536,81 +669,8 @@ class _RiderCollectionDetailsScreenState
                           onDark: true))),
           ],
         ),
-        body: state.isLoading || !_detailsResolved
-            ? const ShimmerLoader()
-            : col == null
-                ? Center(child: Text('Collection not found'))
-                : Builder(
-                    builder: (context) {
-                      try {
-                        // ── Fix: completed/declined collections are read-only.
-                        // Showing the 4-step wizard for a completed collection
-                        // is confusing (user reported "parang wizard na step").
-                        // For completed/declined/failed, show a simple details
-                        // receipt instead of the wizard.
-                        final isReadOnly = _isReadOnlyStatus(col.status);
-                        if (isReadOnly) {
-                          return Column(
-                            children: [
-                              Expanded(
-                                child: col.status == 'completed'
-                                    ? _buildCompletedBody(col)
-                                    : col.status == 'pending_approval'
-                                        ? _buildPendingApprovalBody(col)
-                                        : _buildDeclinedBody(col),
-                              ),
-                              _buildReadOnlyFooter(col),
-                            ],
-                          );
-                        }
-                        return Column(
-                          children: [
-                            Expanded(
-                              child: TabBarView(
-                                controller: _tabController,
-                                physics: const NeverScrollableScrollPhysics(),
-                                children: [
-                                  _buildDetailsTab(col),
-                                  _buildProofTab(col),
-                                  _buildReviewTab(col),
-                                ],
-                              ),
-                            ),
-                            // Accept/Decline — naka-pin sa baba ng mobile view
-                            // habang 'assigned' pa (bago i-accept).
-                            if (col.status == 'assigned')
-                              _buildAcceptDeclineBar(col),
-                            // Back + Next — naka-pin sa baba sa Step 1 kapag
-                            // tuloy na ang koleksyon (accepted/in_progress).
-                            // Ang Back + Submit ay nasa loob ng Review tab.
-                          ],
-                        );
-                      } catch (e, st) {
-                        // Log full stack for debugging String vs bool
-                        debugPrint('RiderCollectionDetails build error: $e');
-                        debugPrint(st.toString());
-                      return Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(16),
-                          child: SingleChildScrollView(
-                            child: Column(
-                              children: [
-                                Icon(Icons.bug_report, color: AppColors.error, size: 36),
-                                SizedBox(height: 8),
-                                Text('Build error: $e',
-                                    style: TextStyle(color: AppColors.error, fontSize: 12)),
-                                SizedBox(height: 8),
-                                Text(st.toString(),
-                                    style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                  },
-                ),
-    );
+        body: pageBody,
+      );
     } catch (e, st) {
       debugPrint('RiderCollectionDetails outer build error: $e');
       debugPrint(st.toString());
@@ -628,9 +688,12 @@ class _RiderCollectionDetailsScreenState
                 children: [
                   Icon(Icons.bug_report, color: AppColors.error, size: 36),
                   SizedBox(height: 8),
-                  Text('Outer build error: $e', style: TextStyle(color: AppColors.error, fontSize: 12)),
+                  Text('Outer build error: $e',
+                      style: TextStyle(color: AppColors.error, fontSize: 12)),
                   SizedBox(height: 8),
-                  Text(st.toString(), style: TextStyle(fontSize: 10, color: context.cTextTertiary)),
+                  Text(st.toString(),
+                      style: TextStyle(
+                          fontSize: 10, color: context.cTextTertiary)),
                 ],
               ),
             ),
@@ -665,13 +728,16 @@ class _RiderCollectionDetailsScreenState
             width: double.infinity,
             padding: EdgeInsets.all(20),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [AppColors.warning, AppColors.warning.withValues(alpha: 0.75)]),
+              gradient: LinearGradient(colors: [
+                AppColors.warning,
+                AppColors.warning.withValues(alpha: 0.75)
+              ]),
               borderRadius: BorderRadius.all(Radius.circular(16)),
             ),
             child: Column(
               children: [
-                Icon(Icons.hourglass_top_rounded, size: 42, color: Colors.white),
+                Icon(Icons.hourglass_top_rounded,
+                    size: 42, color: Colors.white),
                 SizedBox(height: 10),
                 Text('Awaiting Approval',
                     style: TextStyle(
@@ -712,27 +778,32 @@ class _RiderCollectionDetailsScreenState
         color: context.cSurface,
         border: Border(top: BorderSide(color: Color(0xFFF0F0F0))),
       ),
-      // Sa desktop, naka-center at may max na lapad din ang Done button para
-      // pantay sa content sa itaas.
+      // Sa desktop, naka-cap (1080 — kapareho ng receipt sa itaas) at nasa
+      // KANAN ang Done button; hindi na ito nakaunat sa buong lapad. Sa mobile,
+      // buong lapad pa rin.
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1240),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => context.pop(),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: col.status == 'completed'
-                    ? AppColors.riderGreen
-                    : context.cTextSecondary,
-                foregroundColor: Colors.white,
-                minimumSize: const Size(0, 48),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-              child: Text(
-                col.status == 'completed' ? 'Done' : 'Back to Collections',
-                style: TextStyle(fontWeight: FontWeight.w700),
+          constraints: BoxConstraints(maxWidth: isDesktop ? 1080 : 1240),
+          child: Align(
+            alignment:
+                isDesktop ? Alignment.centerRight : Alignment.center,
+            child: SizedBox(
+              width: isDesktop ? 380 : double.infinity,
+              child: ElevatedButton(
+                onPressed: () => context.pop(),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: col.status == 'completed'
+                      ? AppColors.riderGreen
+                      : context.cTextSecondary,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(0, 48),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  col.status == 'completed' ? 'Done' : 'Back to Collections',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
           ),
@@ -746,264 +817,336 @@ class _RiderCollectionDetailsScreenState
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ??
         (schedule?['installment_amount'] as num?)?.toDouble() ??
         0;
-    // Desktop: naka-center ang receipt sa max na lapad (1240) — kapareho ng
-    // rider dashboard/history/profile. Sa mobile, buong lapad pa rin.
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+
+    // Parehong cards sa mobile at desktop — ang layout lang ang nag-iiba.
+    final successCard = _completedSuccessCard(col);
+    final lenderCard = _completedLenderCard(col);
+    final collectionCard = _completedCollectionCard(col, schedule, amountDue);
+    final locationCard = _completedLocationCard(col);
+    final note = _completedNoteBanner();
+
+    if (!isDesktop) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            successCard,
+            SizedBox(height: 14),
+            lenderCard,
+            SizedBox(height: 12),
+            collectionCard,
+            if (locationCard != null) ...[
+              SizedBox(height: 12),
+              locationCard,
+            ],
+            SizedBox(height: 20),
+            note,
+            SizedBox(height: 16),
+          ],
+        ),
+      );
+    }
+
+    // DESKTOP: DALAWANG column — success receipt sa KALIWA, ang mga detalye
+    // (lender, collection, location) sa KANAN — at naka-cap (1080) at
+    // nakasentro ang buong receipt. Dati, isang column lang na nakaunat sa
+    // buong lapad: blangko ang kanang kalahati ng bawat info row at sobrang
+    // lapad ng berdeng banner.
     return SingleChildScrollView(
-      padding: EdgeInsets.all(isDesktop ? 28 : 16),
+      padding: const EdgeInsets.all(24),
       child: Center(
         child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 1240),
-          child: Column(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-          // Success banner
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                  colors: [AppColors.riderGreen, AppColors.riderGreenDark]),
-              borderRadius: BorderRadius.all(Radius.circular(16)),
-            ),
-            child: Column(
-              children: [
-                Icon(Icons.verified, size: 42, color: Colors.white),
-                SizedBox(height: 10),
-                Text('Collection Completed',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w800)),
-                SizedBox(height: 6),
-                Text(
-                  col.amountCollected != null
-                      ? col.amountCollected!.toCurrency
-                      : '₱0.00',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900),
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Amount collected from lender',
-                  style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.85),
-                      fontSize: 12),
-                ),
-                if (col.completedAt != null) ...[
-                  SizedBox(height: 8),
-                  Container(
-                    padding:
-                        EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.18),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      DateFormat('MMM d, yyyy  •  h:mm a')
-                          .format(col.completedAt!),
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          SizedBox(height: 14),
-          // Lender info card
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: context.cBorder)),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      // `cBrandGreen` para manatiling visible sa dark mode.
-                      Icon(Icons.person_outline,
-                          color: context.cBrandGreen, size: 18),
-                      SizedBox(width: 8),
-                      Text('Lender Information',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                  SizedBox(height: 14),
-                  _InfoTile('Name',
-                      col.lenderName.isEmpty ? 'N/A' : col.lenderName),
-                  _InfoTile('Loan #',
-                      col.loanNumber.isEmpty ? 'N/A' : col.loanNumber),
-                  _InfoTile(
-                      'Phone',
-                      (col.loanSchedule?['loan']?['lender_profiles']?['users']
-                                  ?['phone_number'] as String?) ??
-                          (col.lenderPhone.isEmpty ? 'N/A' : col.lenderPhone)),
-                  if (col.lenderAddresses.isNotEmpty)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                            width: 110,
-                            child: Text('Address',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: context.cTextSecondary))),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: col.lenderAddresses.take(2).map((a) {
-                              final m = a as Map<String, dynamic>;
-                              final full = [
-                                m['street'],
-                                m['barangay'],
-                                m['city'],
-                                m['province']
-                              ].where((e) => e != null && (e as String).isNotEmpty).join(', ');
-                              // Address value sa KANAN ng label — pareho ng
-                              // alignment ng ibang info rows (walang chip).
-                              return Padding(
-                                padding: EdgeInsets.only(bottom: 6),
-                                child: Text(full.isEmpty ? 'N/A' : full,
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: context.cTextPrimary)),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-            ),
-          ),
-          SizedBox(height: 12),
-          // Collection card - dating "Collection Summary"; nasa ibaba na ng
-          // Lender Information gaya ng wizard Details tab.
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: context.cBorder)),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.receipt_long_outlined,
-                          color: AppColors.riderGreen, size: 18),
-                      SizedBox(width: 8),
-                      Text('Collection',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                  Divider(height: 20),
-                  _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
-                  _InfoTile('Period',
-                      'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? '—'}'),
-                  _InfoTile('Amount Due', amountDue.toCurrency),
-                  _InfoTile('Amount Collected',
-                      col.amountCollected?.toCurrency ?? '—'),
-                  _InfoTile('Status', col.statusLabel),
-                  if (col.completedAt != null)
-                    _InfoTile(
-                        'Completed',
-                        DateFormat('MMM d, yyyy h:mm a')
-                            .format(col.completedAt!)),
-                  if (col.collectionSchedule != null)
-                    _InfoTile(
-                        'Scheduled',
-                        DateFormat('MMM d, yyyy h:mm a')
-                            .format(col.collectionSchedule!)),
-                  if (col.notes != null && col.notes!.isNotEmpty)
-                    _InfoTile('Notes', col.notes!),
-                  if (col.idempotencyKey != null)
-                    _InfoTile('Ref', col.idempotencyKey!),
-                ],
-              ),
-            ),
-          ),
-          // Walang "Collection Proof" section dito sa completed/History na
-          // detalye — tapos na ang collection at naka-submit na ang proof, kaya
-          // wala nang kailangang tingnan/i-upload muli.
-          if (col.locationLat != null && col.locationLng != null) ...[
-            SizedBox(height: 12),
-            Card(
-              elevation: 0,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(color: context.cBorder)),
-              child: Padding(
-                padding: EdgeInsets.all(16),
+              Expanded(
+                flex: 5,
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Row(
-                      children: [
-                        Icon(Icons.location_on_outlined,
-                            color: AppColors.riderGreen, size: 18),
-                        SizedBox(width: 8),
-                        Text('Collection Location',
-                            style: TextStyle(
-                                fontSize: 13, fontWeight: FontWeight.w700)),
-                      ],
-                    ),
-                    Divider(height: 20),
-                    Text(
-                      'Lat: ${col.locationLat!.toStringAsFixed(6)}, Lng: ${col.locationLng!.toStringAsFixed(6)}',
-                      style: TextStyle(
-                          fontSize: 12, color: context.cTextSecondary),
-                    ),
+                    successCard,
+                    const SizedBox(height: 16),
+                    note,
                   ],
                 ),
               ),
-            ),
-          ],
-          SizedBox(height: 20),
-          // Receipt decoration
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.successLight,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                  color: AppColors.riderGreen.withValues(alpha: 0.15)),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.check_circle,
-                    color: AppColors.riderGreen, size: 16),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'This collection is completed. No further action is required.',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: AppColors.riderGreen,
-                        fontWeight: FontWeight.w600),
-                  ),
+              const SizedBox(width: 20),
+              Expanded(
+                flex: 6,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    lenderCard,
+                    const SizedBox(height: 12),
+                    collectionCard,
+                    if (locationCard != null) ...[
+                      const SizedBox(height: 12),
+                      locationCard,
+                    ],
+                  ],
                 ),
-              ],
-            ),
-          ),
-          SizedBox(height: 16),
+              ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Berdong success receipt (halaga + oras ng pagkumpleto).
+  Widget _completedSuccessCard(CollectionAssignmentModel col) {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+            colors: [AppColors.riderGreen, AppColors.riderGreenDark]),
+        borderRadius: BorderRadius.all(Radius.circular(16)),
+      ),
+      child: Column(
+        children: [
+          Icon(Icons.verified, size: 42, color: Colors.white),
+          SizedBox(height: 10),
+          Text('Collection Completed',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800)),
+          SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              col.amountCollected != null
+                  ? col.amountCollected!.toCurrency
+                  : '₱0.00',
+              style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900),
+            ),
+          ),
+          SizedBox(height: 4),
+          Text(
+            'Amount collected from lender',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.85), fontSize: 12),
+          ),
+          if (col.completedAt != null) ...[
+            SizedBox(height: 8),
+            Container(
+              padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.18),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                DateFormat('MMM d, yyyy  •  h:mm a').format(col.completedAt!),
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Lender Information card ng completed receipt.
+  Widget _completedLenderCard(CollectionAssignmentModel col) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: context.cBorder)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                // `cBrandGreen` para manatiling visible sa dark mode.
+                Icon(Icons.person_outline,
+                    color: context.cBrandGreen, size: 18),
+                SizedBox(width: 8),
+                Text('Lender Information',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            SizedBox(height: 14),
+            _InfoTile(
+                'Name', col.lenderName.isEmpty ? 'N/A' : col.lenderName),
+            _InfoTile(
+                'Loan #', col.loanNumber.isEmpty ? 'N/A' : col.loanNumber),
+            _InfoTile(
+                'Phone',
+                (col.loanSchedule?['loan']?['lender_profiles']?['users']
+                        ?['phone_number'] as String?) ??
+                    (col.lenderPhone.isEmpty ? 'N/A' : col.lenderPhone)),
+            if (col.lenderAddresses.isNotEmpty)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                      width: 140,
+                      child: Text('Address',
+                          style: TextStyle(
+                              fontSize: 12, color: context.cTextSecondary))),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: col.lenderAddresses.take(2).map((a) {
+                        final m = a as Map<String, dynamic>;
+                        final full = [
+                          m['street'],
+                          m['barangay'],
+                          m['city'],
+                          m['province']
+                        ]
+                            .where((e) => e != null && (e as String).isNotEmpty)
+                            .join(', ');
+                        // Address value sa KANAN ng label — pareho ng
+                        // alignment ng ibang info rows (walang chip).
+                        return Padding(
+                          padding: EdgeInsets.only(bottom: 6),
+                          child: Text(full.isEmpty ? 'N/A' : full,
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: context.cTextPrimary)),
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Collection card ng completed receipt — dating "Collection Summary".
+  Widget _completedCollectionCard(CollectionAssignmentModel col,
+      Map<String, dynamic>? schedule, double amountDue) {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: context.cBorder)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.receipt_long_outlined,
+                    color: AppColors.riderGreen, size: 18),
+                SizedBox(width: 8),
+                Text('Collection',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            Divider(height: 20),
+            _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
+            _InfoTile(
+                'Period',
+                'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? '—'}'),
+            // Hiningi ng lender (`requested_amount`), hindi ang default na
+            // installment due.
+            _InfoTile(
+                'Requested Amount',
+                col.requestedAmount != null
+                    ? col.requestedAmount!.toCurrency
+                    : amountDue.toCurrency),
+            _InfoTile(
+                'Amount Collected', col.amountCollected?.toCurrency ?? '—'),
+            _InfoTile('Status', col.statusLabel),
+            if (col.completedAt != null)
+              _InfoTile('Completed',
+                  DateFormat('MMM d, yyyy h:mm a').format(col.completedAt!)),
+            if (col.collectionSchedule != null)
+              _InfoTile('Scheduled',
+                  DateFormat('MMM d, yyyy h:mm a')
+                      .format(col.collectionSchedule!)),
+            if (col.notes != null && col.notes!.isNotEmpty)
+              _InfoTile('Notes', col.notes!),
+            if (col.idempotencyKey != null)
+              _InfoTile('Ref', col.idempotencyKey!),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Collection Location card — `null` kapag walang GPS coordinates.
+  Widget? _completedLocationCard(CollectionAssignmentModel col) {
+    if (col.locationLat == null || col.locationLng == null) return null;
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: context.cBorder)),
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.location_on_outlined,
+                    color: AppColors.riderGreen, size: 18),
+                SizedBox(width: 8),
+                Text('Collection Location',
+                    style:
+                        TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              ],
+            ),
+            Divider(height: 20),
+            Text(
+              'Lat: ${col.locationLat!.toStringAsFixed(6)}, Lng: ${col.locationLng!.toStringAsFixed(6)}',
+              style: TextStyle(fontSize: 12, color: context.cTextSecondary),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Paalala na tapos na ang koleksyon — walang kailangang gawin.
+  Widget _completedNoteBanner() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.successLight,
+        borderRadius: BorderRadius.circular(12),
+        border:
+            Border.all(color: AppColors.riderGreen.withValues(alpha: 0.15)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.check_circle, color: AppColors.riderGreen, size: 16),
+          SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'This collection is completed. No further action is required.',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: AppColors.riderGreen,
+                  fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1050,8 +1193,8 @@ class _RiderCollectionDetailsScreenState
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Details',
-                      style: TextStyle(
-                          fontSize: 13, fontWeight: FontWeight.w700)),
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                   Divider(height: 20),
                   _InfoTile('Lender',
                       col.lenderName.isEmpty ? 'N/A' : col.lenderName),
@@ -1075,17 +1218,79 @@ class _RiderCollectionDetailsScreenState
   /// Step 1 — Details + Collect (pinagsama). Ang dating Step 2 (Collect) ay
   /// nasa ibaba na nito, kaya 3 steps na lang: Details → Proof → Review.
   Widget _buildDetailsTab(CollectionAssignmentModel col) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    // Ang Collect section ay lumalabas lang kapag na-accept na ang assignment
+    // (nasa ibaba ang Accept / Decline).
+    final showCollect = col.status == 'accepted' || col.status == 'in_progress';
+
+    if (!isDesktop) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ..._detailsCards(col),
+            if (showCollect) ..._collectCards(col),
+          ],
+        ),
+      );
+    }
+
+    // DESKTOP: dalawang column — read-only na impormasyon sa KALIWA, ang
+    // form/actions sa KANAN. Dati, isang column lang na nakaunat sa buong
+    // lapad: kalahati ng bawat card ay blangko at mahirap sundan ang
+    // label → value.
     return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          ..._detailsCards(col),
-          // Collect section — hindi ito lumalabas hangga't hindi pa
-          // na-a-accept ang assignment (nasa itaas ang Accept / Decline).
-          if (col.status == 'accepted' || col.status == 'in_progress')
-            ..._collectCards(col),
-        ],
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1240),
+          child: showCollect
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      flex: 5,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _detailsCards(col),
+                      ),
+                    ),
+                    const SizedBox(width: 20),
+                    Expanded(
+                      flex: 6,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: _collectCards(col),
+                      ),
+                    ),
+                  ],
+                )
+              // Wala pang collect form (hindi pa accepted) — huwag hayaang
+              // humaba nang buong lapad ang mga info card.
+              : Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 760),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _detailsCards(col),
+                    ),
+                  ),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// Desktop: naka-cap (1240) at nakasentro ang content ng isang tab —
+  /// kapareho ng completed receipt at ng ibang rider desktop pages. Sa mobile,
+  /// ibinabalik lang ang orihinal na widget (walang binago).
+  Widget _desktopCap(Widget child) {
+    if (MediaQuery.sizeOf(context).width < kDesktopBreakpoint) return child;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1240),
+        child: child,
       ),
     );
   }
@@ -1103,77 +1308,81 @@ class _RiderCollectionDetailsScreenState
     final schedule = col.loanSchedule;
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
     return [
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: context.cBorder)),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: context.cBorder)),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppColors.riderGreen.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Icon(Icons.receipt_long_outlined,
-                            color: AppColors.riderGreen, size: 18),
-                      ),
-                      SizedBox(width: 10),
-                      Text('Collection',
-                          style: TextStyle(
-                              fontSize: 14, fontWeight: FontWeight.w700)),
-                    ],
+                  Container(
+                    padding: EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: AppColors.riderGreen.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.receipt_long_outlined,
+                        color: AppColors.riderGreen, size: 18),
                   ),
-                  SizedBox(height: 16),
-                  // Label sa kaliwa, halaga sa kanan — naka-align sa mga
-                  // _InfoTile sa ibaba, at hindi na button-like na green box.
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                          width: 110,
-                          child: Text('Amount Due',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.cTextSecondary))),
-                      Expanded(
-                          child: Text(amountDue.toCurrency,
-                              style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  color: context.cTextPrimary))),
-                    ],
-                  ),
-                  SizedBox(height: 16),
-                  _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
-                  _InfoTile('Period',
-                      'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? ''}'),
-                  _InfoTile('Status', col.statusLabel),
-                  if (col.amountCollected != null)
-                    _InfoTile('Collected', col.amountCollected!.toCurrency),
-                  if (col.completedAt != null)
-                    _InfoTile(
-                        'Completed At',
-                        DateFormat('MMM d, yyyy h:mm a')
-                            .format(col.completedAt!)),
-                  if (col.collectionSchedule != null)
-                    _InfoTile(
-                        'Scheduled',
-                        DateFormat('MMM d, yyyy h:mm a')
-                            .format(col.collectionSchedule!)),
-                  if (col.notes != null && col.notes!.isNotEmpty)
-                    _InfoTile('Notes', col.notes!),
+                  SizedBox(width: 10),
+                  Text('Collection',
+                      style:
+                          TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
                 ],
               ),
-            ),
+              SizedBox(height: 16),
+              // Label sa kaliwa, halaga sa kanan — naka-align sa mga
+              // _InfoTile sa ibaba, at hindi na button-like na green box.
+              // Ang halagang HININGI ng lender ang ipinapakita (hindi ang
+              // naka-default na installment amount). Hal. ₱200 ang due pero
+              // ₱5,000 ang hininging kolektahin — ₱5,000 ito.
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                      width: 140,
+                      child: Text('Amount to Collect',
+                          style: TextStyle(
+                              fontSize: 12, color: context.cTextSecondary))),
+                  Expanded(
+                      child: Text(col.expectedAmount.toCurrency,
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: context.cTextPrimary))),
+                ],
+              ),
+              SizedBox(height: 16),
+              _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
+              // Kapag iba ang hiningi sa installment due, ipakita rin ito para
+              // malinaw kung saan galing ang halaga (partial o advance).
+              if ((col.expectedAmount - amountDue).abs() > 0.005)
+                _InfoTile('Installment Due', amountDue.toCurrency),
+              _InfoTile('Period',
+                  'Period ${schedule?['period_number'] ?? schedule?['installment_number'] ?? ''}'),
+              _InfoTile('Status', col.statusLabel),
+              if (col.amountCollected != null)
+                _InfoTile('Collected', col.amountCollected!.toCurrency),
+              if (col.completedAt != null)
+                _InfoTile('Completed At',
+                    DateFormat('MMM d, yyyy h:mm a').format(col.completedAt!)),
+              if (col.collectionSchedule != null)
+                _InfoTile(
+                    'Scheduled',
+                    DateFormat('MMM d, yyyy h:mm a')
+                        .format(col.collectionSchedule!)),
+              if (col.notes != null && col.notes!.isNotEmpty)
+                _InfoTile('Notes', col.notes!),
+            ],
           ),
-          SizedBox(height: 12),
+        ),
+      ),
+      SizedBox(height: 12),
     ];
   }
 
@@ -1181,78 +1390,80 @@ class _RiderCollectionDetailsScreenState
   /// screen — tingnan ang `_buildAcceptDeclineBar`.)
   List<Widget> _lenderInfoCards(CollectionAssignmentModel col) {
     return [
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: context.cBorder)),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+      Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: context.cBorder)),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 children: [
-                  Row(
-                    children: [
-                      // `cBrandGreen` para manatiling visible sa dark mode.
-                      Icon(Icons.person_outline,
-                          color: context.cBrandGreen, size: 18),
-                      SizedBox(width: 8),
-                      Text('Lender Information',
-                          style: TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700)),
-                    ],
-                  ),
-                  SizedBox(height: 14),
-                  _InfoTile('Name',
-                      col.lenderName.isEmpty ? 'N/A' : col.lenderName),
-                  _InfoTile('Loan #',
-                      col.loanNumber.isEmpty ? 'N/A' : col.loanNumber),
-                  _InfoTile(
-                      'Phone',
-                      (col.loanSchedule?['loan']?['lender_profiles']?['users']
-                                  ?['phone_number'] as String?) ??
-                          (col.lenderPhone.isEmpty ? 'N/A' : col.lenderPhone)),
-                  if (col.lenderAddresses.isNotEmpty)
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SizedBox(
-                            width: 110,
-                            child: Text('Address',
-                                style: TextStyle(
-                                    fontSize: 12,
-                                    color: context.cTextSecondary))),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: col.lenderAddresses.take(2).map((a) {
-                              final m = a as Map<String, dynamic>;
-                              final full = [
-                                m['street'],
-                                m['barangay'],
-                                m['city'],
-                                m['province']
-                              ].where((e) => e != null && (e as String).isNotEmpty).join(', ');
-                              // Address value sa KANAN ng label — pareho ng
-                              // alignment ng ibang info rows (walang chip).
-                              return Padding(
-                                padding: EdgeInsets.only(bottom: 6),
-                                child: Text(full.isEmpty ? 'N/A' : full,
-                                    style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w600,
-                                        color: context.cTextPrimary)),
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                      ],
-                    ),
+                  // `cBrandGreen` para manatiling visible sa dark mode.
+                  Icon(Icons.person_outline,
+                      color: context.cBrandGreen, size: 18),
+                  SizedBox(width: 8),
+                  Text('Lender Information',
+                      style:
+                          TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
                 ],
               ),
-            ),
+              SizedBox(height: 14),
+              _InfoTile(
+                  'Name', col.lenderName.isEmpty ? 'N/A' : col.lenderName),
+              _InfoTile(
+                  'Loan #', col.loanNumber.isEmpty ? 'N/A' : col.loanNumber),
+              _InfoTile(
+                  'Phone',
+                  (col.loanSchedule?['loan']?['lender_profiles']?['users']
+                          ?['phone_number'] as String?) ??
+                      (col.lenderPhone.isEmpty ? 'N/A' : col.lenderPhone)),
+              if (col.lenderAddresses.isNotEmpty)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                        width: 140,
+                        child: Text('Address',
+                            style: TextStyle(
+                                fontSize: 12, color: context.cTextSecondary))),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: col.lenderAddresses.take(2).map((a) {
+                          final m = a as Map<String, dynamic>;
+                          final full = [
+                            m['street'],
+                            m['barangay'],
+                            m['city'],
+                            m['province']
+                          ]
+                              .where(
+                                  (e) => e != null && (e as String).isNotEmpty)
+                              .join(', ');
+                          // Address value sa KANAN ng label — pareho ng
+                          // alignment ng ibang info rows (walang chip).
+                          return Padding(
+                            padding: EdgeInsets.only(bottom: 6),
+                            child: Text(full.isEmpty ? 'N/A' : full,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: context.cTextPrimary)),
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
           ),
-          SizedBox(height: 8),
+        ),
+      ),
+      SizedBox(height: 8),
     ];
   }
 
@@ -1260,6 +1471,7 @@ class _RiderCollectionDetailsScreenState
   /// kailangang mag-scroll) kapag 'assigned' pa ang collection.
   Widget _buildAcceptDeclineBar(CollectionAssignmentModel col) {
     final busy = ref.read(riderCollectionProvider).isSubmitting;
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     return Container(
       padding: EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
@@ -1272,58 +1484,65 @@ class _RiderCollectionDetailsScreenState
               offset: const Offset(0, -2)),
         ],
       ),
+      // Desktop: hindi nakaunat sa buong lapad ang dalawang button — naka-cap
+      // at nakasentro, kapareho ng content sa itaas.
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: OutlinedButton(
-                onPressed: busy
-                    ? null
-                    : () async {
-                        final ok = await ref
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: isDesktop ? 1240 : 1200),
+            child: Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: busy
+                        ? null
+                        : () async {
+                            final ok = await ref
+                                .read(riderCollectionProvider.notifier)
+                                .decline(widget.collectionId);
+                            if (mounted && ok) context.pop();
+                          },
+                    style: OutlinedButton.styleFrom(
+                        foregroundColor: AppColors.error,
+                        side: BorderSide(color: AppColors.error),
+                        minimumSize: const Size(0, 50),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12))),
+                    child: Text('Decline'),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    // Walang lilipatang step — nasa Step 1 na ang Details at
+                    // Collect; ang provider reload ang magpapakita ng fields.
+                    onPressed: busy
+                        ? null
+                        : () => ref
                             .read(riderCollectionProvider.notifier)
-                            .decline(widget.collectionId);
-                        if (mounted && ok) context.pop();
-                      },
-                style: OutlinedButton.styleFrom(
-                    foregroundColor: AppColors.error,
-                    side: BorderSide(color: AppColors.error),
-                    minimumSize: const Size(0, 50),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
-                child: Text('Decline'),
-              ),
+                            .accept(widget.collectionId),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.riderGreen,
+                        foregroundColor: Colors.white,
+                        disabledBackgroundColor:
+                            AppColors.riderGreen.withValues(alpha: 0.6),
+                        minimumSize: const Size(0, 50),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12))),
+                    child: busy
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : Text('Accept'),
+                  ),
+                ),
+              ],
             ),
-            SizedBox(width: 12),
-            Expanded(
-              child: ElevatedButton(
-                // Walang lilipatang step — nasa Step 1 na ang Details at
-                // Collect; ang provider reload ang magpapakita ng fields.
-                onPressed: busy
-                    ? null
-                    : () => ref
-                        .read(riderCollectionProvider.notifier)
-                        .accept(widget.collectionId),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.riderGreen,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor:
-                        AppColors.riderGreen.withValues(alpha: 0.6),
-                    minimumSize: const Size(0, 50),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
-                child: busy
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : Text('Accept'),
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -1336,149 +1555,145 @@ class _RiderCollectionDetailsScreenState
     final hasAmount = _amountCtrl.text.isNotEmpty;
 
     return [
-          if (alreadyRecorded) ...[
-            SizedBox(height: 12),
-            Container(
-              padding: EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.successLight,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: AppColors.riderGreen.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.check_circle,
-                      color: AppColors.riderGreen, size: 18),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                        'Already recorded: ${col.amountCollected!.toCurrency} — you can edit or continue.',
-                        style: TextStyle(
-                            fontSize: 13, color: AppColors.riderGreen)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-          SizedBox(height: 18),
-          Card(
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: BorderSide(color: context.cBorder)),
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Collection Details',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: context.cTextPrimary)),
-                  SizedBox(height: 14),
-                  // Sariling label sa itaas ng field — hindi na kailangang
-                  // lumipad ng label ng field, na napuputol kapag madilim ang
-                  // likod (wala sa loob ng puting fill ang kalahati nito).
-                  Text(
-                      alreadyRecorded
-                          ? 'Amount Collected (₱) — recorded'
-                          : 'Amount Collected (₱) *',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: context.cTextSecondary)),
-                  SizedBox(height: 6),
-                  AppTextField(
-                      controller: _amountCtrl,
-                      label: 'Amount Collected',
-                      hint: '0.00',
-                      floatingLabelBehavior: FloatingLabelBehavior.never,
-                      keyboardType: const TextInputType.numberWithOptions(
-                          decimal: true),
-                      // Comma separator habang nagta-type: 32000 -> 32,000.
-                      inputFormatters: const [
-                        ThousandsSeparatorInputFormatter()
-                      ],
-                      prefixIcon: Icons.payments_outlined,
-                      enabled: !alreadyRecorded),
-                  SizedBox(height: 14),
-                  Text('Notes (optional)',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: context.cTextSecondary)),
-                  SizedBox(height: 6),
-                  AppTextField(
-                      controller: _notesCtrl,
-                      label: 'Notes',
-                      hint: 'Any notes about the collection...',
-                      floatingLabelBehavior: FloatingLabelBehavior.never,
-                      maxLines: 3,
-                      prefixIcon: Icons.sticky_note_2_outlined),
-                ],
-              ),
-            ),
+      if (alreadyRecorded) ...[
+        SizedBox(height: 12),
+        Container(
+          padding: EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: AppColors.successLight,
+            borderRadius: BorderRadius.circular(12),
+            border:
+                Border.all(color: AppColors.riderGreen.withValues(alpha: 0.2)),
           ),
-          SizedBox(height: 16),
-          // Back + Next — nasa ilalim ng Collection Details card.
-          Row(
+          child: Row(
             children: [
+              Icon(Icons.check_circle, color: AppColors.riderGreen, size: 18),
+              SizedBox(width: 8),
               Expanded(
-                child: OutlinedButton(
-                  // Na-merge na ang Collect sa Step 1, kaya walang dating step
-                  // na babalikan — binabalik na lang nito ang rider sa listahan.
-                  onPressed: () => context.pop(),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.cTextSecondary,
-                    side: BorderSide(color: context.cBorder),
-                    minimumSize: const Size(0, 46),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: Text('Back'),
-                ),
-              ),
-              SizedBox(width: 12),
-              Expanded(
-                // Pantay ang lapad ng Back at Next.
-                child: ElevatedButton(
-                  // Next = validation lang papuntang Proof (walang record sa
-                  // server hangga't hindi pa ni-submit sa Step 3).
-                  onPressed: alreadyRecorded
-                      ? () => _goToStep(1)
-                      : (!hasAmount || _isSubmitting)
-                          ? null
-                          : _validateAmountAndNext,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.riderGreen,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 46),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isSubmitting
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Text('Next',
-                                style:
-                                    TextStyle(fontWeight: FontWeight.w700)),
-                            SizedBox(width: 6),
-                            Icon(Icons.arrow_forward, size: 18),
-                          ],
-                        ),
-                ),
+                child: Text(
+                    'Already recorded: ${col.amountCollected!.toCurrency} — you can edit or continue.',
+                    style:
+                        TextStyle(fontSize: 13, color: AppColors.riderGreen)),
               ),
             ],
           ),
-          SizedBox(height: 8),
+        ),
+      ],
+      SizedBox(height: 18),
+      Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(color: context.cBorder)),
+        child: Padding(
+          padding: EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Collection Details',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: context.cTextPrimary)),
+              SizedBox(height: 14),
+              // Sariling label sa itaas ng field — hindi na kailangang
+              // lumipad ng label ng field, na napuputol kapag madilim ang
+              // likod (wala sa loob ng puting fill ang kalahati nito).
+              Text(
+                  alreadyRecorded
+                      ? 'Amount Collected (₱) — recorded'
+                      : 'Amount Collected (₱) *',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: context.cTextSecondary)),
+              SizedBox(height: 6),
+              AppTextField(
+                  controller: _amountCtrl,
+                  label: 'Amount Collected',
+                  hint: '0.00',
+                  floatingLabelBehavior: FloatingLabelBehavior.never,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  // Comma separator habang nagta-type: 32000 -> 32,000.
+                  inputFormatters: const [ThousandsSeparatorInputFormatter()],
+                  prefixIcon: Icons.payments_outlined,
+                  enabled: !alreadyRecorded),
+              SizedBox(height: 14),
+              Text('Notes (optional)',
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: context.cTextSecondary)),
+              SizedBox(height: 6),
+              AppTextField(
+                  controller: _notesCtrl,
+                  label: 'Notes',
+                  hint: 'Any notes about the collection...',
+                  floatingLabelBehavior: FloatingLabelBehavior.never,
+                  maxLines: 3,
+                  prefixIcon: Icons.sticky_note_2_outlined),
+            ],
+          ),
+        ),
+      ),
+      SizedBox(height: 16),
+      // Back + Next — nasa ilalim ng Collection Details card.
+      Row(
+        children: [
+          Expanded(
+            child: OutlinedButton(
+              // Na-merge na ang Collect sa Step 1, kaya walang dating step
+              // na babalikan — binabalik na lang nito ang rider sa listahan.
+              onPressed: () => context.pop(),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: context.cTextSecondary,
+                side: BorderSide(color: context.cBorder),
+                minimumSize: const Size(0, 46),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: Text('Back'),
+            ),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            // Pantay ang lapad ng Back at Next.
+            child: ElevatedButton(
+              // Next = validation lang papuntang Proof (walang record sa
+              // server hangga't hindi pa ni-submit sa Step 3).
+              onPressed: alreadyRecorded
+                  ? () => _goToStep(1)
+                  : (!hasAmount || _isSubmitting)
+                      ? null
+                      : _validateAmountAndNext,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.riderGreen,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(0, 46),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+              ),
+              child: _isSubmitting
+                  ? SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Next',
+                            style: TextStyle(fontWeight: FontWeight.w700)),
+                        SizedBox(width: 6),
+                        Icon(Icons.arrow_forward, size: 18),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+      SizedBox(height: 8),
     ];
   }
 
@@ -1498,8 +1713,7 @@ class _RiderCollectionDetailsScreenState
               ),
               child: Column(
                 children: [
-                  Icon(Icons.verified_outlined,
-                      size: 40, color: Colors.white),
+                  Icon(Icons.verified_outlined, size: 40, color: Colors.white),
                   SizedBox(height: 10),
                   Text('Collection completed!',
                       style: TextStyle(
@@ -1514,15 +1728,15 @@ class _RiderCollectionDetailsScreenState
                   if (col.completedAt != null)
                     Text(
                       'Completed: ${DateFormat('MMM d, yyyy h:mm a').format(col.completedAt!)}',
-                      style:
-                          TextStyle(color: Colors.white70, fontSize: 11),
+                      style: TextStyle(color: Colors.white70, fontSize: 11),
                     ),
                 ],
               ),
             ),
             SizedBox(height: 16),
-            AppButton(                label: 'Go to Review',
-                onPressed: () => _goToStep(2),
+            AppButton(
+              label: 'Go to Review',
+              onPressed: () => _goToStep(2),
               color: AppColors.riderGreen,
               icon: Icons.arrow_forward,
             ),
@@ -1536,200 +1750,265 @@ class _RiderCollectionDetailsScreenState
             col.amountCollected == null &&
             _amountCtrl.text.isEmpty);
 
-    return SingleChildScrollView(
-      padding: EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (needCollectFirst)
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                  color: AppColors.warningLight,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                      color: AppColors.warning.withValues(alpha: 0.3))),
-              child: Row(
-                children: [
-                  Icon(Icons.lock_outline,
-                      color: AppColors.warning, size: 18),
-                  SizedBox(width: 10),
-                  Expanded(
-                      child: Text(
-                          'Record the collected amount in Collect step first before uploading proof.',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.warning,
-                              fontWeight: FontWeight.w600,
-                              height: 1.3))),
-                  SizedBox(width: 8),
-                  TextButton(
-                    onPressed: () => _goToStep(0),
-                    style: TextButton.styleFrom(
-                      foregroundColor: AppColors.warning,
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                    ),
-                    child: Text('Go to Collect',
-                        style: TextStyle(
-                            fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
-                ],
-              ),
-            ),
-          if (!needCollectFirst) ...[
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                // Theme-aware fill — kapag `Colors.white` ito, puti ang card
-                // sa dark mode at puti/light din ang text (hindi visible).
-                color: context.cSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.cBorder),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.receipt_long_outlined,
-                          color: AppColors.riderGreen, size: 18),
-                      SizedBox(width: 8),
-                      Text('Payment Proof',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: context.cTextPrimary)),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  _PhotoPicker(
-                    photo: _proofPhoto,
-                    onPick: _showProofSourceSheet,
-                    onView: _viewProofPhoto,
-                  ),
-                ],
-              ),
-            ),
-            SizedBox(height: 14),
-            // Signature pad card
-            Container(
-              padding: EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                // Theme-aware fill — kapag `Colors.white` ito, puti ang card
-                // sa dark mode at puti/light din ang text (hindi visible).
-                color: context.cSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: context.cBorder),
-                boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.04),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2))
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.draw_outlined,
-                          color: AppColors.riderGreen, size: 18),
-                      SizedBox(width: 8),
-                      Text('Lender Signature (optional)',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: context.cTextPrimary)),
-                    ],
-                  ),
-                  SizedBox(height: 12),
-                  SignaturePad(
-                    // Mas mataas na canvas para sa lender signature card.
-                    height: 300,
-                    // Text-only ang Clear / Confirm — walang ✕ at ✓ icons.
-                    showActionIcons: false,
-                    // "Signature cleared" feedback: 1 segundo lang (rider flow).
-                    clearedFeedbackDuration: const Duration(seconds: 1),
-                    onSignatureChanged: (base64) =>
-                        setState(() => _signatureBase64 = base64),
-                  ),
-                  // Plain status text lang — hindi pill/button ang itsura.
-                  if (_signatureBase64 != null)
-                    Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(Icons.check,
-                              color: context.cBrandGreen, size: 14),
-                          SizedBox(width: 6),
-                          Text('Signature captured',
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: context.cTextSecondary,
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ),
+    // Parehong widgets sa mobile at desktop — ang layout lang ang nag-iiba.
+    final warning = _proofLockBanner();
+    final paymentCard = _paymentProofCard();
+    final signatureCard = _signatureCard();
+    final navActions = _proofNavActions(col);
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+
+    if (!isDesktop) {
+      return SingleChildScrollView(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (needCollectFirst) warning,
+            if (!needCollectFirst) ...[
+              paymentCard,
+              SizedBox(height: 14),
+              signatureCard,
+              SizedBox(height: 16),
+              navActions,
+            ],
             SizedBox(height: 16),
-            // Back + Next — nasa ibaba ng Lender Signature card, pantay ang
-            // lapad (gaya ng Step 1). Dati nasa bottom bar pa ito.
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => _goToStep(0),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: context.cTextSecondary,
-                      side: BorderSide(color: context.cBorder),
-                      minimumSize: const Size(0, 46),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: const Text('Back'),
-                  ),
+          ],
+        ),
+      );
+    }
+
+    // DESKTOP: DALAWANG COLUMN — Payment Proof sa KALIWA, Lender Signature sa
+    // KANAN — at naka-cap (1080) ang buong hakbang. Dati, isang column lang na
+    // nakaunat sa buong lapad: blangko ang kalahati ng bawat card at sobrang
+    // lapad ng signature canvas, kaya mukhang mobile page na pinahaba.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (needCollectFirst) warning,
+              if (!needCollectFirst) ...[
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(flex: 5, child: paymentCard),
+                    const SizedBox(width: 20),
+                    Expanded(flex: 6, child: signatureCard),
+                  ],
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    // Kailangan muna ng payment proof bago makalipat sa Step 3.
-                    onPressed: _proofPhoto != null
-                        ? () => _validateProofAndNext(col)
-                        : null,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.riderGreen,
-                      foregroundColor: Colors.white,
-                      minimumSize: const Size(0, 46),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('Next',
-                            style: TextStyle(fontWeight: FontWeight.w700)),
-                        const SizedBox(width: 6),
-                        const Icon(Icons.arrow_forward, size: 18),
-                      ],
-                    ),
+                const SizedBox(height: 20),
+                // Back + Next sa ibaba, naka-align sa KANAN — hindi nakaunat
+                // sa buong lapad.
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 380),
+                    child: navActions,
                   ),
                 ),
               ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Yellow lock banner kapag hindi pa naka-record ang amount (kailangan munang
+  /// pumunta sa Collect step bago mag-upload ng proof).
+  Widget _proofLockBanner() {
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.all(14),
+      decoration: BoxDecoration(
+          color: AppColors.warningLight,
+          borderRadius: BorderRadius.circular(12),
+          border:
+              Border.all(color: AppColors.warning.withValues(alpha: 0.3))),
+      child: Row(
+        children: [
+          Icon(Icons.lock_outline, color: AppColors.warning, size: 18),
+          SizedBox(width: 10),
+          Expanded(
+              child: Text(
+                  'Record the collected amount in Collect step first before uploading proof.',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.warning,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3))),
+          SizedBox(width: 8),
+          TextButton(
+            onPressed: () => _goToStep(0),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.warning,
+              padding: EdgeInsets.symmetric(horizontal: 8),
             ),
-          ],
-          SizedBox(height: 16),
+            child:
+                Text('Go to Collect', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+          ),
         ],
       ),
+    );
+  }
+
+  /// Card ng Payment Proof photo (preview + Upload).
+  Widget _paymentProofCard() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        // Theme-aware fill — kapag `Colors.white` ito, puti ang card
+        // sa dark mode at puti/light din ang text (hindi visible).
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.receipt_long_outlined,
+                  color: AppColors.riderGreen, size: 18),
+              SizedBox(width: 8),
+              Text('Payment Proof',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: context.cTextPrimary)),
+            ],
+          ),
+          SizedBox(height: 12),
+          _PhotoPicker(
+            photo: _proofPhoto,
+            onPick: _showProofSourceSheet,
+            onView: _viewProofPhoto,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Card ng Lender Signature (optional) — signature pad lang.
+  Widget _signatureCard() {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        // Theme-aware fill — kapag `Colors.white` ito, puti ang card
+        // sa dark mode at puti/light din ang text (hindi visible).
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.draw_outlined,
+                  color: AppColors.riderGreen, size: 18),
+              SizedBox(width: 8),
+              // Flexible — para hindi umapaw ang mahabang title sa maliit na
+              // screen o kapag malaki ang text scale.
+              Flexible(
+                child: Text('Lender Signature (optional)',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: context.cTextPrimary)),
+              ),
+            ],
+          ),
+          SizedBox(height: 12),
+          SignaturePad(
+            // Mas mataas na canvas para sa lender signature card.
+            height: 300,
+            // Text-only ang Clear / Confirm — walang ✕ at ✓ icons.
+            showActionIcons: false,
+            // "Signature cleared" feedback: 1 segundo lang (rider flow).
+            clearedFeedbackDuration: const Duration(seconds: 1),
+            onSignatureChanged: (base64) =>
+                setState(() => _signatureBase64 = base64),
+          ),
+          // Plain status text lang — hindi pill/button ang itsura.
+          if (_signatureBase64 != null)
+            Padding(
+              padding: EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.check, color: context.cBrandGreen, size: 14),
+                  SizedBox(width: 6),
+                  Text('Signature captured',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: context.cTextSecondary,
+                          fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Back + Next — nasa ibaba ng Lender Signature card sa mobile at naka-align
+  /// sa kanan sa desktop. Parehong lapad ang dalawang button.
+  Widget _proofNavActions(CollectionAssignmentModel col) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () => _goToStep(0),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.cTextSecondary,
+              side: BorderSide(color: context.cBorder),
+              minimumSize: const Size(0, 46),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Back'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton(
+            // Kailangan muna ng payment proof bago makalipat sa Step 3.
+            onPressed:
+                _proofPhoto != null ? () => _validateProofAndNext(col) : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.riderGreen,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 46),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Next', style: TextStyle(fontWeight: FontWeight.w700)),
+                const SizedBox(width: 6),
+                const Icon(Icons.arrow_forward, size: 18),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1737,128 +2016,218 @@ class _RiderCollectionDetailsScreenState
   /// Submit ay naka-pin sa ibaba ng mobile view (plain buttons, hindi footer na
   /// may background/border).
   Widget _buildReviewTab(CollectionAssignmentModel col) {
-    return Column(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            padding: EdgeInsets.all(16),
-            child: _reviewSummaryCard(col),
+    final navActions = _reviewNavActions(col);
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+
+    if (!isDesktop) {
+      return Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.all(16),
+              child: _reviewSummaryCard(col),
+            ),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-          child: Row(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: navActions,
+          ),
+        ],
+      );
+    }
+
+    // DESKTOP: DALAWANG column — Lender & Loan info sa KALIWA, ang collection
+    // amounts / proof checks sa KANAN — at naka-cap (1080) at nakasentro ang
+    // buong hakbang. Dati, isang card lang na nakaunat sa buong lapad: blangko
+    // ang kanang kalahati ng bawat row at mahirap sundan ang label → value.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1080),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () => _goToStep(1),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: context.cTextSecondary,
-                    side: BorderSide(color: context.cBorder),
-                    minimumSize: const Size(0, 46),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _reviewCard(
+                      icon: Icons.person_outline,
+                      title: 'Lender & Loan',
+                      rows: _reviewLenderRows(col),
+                    ),
                   ),
-                  child: const Text('Back'),
-                ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: _reviewCard(
+                      icon: Icons.summarize_outlined,
+                      title: 'Collection Details',
+                      rows: _reviewCollectionRows(col),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _isSubmitting ? null : () => _submitReview(col),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.riderGreen,
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size(0, 46),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: _isSubmitting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white))
-                      : const Text('Submit',
-                          style: TextStyle(fontWeight: FontWeight.w700)),
+              const SizedBox(height: 20),
+              // Back + Submit sa ibaba, naka-align sa KANAN — hindi nakaunat
+              // sa buong lapad.
+              Align(
+                alignment: Alignment.centerRight,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 380),
+                  child: navActions,
                 ),
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Back + Submit (pareho sa mobile at desktop, layout lang ang nag-iiba).
+  Widget _reviewNavActions(CollectionAssignmentModel col) {
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton(
+            onPressed: () => _goToStep(1),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: context.cTextSecondary,
+              side: BorderSide(color: context.cBorder),
+              minimumSize: const Size(0, 46),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Back'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: ElevatedButton(
+            onPressed: _isSubmitting ? null : () => _submitReview(col),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.riderGreen,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 46),
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: _isSubmitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: Colors.white))
+                : const Text('Submit',
+                    style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ),
       ],
     );
   }
 
-  /// Review Summary card — Lender info, amounts, at proof/signature checks.
-  Widget _reviewSummaryCard(CollectionAssignmentModel col) {
+  /// Review card na may header + listahan ng rows (desktop two-column view).
+  Widget _reviewCard({
+    required IconData icon,
+    required String title,
+    required List<Widget> rows,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        // Theme-aware fill — dating `Colors.white` (puti-sa-puti sa
+        // dark mode, kaya hindi visible ang mga label).
+        color: context.cSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: AppColors.riderGreen, size: 18),
+              SizedBox(width: 8),
+              Flexible(
+                child: Text(title,
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+              ),
+            ],
+          ),
+          Divider(height: 20),
+          ...rows,
+        ],
+      ),
+    );
+  }
+
+  /// Lender + loan info rows — kaliwang column sa desktop, unang kalahati ng
+  /// summary card sa mobile.
+  List<Widget> _reviewLenderRows(CollectionAssignmentModel col) {
     final schedule = col.loanSchedule;
     final amountDue = (schedule?['amount_due'] as num?)?.toDouble() ?? 0;
+    return [
+      _ReviewRow('Lender', col.lenderName.isEmpty ? '—' : col.lenderName),
+      _ReviewRow('Loan #', col.loanNumber.isEmpty ? '—' : col.loanNumber),
+      _ReviewRow('Due Date', schedule?['due_date'] ?? '—'),
+      _ReviewRow('Amount to Collect', col.expectedAmount.toCurrency,
+          valueColor: context.cTextPrimary, valueBold: true),
+      // Kapag iba ang hiningi sa installment due, ipakita rin ito para malinaw
+      // kung partial/advance ang hininging bayad.
+      if ((col.expectedAmount - amountDue).abs() > 0.005)
+        _ReviewRow('Installment Due', amountDue.toCurrency),
+    ];
+  }
+
+  /// Collection amounts, proof/signature checks, at status rows — kanang column
+  /// sa desktop, ikalawang kalahati ng summary card sa mobile.
+  List<Widget> _reviewCollectionRows(CollectionAssignmentModel col) {
     final collectedStr = col.amountCollected?.toCurrency ??
         (_amountCtrl.text.isEmpty ? '—' : '₱${_amountCtrl.text}');
     final notesStr = col.notes ?? _notesCtrl.text;
+    return [
+      // Plain row na lang — hindi na green box/button ang itsura.
+      _ReviewRow('Amount Collected', collectedStr, valueBold: true),
+      // Proof at Lender Signature — check kapag meron, `N/A` kapag wala.
+      _ReviewCheckRow('Proof', present: _proofPhoto != null),
+      _ReviewCheckRow('Lender Signature',
+          present: _signatureBase64 != null, presentLabel: 'Captured'),
+      _ReviewRow('Notes', notesStr.isEmpty ? 'No notes' : notesStr),
+      _ReviewRow('Status', col.statusLabel),
+      // Business rule: ang `completed_at` ay may halaga lang kapag tapos na
+      // talaga ang koleksyon (status = 'completed'). Hindi na ito sine-set ng
+      // record step, kaya hindi na lumalabas ang mapanlinlang na "Completed"
+      // na timestamp habang in_progress.
+      if (col.status == 'completed' && col.completedAt != null)
+        _ReviewRow('Completed',
+            DateFormat('MMM d, yyyy h:mm a').format(col.completedAt!)),
+    ];
+  }
 
-    return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Summary card
-          Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              // Theme-aware fill — dating `Colors.white` (puti-sa-puti sa
-              // dark mode, kaya hindi visible ang mga label).
-              color: context.cSurface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: context.cBorder),
-              boxShadow: [
-                BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2))
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(Icons.summarize_outlined,
-                        color: AppColors.riderGreen, size: 18),
-                    SizedBox(width: 8),
-                    Text('Review Details',
-                        style: TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w800)),
-                  ],
-                ),
-                Divider(height: 20),
-                _ReviewRow('Lender', col.lenderName.isEmpty ? '—' : col.lenderName),
-                _ReviewRow('Loan #', col.loanNumber.isEmpty ? '—' : col.loanNumber),
-                _ReviewRow('Due Date', schedule?['due_date'] ?? '—'),
-                _ReviewRow('Amount Due', amountDue.toCurrency,
-                    valueColor: context.cTextPrimary, valueBold: true),
-                // Plain row na lang — hindi na green box/button ang itsura.
-                _ReviewRow('Amount Collected', collectedStr, valueBold: true),
-                // Proof at Lender Signature — check kapag meron, `N/A` kapag wala.
-                _ReviewCheckRow('Proof', present: _proofPhoto != null),
-                _ReviewCheckRow('Lender Signature',
-                    present: _signatureBase64 != null,
-                    presentLabel: 'Captured'),
-                _ReviewRow('Notes', notesStr.isEmpty ? 'No notes' : notesStr),
-                _ReviewRow('Status', col.statusLabel),
-                // Business rule: ang `completed_at` ay may halaga lang kapag
-                // tapos na talaga ang koleksyon (status = 'completed'). Hindi
-                // na ito sine-set ng record step, kaya hindi na lumalabas ang
-                // mapanlinlang na "Completed" na timestamp habang in_progress.
-                if (col.status == 'completed' && col.completedAt != null)
-                  _ReviewRow('Completed',
-                      DateFormat('MMM d, yyyy h:mm a')
-                          .format(col.completedAt!)),
-              ],
-            ),
-          ),
-        ]);
+  /// Review Summary card (mobile) — Lender info, amounts, at proof/signature
+  /// checks sa isang card.
+  Widget _reviewSummaryCard(CollectionAssignmentModel col) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _reviewCard(
+        icon: Icons.summarize_outlined,
+        title: 'Review Details',
+        rows: [
+          ..._reviewLenderRows(col),
+          ..._reviewCollectionRows(col),
+        ],
+      ),
+    ]);
   }
 }
+
 
 // ── helpers ────────────────────────────────────────────────────────────────
 
@@ -1874,11 +2243,13 @@ class _InfoTile extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Mas maluwag na label column (dati 110) — hindi na dumidikit ang
+          // value sa mahabang label gaya ng "Amount to Collect".
           SizedBox(
-              width: 110,
+              width: 140,
               child: Text(label,
-                  style: TextStyle(
-                      fontSize: 12, color: context.cTextSecondary))),
+                  style:
+                      TextStyle(fontSize: 12, color: context.cTextSecondary))),
           Expanded(
               child: Text(value,
                   style: TextStyle(
@@ -1911,8 +2282,8 @@ class _ReviewCheckRow extends StatelessWidget {
           SizedBox(
               width: 145,
               child: Text(label,
-                  style: TextStyle(
-                      fontSize: 14, color: context.cTextSecondary))),
+                  style:
+                      TextStyle(fontSize: 14, color: context.cTextSecondary))),
           Expanded(
             child: present
                 ? Row(
@@ -1957,8 +2328,8 @@ class _ReviewRow extends StatelessWidget {
           SizedBox(
               width: 145,
               child: Text(label,
-                  style: TextStyle(
-                      fontSize: 14, color: context.cTextSecondary))),
+                  style:
+                      TextStyle(fontSize: 14, color: context.cTextSecondary))),
           Expanded(
             child: Text(value,
                 style: TextStyle(
@@ -2017,8 +2388,7 @@ class _PhotoPicker extends StatelessWidget {
                     ],
                   ),
                 )
-              : XFilePreview(
-                  file: photo!, height: 180, width: double.infinity),
+              : XFilePreview(file: photo!, height: 180, width: double.infinity),
         ),
         SizedBox(height: 12),
         // Upload (+ View kapag may na-upload na) — nasa kanan ng card, at hindi
@@ -2033,7 +2403,8 @@ class _PhotoPicker extends StatelessWidget {
                 onPressed: onView,
                 icon: const Icon(Icons.visibility_outlined, size: 16),
                 label: const Text('View',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: context.cBrandGreen,
                   foregroundColor: Colors.white,
@@ -2067,4 +2438,3 @@ class _PhotoPicker extends StatelessWidget {
     );
   }
 }
-

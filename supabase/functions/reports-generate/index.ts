@@ -347,6 +347,42 @@ async function buildCollectionReport(
   });
 }
 
+// ── Rider Collection Summary ────────────────────────────────────────────────
+// Gumagamit ng PAREHONG `rider_collection_monitoring` RPC na pinagmumulan ng
+// Rider Collection Monitoring page, kaya nagre-reconcile ang report totals sa
+// dashboard (expected vs confirmed vs remaining, deduped per rider/schedule).
+async function buildRiderCollectionSummary(
+  db: Db,
+  params: Record<string, string>,
+): Promise<Record<string, unknown>[]> {
+  const riderId = typeof params.rider_id === 'string' &&
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.rider_id)
+    ? params.rider_id
+    : null;
+  const { data, error } = await db.rpc('rider_collection_monitoring', {
+    p_rider_id: riderId,
+    p_date_from: dateParam(params.date_from),
+    p_date_to: dateParam(params.date_to),
+    p_search: null,
+    p_status: 'all',
+  });
+  if (error) throw new Error(`rider_collection_summary query failed: ${error.message}`);
+  const rows = ((data ?? {}) as { rows?: Array<Record<string, any>> }).rows ?? [];
+  return rows.map((r) => ({
+    riderName: na(r.rider_name),
+    assignedAccounts: Number(r.assigned_accounts ?? 0),
+    assignedInstallments: Number(r.assigned_installments ?? 0),
+    expectedCollection: Number(r.expected_collection ?? 0),
+    confirmedCollection: Number(r.confirmed_collection ?? 0),
+    remainingDue: Number(r.remaining_due ?? 0),
+    overdueAccounts: Number(r.overdue_accounts ?? 0),
+    overdueInstallments: Number(r.overdue_installments ?? 0),
+    collectionPerformance: r.collection_performance == null
+      ? NA
+      : `${r.collection_performance}%`,
+  }));
+}
+
 async function buildLenderReport(
   db: Db,
   params: Record<string, string>,
@@ -763,6 +799,8 @@ async function fetchReportData(
       return buildPaymentReport(db, params);
     case 'collection_report':
       return buildCollectionReport(db, params);
+    case 'rider_collection_summary':
+      return buildRiderCollectionSummary(db, params);
     case 'lender_report':
       return buildLenderReport(db, params, false);
     case 'account_upgrade_report':
@@ -797,6 +835,7 @@ const SUPPORTED_TEMPLATES = new Set([
   'rider_report', 'employee_report', 'financial_report', 'revenue_report',
   'interest_report', 'penalty_report', 'overdue_report', 'audit_report',
   'ci_report', 'disbursement_report', 'account_upgrade_report',
+  'rider_collection_summary',
 ]);
 
 serve(async (req) => {

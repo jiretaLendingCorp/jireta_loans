@@ -78,6 +78,9 @@ class HmCollectionDetailsScreen extends ConsumerWidget {
                   _InfoRow('Request Type', isOffice ? 'Pay at the Office' : 'Rider Collection'),
                   _InfoRow('Status', col.status),
                   _InfoRow('Amount Due', schedule['amount_due'] != null ? '₱${fmt.format((schedule['amount_due'] as num).toDouble())}' : 'N/A'),
+                  // Ang aktwal na HININGI ng lender — maaaring partial o advance,
+                  // kaya hindi ito laging katulad ng installment amount.
+                  _InfoRow('Requested Amount', col.requestedAmount != null ? '₱${fmt.format(col.requestedAmount!)}' : 'Full installment'),
                   _InfoRow('Amount Collected', col.amountCollected != null ? '₱${fmt.format(col.amountCollected!)}' : 'Not yet collected'),
                 ]),
               ),

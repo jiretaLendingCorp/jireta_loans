@@ -244,11 +244,11 @@ class _NotifCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 2),
+                  // Buong mensahe — dating `maxLines: 2` kaya putol ang
+                  // mababasa kapag mahaba ang notification.
                   Text(notif.body,
                       style: const TextStyle(
-                          fontSize: 12, color: AppColors.textSecondary),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis),
+                          fontSize: 12, color: AppColors.textSecondary)),
                   const SizedBox(height: 4),
                   Text(
                     DateFormat('MMM d, y h:mm a').format(notif.createdAt),

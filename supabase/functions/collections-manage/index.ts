@@ -31,6 +31,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import { validateUUID } from '../_shared/validators.ts';
 import { sendPushNotification, notifyStaff } from '../_shared/notifications.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
@@ -359,6 +360,15 @@ serve(async (req) => {
         //    (`in_progress`/`completed`) pero WALANG verified payment — kaya
         //    hindi nababawasan ang loan balance at "hindi na-colect" ang amount.
         return await handleCollectionReconcile(req);
+      case 'create-rider-quota':
+        // HM only: mag-assign ng daily/weekly/monthly quota sa isang rider.
+        return await handleRiderQuotaCreate(req);
+      case 'update-rider-quota':
+        // HM only: i-edit ang upcoming/active quota (hindi na tapos na period).
+        return await handleRiderQuotaUpdate(req);
+      case 'close-rider-quota':
+        // HM only: soft-close (is_active=false) — nananatili ang history.
+        return await handleRiderQuotaClose(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -1416,4 +1426,396 @@ async function handleCollectionReject(req: Request) {
     message: 'Collection rejected — please reassign a rider',
     status: 'rejected',
   });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// RIDER QUOTA MANAGEMENT (migration 00187) — Head Manager only
+//
+// Ang confirmed collections ay HINDI iniimbak: kino-compute ito ng
+// `rider_quota_monitoring` / `rider_quota_self` mula sa verified payments na
+// naka-link sa assignment ng rider at pumapasok sa quota window (Asia/Manila).
+// Dito lang binabago ang quota definition — at naka-audit bawat galaw.
+// ══════════════════════════════════════════════════════════════════════════
+
+const QUOTA_PERIODS = new Set(['daily', 'weekly', 'monthly']);
+const QUOTA_MAX_TARGET = 100_000_000; // ₱100M sanity cap (DECIMAL(12,2) column)
+const QUOTA_SPAN_DAYS: Record<string, { min: number; max: number }> = {
+  daily: { min: 1, max: 1 },
+  weekly: { min: 7, max: 7 },
+  monthly: { min: 28, max: 31 },
+};
+
+/** Manila calendar day ngayon (YYYY-MM-DD). */
+function manilaToday(): string {
+  return new Date(Date.now() + 8 * 3600 * 1000).toISOString().slice(0, 10);
+}
+
+/** `YYYY-MM-DD` lang; tinatanggihan ang impossible dates gaya ng 2026-02-31. */
+function quotaDateOnly(value: unknown): string | null {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const year = Number(value.slice(0, 4));
+  if (year < 2000 || year > 2100) return null;
+  const dt = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(dt.getTime())) return null;
+  if (dt.toISOString().slice(0, 10) !== value) return null;
+  return value;
+}
+
+function quotaSpanDays(start: string, end: string): number {
+  const a = Date.parse(`${start}T00:00:00Z`);
+  const b = Date.parse(`${end}T00:00:00Z`);
+  return Math.round((b - a) / 86_400_000) + 1;
+}
+
+interface QuotaInput {
+  period: string;
+  target_amount: number;
+  start_date: string;
+  end_date: string;
+  notes: string | null;
+}
+
+/** Shared validation para sa create at update. Error kapag may mali. */
+function parseQuotaInput(body: Record<string, unknown>):
+  | { ok: true; value: QuotaInput }
+  | { ok: false; error: Response } {
+  const period = String(body.period ?? '').trim().toLowerCase();
+  if (!QUOTA_PERIODS.has(period)) {
+    return {
+      ok: false,
+      error: errorResponse('period must be daily, weekly or monthly', 400, 'VALIDATION_ERROR'),
+    };
+  }
+
+  const rawTarget = body.target_amount;
+  const target = typeof rawTarget === 'number' ? rawTarget : Number(rawTarget);
+  if (!Number.isFinite(target) || target <= 0) {
+    return {
+      ok: false,
+      error: errorResponse('target_amount must be a positive amount', 400, 'VALIDATION_ERROR'),
+    };
+  }
+  if (target > QUOTA_MAX_TARGET) {
+    return {
+      ok: false,
+      error: errorResponse(`target_amount must not exceed ${QUOTA_MAX_TARGET}`, 400, 'VALIDATION_ERROR'),
+    };
+  }
+  // DECIMAL(12,2) — huwag hayaang i-round pababa ng DB ang halaga.
+  const rounded = Math.round(target * 100) / 100;
+  if (rounded !== target) {
+    return {
+      ok: false,
+      error: errorResponse('target_amount must have at most 2 decimal places', 400, 'VALIDATION_ERROR'),
+    };
+  }
+
+  const start = quotaDateOnly(body.start_date);
+  const end = quotaDateOnly(body.end_date);
+  if (!start || !end) {
+    return {
+      ok: false,
+      error: errorResponse('start_date and end_date must be valid YYYY-MM-DD dates', 400, 'VALIDATION_ERROR'),
+    };
+  }
+  if (end < start) {
+    return {
+      ok: false,
+      error: errorResponse('start_date must not be after end_date', 400, 'VALIDATION_ERROR'),
+    };
+  }
+
+  const span = quotaSpanDays(start, end);
+  const rule = QUOTA_SPAN_DAYS[period];
+  if (span < rule.min || span > rule.max) {
+    const label = period === 'daily' ? '1 day' : period === 'weekly' ? '7 days' : '28–31 days';
+    return {
+      ok: false,
+      error: errorResponse(
+        `A ${period} quota must cover exactly ${label}`,
+        400,
+        'INVALID_QUOTA_PERIOD',
+      ),
+    };
+  }
+
+  const rawNotes = body.notes;
+  const notes = typeof rawNotes === 'string' && rawNotes.trim() !== ''
+    ? rawNotes.trim().slice(0, 500)
+    : null;
+
+  return { ok: true, value: { period, target_amount: rounded, start_date: start, end_date: end, notes } };
+}
+
+/** Hanapin ang ACTIVE quota na nago-overlap sa ibinigay na window. */
+async function findOverlappingActiveQuota(
+  db: ReturnType<typeof getAdminClient>,
+  riderId: string,
+  start: string,
+  end: string,
+  excludeId?: string,
+) {
+  let query = db
+    .from('rider_quotas')
+    .select('id, start_date, end_date, target_amount')
+    .eq('rider_id', riderId)
+    .eq('is_active', true)
+    .lte('start_date', end)
+    .gte('end_date', start);
+  if (excludeId) query = query.neq('id', excludeId);
+  const { data } = await query.limit(1).maybeSingle();
+  return data as { id: string; start_date: string; end_date: string; target_amount: number } | null;
+}
+
+async function requireRiderRole(
+  db: ReturnType<typeof getAdminClient>,
+  riderId: string,
+): Promise<{ ok: true } | { ok: false; error: Response }> {
+  if (!validateUUID(riderId)) {
+    return { ok: false, error: errorResponse('Invalid rider_id', 400, 'VALIDATION_ERROR') };
+  }
+  const { data: rider } = await db
+    .from('users')
+    .select('id, account_status, roles!users_role_id_fkey(name)')
+    .eq('id', riderId)
+    .maybeSingle();
+  if (!rider) {
+    return { ok: false, error: errorResponse('Rider not found', 404, 'NOT_FOUND') };
+  }
+  if ((embedAsObject((rider as any).roles) as any)?.name !== 'rider') {
+    return { ok: false, error: errorResponse('Selected user is not a rider', 400, 'VALIDATION_ERROR') };
+  }
+  if ((rider as any).account_status !== 'active') {
+    return { ok: false, error: errorResponse('Rider account is not active', 400, 'VALIDATION_ERROR') };
+  }
+  return { ok: true };
+}
+
+async function handleRiderQuotaCreate(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const forbidden = requireRole(authResult, ROLES.HEAD_MANAGER);
+  if (forbidden) return forbidden;
+  const user = authResult;
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const riderId = String(body.rider_id ?? '').trim();
+  const riderCheck = await requireRiderRole(getAdminClient(), riderId);
+  if (!riderCheck.ok) return riderCheck.error;
+
+  const parsed = parseQuotaInput(body);
+  if (!parsed.ok) return parsed.error;
+  const input = parsed.value;
+
+  const db = getAdminClient();
+  const overlap = await findOverlappingActiveQuota(
+    db,
+    riderId,
+    input.start_date,
+    input.end_date,
+  );
+  if (overlap) {
+    return errorResponse(
+      `This rider already has an active quota covering ${overlap.start_date} to ${overlap.end_date}. Close or edit it first.`,
+      409,
+      'QUOTA_OVERLAP',
+    );
+  }
+
+  const { data: quota, error: insertError } = await db
+    .from('rider_quotas')
+    .insert({
+      rider_id: riderId,
+      period: input.period,
+      target_amount: input.target_amount,
+      start_date: input.start_date,
+      end_date: input.end_date,
+      notes: input.notes,
+      created_by: user.id,
+      updated_by: user.id,
+    })
+    .select('id, rider_id, period, target_amount, start_date, end_date, notes, is_active, created_at')
+    .single();
+
+  if (insertError) {
+    if (/RIDER_QUOTA_OVERLAP/i.test(insertError.message ?? '')) {
+      return errorResponse(
+        'This rider already has an active quota covering those dates.',
+        409,
+        'QUOTA_OVERLAP',
+      );
+    }
+    console.error('rider quota create failed:', insertError.message);
+    return errorResponse('Failed to create rider quota', 500, 'SERVER_ERROR');
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'rider_quota_create',
+    tableName: 'rider_quotas',
+    recordId: (quota as { id: string }).id,
+    newValues: {
+      rider_id: riderId,
+      period: input.period,
+      target_amount: input.target_amount,
+      start_date: input.start_date,
+      end_date: input.end_date,
+    },
+    ipAddress: req.headers.get('x-forwarded-for') ?? 'unknown',
+  });
+
+  return jsonResponse({ message: 'Rider quota assigned', data: quota }, 201);
+}
+
+async function handleRiderQuotaUpdate(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const forbidden = requireRole(authResult, ROLES.HEAD_MANAGER);
+  if (forbidden) return forbidden;
+  const user = authResult;
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const quotaId = String(body.quota_id ?? '').trim();
+  if (!validateUUID(quotaId)) {
+    return errorResponse('Invalid quota_id', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const { data: existing } = await db
+    .from('rider_quotas')
+    .select('id, rider_id, period, target_amount, start_date, end_date, notes, is_active')
+    .eq('id', quotaId)
+    .maybeSingle();
+  if (!existing) return errorResponse('Quota not found', 404, 'NOT_FOUND');
+
+  if (!existing.is_active) {
+    return errorResponse('This quota is already closed and cannot be edited', 409, 'QUOTA_CLOSED');
+  }
+  // Hindi pwedeng baguhin ang tapos nang period — historical record ito.
+  if (String(existing.end_date) < manilaToday()) {
+    return errorResponse('This quota period has ended and can no longer be edited', 409, 'QUOTA_PERIOD_ENDED');
+  }
+  if (body.rider_id && String(body.rider_id) !== existing.rider_id) {
+    return errorResponse('A quota cannot be transferred to another rider', 400, 'RIDER_IMMUTABLE');
+  }
+
+  const parsed = parseQuotaInput(body);
+  if (!parsed.ok) return parsed.error;
+  const input = parsed.value;
+
+  const overlap = await findOverlappingActiveQuota(
+    db,
+    existing.rider_id,
+    input.start_date,
+    input.end_date,
+    quotaId,
+  );
+  if (overlap) {
+    return errorResponse(
+      `Another active quota already covers ${overlap.start_date} to ${overlap.end_date}.`,
+      409,
+      'QUOTA_OVERLAP',
+    );
+  }
+
+  const { data: updated, error: updateError } = await db
+    .from('rider_quotas')
+    .update({
+      period: input.period,
+      target_amount: input.target_amount,
+      start_date: input.start_date,
+      end_date: input.end_date,
+      notes: input.notes,
+      updated_by: user.id,
+    })
+    .eq('id', quotaId)
+    .select('id, rider_id, period, target_amount, start_date, end_date, notes, is_active, updated_at')
+    .single();
+
+  if (updateError) {
+    if (/RIDER_QUOTA_OVERLAP/i.test(updateError.message ?? '')) {
+      return errorResponse(
+        'Another active quota covers those dates.',
+        409,
+        'QUOTA_OVERLAP',
+      );
+    }
+    console.error('rider quota update failed:', updateError.message);
+    return errorResponse('Failed to update rider quota', 500, 'SERVER_ERROR');
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'rider_quota_update',
+    tableName: 'rider_quotas',
+    recordId: quotaId,
+    oldValues: {
+      period: existing.period,
+      target_amount: existing.target_amount,
+      start_date: existing.start_date,
+      end_date: existing.end_date,
+      notes: existing.notes,
+    },
+    newValues: {
+      period: input.period,
+      target_amount: input.target_amount,
+      start_date: input.start_date,
+      end_date: input.end_date,
+      notes: input.notes,
+    },
+    ipAddress: req.headers.get('x-forwarded-for') ?? 'unknown',
+  });
+
+  return jsonResponse({ message: 'Rider quota updated', data: updated });
+}
+
+async function handleRiderQuotaClose(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const forbidden = requireRole(authResult, ROLES.HEAD_MANAGER);
+  if (forbidden) return forbidden;
+  const user = authResult;
+
+  const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+  const quotaId = String(body.quota_id ?? '').trim();
+  if (!validateUUID(quotaId)) {
+    return errorResponse('Invalid quota_id', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const { data: existing } = await db
+    .from('rider_quotas')
+    .select('id, rider_id, is_active, start_date, end_date, target_amount')
+    .eq('id', quotaId)
+    .maybeSingle();
+  if (!existing) return errorResponse('Quota not found', 404, 'NOT_FOUND');
+  if (!existing.is_active) {
+    return errorResponse('Quota is already closed', 409, 'QUOTA_CLOSED');
+  }
+
+  const { error: closeError } = await db
+    .from('rider_quotas')
+    .update({
+      is_active: false,
+      closed_at: nowManilaISO(),
+      closed_by: user.id,
+      updated_by: user.id,
+    })
+    .eq('id', quotaId);
+  if (closeError) {
+    console.error('rider quota close failed:', closeError.message);
+    return errorResponse('Failed to close rider quota', 500, 'SERVER_ERROR');
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'rider_quota_close',
+    tableName: 'rider_quotas',
+    recordId: quotaId,
+    oldValues: { is_active: true },
+    newValues: { is_active: false },
+    ipAddress: req.headers.get('x-forwarded-for') ?? 'unknown',
+  });
+
+  return jsonResponse({ message: 'Rider quota closed' });
 }

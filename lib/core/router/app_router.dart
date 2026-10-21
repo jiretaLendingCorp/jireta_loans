@@ -49,6 +49,9 @@ import '../../presentation/features/head_manager/audit/screens/hm_audit_logs_scr
 import '../../presentation/features/head_manager/ci/screens/hm_ci_details_screen.dart';
 import '../../presentation/features/head_manager/ci/screens/hm_ci_list_screen.dart';
 import '../../presentation/features/head_manager/collections/screens/hm_collection_details_screen.dart';
+import '../../presentation/features/head_manager/rider_monitoring/screens/hm_rider_monitoring_details_screen.dart';
+import '../../presentation/features/head_manager/rider_monitoring/screens/hm_rider_monitoring_screen.dart';
+import '../../presentation/features/head_manager/rider_quotas/screens/hm_rider_quotas_screen.dart';
 import '../../presentation/features/head_manager/collections/screens/hm_collection_list_screen.dart';
 import '../../presentation/features/head_manager/dashboard/screens/hm_dashboard_screen.dart';
 import '../../presentation/features/head_manager/disbursements/screens/hm_disbursement_details_screen.dart';
@@ -103,6 +106,7 @@ import '../../presentation/features/rider/ci/screens/rider_submit_ci_report_scre
 import '../../presentation/features/rider/ci/screens/rider_upload_ci_documents_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_borrower_info_screen.dart';
 import '../../presentation/features/rider/history/screens/rider_history_screen.dart';
+import '../../presentation/features/rider/quota/screens/rider_my_quota_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_collection_details_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_collection_list_screen.dart';
 import '../../presentation/features/rider/collections/screens/rider_navigate_to_borrower_screen.dart';
@@ -427,11 +431,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // pa, o MPIN screen na may numero kung naka-set na). Kung hahayaan
         // ang router na tumalon dito, mabubuksan ang dashboard — at doon
         // lumalabas ang Terms & Conditions — bago pa man makarating sa MPIN.
-        final isMpinHandoff =
-            (path == RouteConstants.otpVerify ||
-                    path == RouteConstants.resetMpinOtpVerify) &&
-                (authState.role == AppConstants.roleRider ||
-                    authState.role == AppConstants.roleLender);
+        final isMpinHandoff = (path == RouteConstants.otpVerify ||
+                path == RouteConstants.resetMpinOtpVerify) &&
+            (authState.role == AppConstants.roleRider ||
+                authState.role == AppConstants.roleLender);
 
         // ── Verify Email: HINDI dapat i-bounce sa dashboard ─────────────
         // Ang `/verify-email` ay nasa `publicRoutes` dahil kailangang mabuksan
@@ -487,8 +490,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               // Ang `t` ay ang token mula sa LINK sa email — nasa query string
               // ito ng branded na /verify-email page. May fallback sa Uri.base
               // (kapareho ng reset-password flow) para sa web.
-              token: s.uri.queryParameters['t'] ??
-                  Uri.base.queryParameters['t'],
+              token:
+                  s.uri.queryParameters['t'] ?? Uri.base.queryParameters['t'],
             );
           }),
       GoRoute(
@@ -534,9 +537,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             return OtpVerifyScreen(
               resetMpin: true,
               resetSessionToken: s.uri.queryParameters['s'],
-              phone: extra is OtpFlowArgs
-                  ? extra.phone
-                  : (extra as String? ?? ''),
+              phone:
+                  extra is OtpFlowArgs ? extra.phone : (extra as String? ?? ''),
             );
           }),
       GoRoute(
@@ -548,7 +550,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 // `extra` ay [MfaVerifyArgs] (factor id + ang numerong ginamit
                 // sa login). Ang factor id ay hindi secret — ito ang
                 // identifier ng factor sa GoTrue, hindi ang TOTP secret.
-                args: s.extra is MfaVerifyArgs ? s.extra as MfaVerifyArgs : null,
+                args:
+                    s.extra is MfaVerifyArgs ? s.extra as MfaVerifyArgs : null,
               )),
       GoRoute(
           path: RouteConstants.forceChangePassword,
@@ -676,6 +679,24 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.hmCollectionDetails,
           builder: (ctx, s) =>
               HmCollectionDetailsScreen(collectionId: s.pathParameters['id']!)),
+      GoRoute(
+          path: RouteConstants.hmRiderMonitoring,
+          builder: (ctx, s) => const HmRiderMonitoringScreen()),
+      // Quotas tab — SARILING URI. Naka-register BAGO ang `:id` route para hindi
+      // ito maging rider id (`/hm/rider-monitoring/quotas`).
+      GoRoute(
+          path: RouteConstants.hmRiderMonitoringQuotas,
+          builder: (ctx, s) => const HmRiderQuotasScreen()),
+      // `:id` ay UUID — naka-register pagkatapos ng static paths sa itaas.
+      GoRoute(
+          path: RouteConstants.hmRiderMonitoringDetails,
+          builder: (ctx, s) =>
+              HmRiderMonitoringDetailsScreen(riderId: s.pathParameters['id']!)),
+      // Lumang link (`/hm/rider-quotas`) — redirect sa bagong tab URI.
+      GoRoute(
+          path: RouteConstants.hmRiderQuotas,
+          redirect: (ctx, s) => RouteConstants.hmRiderMonitoringQuotas),
+
       GoRoute(
           path: RouteConstants.hmDisbursements,
           builder: (ctx, s) => const HmDisbursementListScreen()),
@@ -829,6 +850,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.riderDashboard,
           builder: (ctx, s) => const RiderDashboardScreen()),
       GoRoute(
+          path: RouteConstants.riderMyQuota,
+          builder: (ctx, s) => const RiderMyQuotaScreen()),
+      GoRoute(
           path: RouteConstants.riderLiveTracking,
           builder: (ctx, s) => const RiderLiveTrackingScreen()),
       GoRoute(
@@ -870,11 +894,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.riderCiDetails,
           builder: (ctx, s) => RiderCiDetailsScreen(
-            ciId: s.pathParameters['id']!,
-            // Kapag galing sa "Accept" ng listahan, iniipasa ang step 1
-            // (Step 2 sa UI) para deretso na ang rider sa wizard.
-            initialStep: s.extra is int ? s.extra as int : 0,
-          )),
+                ciId: s.pathParameters['id']!,
+                // Kapag galing sa "Accept" ng listahan, iniipasa ang step 1
+                // (Step 2 sa UI) para deretso na ang rider sa wizard.
+                initialStep: s.extra is int ? s.extra as int : 0,
+              )),
       GoRoute(
           path: RouteConstants.riderCiBorrowerInfo,
           builder: (ctx, s) =>

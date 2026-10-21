@@ -3,16 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../../core/constants/route_constants.dart';
+import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/extensions/date_extensions.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
-import '../../../../shared/widgets/app_button.dart';
+import '../../../../shared/utils/file_downloader.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/lender_payment_provider.dart';
+import '../utils/payment_receipt_pdf.dart';
 
 const _lenderNavItems = [
   MobileNavItem(
@@ -30,7 +32,6 @@ const _lenderNavItems = [
       activeIcon: Icons.receipt_long,
       label: 'Transaction',
       route: RouteConstants.lenderPaymentHistory),
-
   MobileNavItem(
       icon: Icons.person_outline,
       activeIcon: Icons.person,
@@ -95,8 +96,7 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildReceipt(
-      BuildContext context, Map<String, dynamic> data) {
+  Widget _buildReceipt(BuildContext context, Map<String, dynamic> data) {
     final receiptUrl = data['receipt_url'] as String?;
     final amount = (data['amount'] as num?)?.toDouble() ?? 0.0;
     final method = data['payment_method'] as String? ?? '';
@@ -108,34 +108,9 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
     final loanNum = data['loan_number'] as String? ?? '';
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
 
-    Future<void> open(bool external) async {
-      if (receiptUrl == null) return;
-      final uri = Uri.parse(receiptUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri,
-            mode: external ? LaunchMode.externalApplication : LaunchMode.platformDefault);
-      }
-    }
-
-    final downloadBtn = AppButton(
-      label: 'Download Receipt',
-      icon: Icons.download_outlined,
-      isExpanded: isDesktop,
-      backgroundColor: AppColors.lenderBlue,
-      onPressed: () => open(true),
-    );
-    final shareBtn = AppButton(
-      label: 'Share Receipt',
-      icon: Icons.share_outlined,
-      isExpanded: isDesktop,
-      variant: AppButtonVariant.outlined,
-      outlineColor: AppColors.lenderBlue,
-      textColor: AppColors.lenderBlue,
-      onPressed: () => open(false),
-    );
-
     return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(16, isDesktop ? 32 : 16, 16, isDesktop ? 48 : 100),
+      padding: EdgeInsets.fromLTRB(
+          16, isDesktop ? 32 : 16, 16, isDesktop ? 48 : 100),
       child: Column(
         children: [
           _ReceiptCard(
@@ -145,23 +120,9 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
             refNum: refNum,
             paidAt: paidAt,
             loanNum: loanNum,
+            data: data,
+            receiptUrl: receiptUrl,
           ),
-          if (receiptUrl != null) ...[
-            const SizedBox(height: 20),
-            if (isDesktop)
-              Row(
-                children: [
-                  Expanded(child: downloadBtn),
-                  const SizedBox(width: 12),
-                  Expanded(child: shareBtn),
-                ],
-              )
-            else ...[
-              downloadBtn,
-              const SizedBox(height: 12),
-              shareBtn,
-            ],
-          ],
           const SizedBox(height: 22),
           const Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -187,6 +148,148 @@ class LenderPaymentReceiptScreen extends ConsumerWidget {
   }
 }
 
+/// Download (at Share kapag may hosted URL) ng resibo — nasa LOOB ng receipt
+/// card, sa ilalim ng "Date & Time", at TEXT LINK lang (walang button/box).
+///
+/// Dating `receipt_url`-only ang mga button sa ilalim ng card, kaya kapag
+/// `null` (madalas sa GCash/Xendit payments) ay wala talagang paraan para
+/// i-download ang resibo.
+class _ReceiptActions extends StatefulWidget {
+  final Map<String, dynamic> data;
+  final String? receiptUrl;
+
+  const _ReceiptActions({
+    required this.data,
+    required this.receiptUrl,
+  });
+
+  @override
+  State<_ReceiptActions> createState() => _ReceiptActionsState();
+}
+
+class _ReceiptActionsState extends State<_ReceiptActions> {
+  bool _downloading = false;
+
+  Future<void> _downloadReceipt() async {
+    final url = widget.receiptUrl;
+    if (url != null) {
+      await _openWeb(url, external: true);
+      return;
+    }
+    setState(() => _downloading = true);
+    try {
+      final bytes = await buildPaymentReceiptPdf(widget.data);
+      await saveFile(bytes, paymentReceiptFileName(widget.data));
+      if (!mounted) return;
+      context.showSuccessToast('Receipt downloaded');
+    } catch (_) {
+      if (!mounted) return;
+      context.showErrorToast('Unable to download the receipt');
+    } finally {
+      if (mounted) setState(() => _downloading = false);
+    }
+  }
+
+  Future<void> _openWeb(String url, {required bool external}) async {
+    try {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: external
+              ? LaunchMode.externalApplication
+              : LaunchMode.platformDefault,
+        );
+      }
+    } catch (_) {
+      if (!mounted) return;
+      context.showErrorToast('Unable to open the receipt');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final receiptUrl = widget.receiptUrl;
+    // Naka-TAPAT sa ibaba ng "Date & Time": kaparehong kaliwang gilid ng
+    // label ng detalye, at TEXT LINK lang (walang button/box).
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ReceiptLink(
+            label: 'Download Receipt',
+            icon: Icons.download_rounded,
+            loading: _downloading,
+            onTap: _downloadReceipt,
+          ),
+          if (receiptUrl != null) ...[
+            const SizedBox(width: 14),
+            Container(width: 1, height: 12, color: AppColors.border),
+            const SizedBox(width: 14),
+            _ReceiptLink(
+              label: 'Share Receipt',
+              icon: Icons.share_outlined,
+              onTap: () => _openWeb(receiptUrl, external: false),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Text link lang — walang border, background, o padding ng button.
+class _ReceiptLink extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool loading;
+  final VoidCallback onTap;
+
+  const _ReceiptLink({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: loading ? null : onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (loading)
+              const SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.8,
+                  color: AppColors.lenderBlue,
+                ),
+              )
+            else
+              Icon(icon, size: 14, color: AppColors.lenderBlue),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: AppColors.lenderBlue,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Receipt card — itim-na-navy na seal sa itaas, malinaw na amount block,
 /// dashed na hati, at naka-icon na detalye sa ibaba. Walay header gradient na
 /// dating kalahati lang ng card ang may kulay.
@@ -194,9 +297,13 @@ class _ReceiptCard extends StatelessWidget {
   final double amount;
   final String method, status, refNum, loanNum;
   final DateTime? paidAt;
+  final Map<String, dynamic> data;
+  final String? receiptUrl;
 
   const _ReceiptCard(
       {required this.amount,
+      required this.data,
+      required this.receiptUrl,
       required this.method,
       required this.status,
       required this.refNum,
@@ -406,6 +513,9 @@ class _ReceiptCard extends StatelessWidget {
                     value: paidAt!.formattedWithTime,
                     last: true,
                   ),
+                // Download (text link) na naka-TAPAT sa ibaba ng "Date &
+                // Time" — parehong kaliwang gilid, sa LOOB ng receipt card.
+                _ReceiptActions(data: data, receiptUrl: receiptUrl),
               ],
             ),
           ),

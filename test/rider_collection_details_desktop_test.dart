@@ -112,7 +112,8 @@ void main() {
   }
 
   group('Rider completed collection details', () {
-    testWidgets('desktop: naka-center sa max width, walang Collection Proof',
+    testWidgets(
+        'desktop: dalawang column, naka-cap sa 1080, walang Collection Proof',
         (tester) async {
       await pumpDetails(tester, 1920);
 
@@ -121,16 +122,29 @@ void main() {
       expect(find.text('Collection Proof'), findsNothing);
       expect(find.text('Payment Proof'), findsNothing);
 
-      final contentBox = find
-          .ancestor(
-            of: find.text('Collection Completed'),
-            matching: find.byType(ConstrainedBox),
-          )
+      final capBox = find
+          .byWidgetPredicate((w) =>
+              w is ConstrainedBox && w.constraints.maxWidth == 1080)
           .first;
-      expect(tester.getRect(contentBox).width, 1240);
+      final capRect = tester.getRect(capBox);
+      expect(capRect.width, 1080);
+
+      // Success receipt sa KALIWA, mga detalye sa KANAN — magkatabi.
+      final success = tester.getRect(find.text('Collection Completed'));
+      final lender = tester.getRect(find.text('Lender Information'));
+      expect(lender.left, greaterThan(success.right));
+      // Parehong row: nasa loob ng vertical span ng success card ang lender
+      // title (hindi naka-stack sa ilalim nito).
+      expect(lender.top, lessThan(success.bottom));
+      expect(lender.top, greaterThan(success.top - 80));
+
+      // Naka-cap din ang footer: 380px na Done button, nakadikit sa KANAN.
+      final done = tester.getRect(find.byType(ElevatedButton));
+      expect(done.width, 380);
+      expect(capRect.right - done.right, lessThan(2));
     });
 
-    testWidgets('mobile: buong lapad pa rin', (tester) async {
+    testWidgets('mobile: isang column at buong lapad pa rin', (tester) async {
       await pumpDetails(tester, 390);
 
       expect(tester.takeException(), isNull);
@@ -144,6 +158,11 @@ void main() {
           )
           .first;
       expect(tester.getRect(contentBox).width, lessThanOrEqualTo(390));
+
+      // Naka-stack: nasa ibaba ng success card ang Lender Information.
+      final success = tester.getRect(find.text('Collection Completed'));
+      final lender = tester.getRect(find.text('Lender Information'));
+      expect(lender.top, greaterThan(success.bottom));
     });
   });
 }

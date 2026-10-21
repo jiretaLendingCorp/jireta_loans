@@ -294,6 +294,11 @@ class ModernInfoCard extends StatefulWidget {
   /// sa page, hairlines pa rin ang naghihiwalay sa rows.
   final bool flat;
 
+  /// Sa flat mode ay nakatago ang icon (plain text ang dating). Kapag true,
+  /// ipinapakita pa rin ang icon ng section — para may visual cue ang bawat
+  /// link (hal. lender profile).
+  final bool showIcon;
+
   /// Opsyonal na edit action sa header — kapag may [onEdit], may maliit na
   /// "Edit" button sa kanan (ginagamit ng per-section edit ng profile).
   final VoidCallback? onEdit;
@@ -313,6 +318,7 @@ class ModernInfoCard extends StatefulWidget {
     this.collapsible = false,
     this.initiallyExpanded = true,
     this.flat = false,
+    this.showIcon = false,
     this.onEdit,
     this.editColor,
     this.onTap,
@@ -339,8 +345,9 @@ class _ModernInfoCardState extends State<ModernInfoCard> {
       child: Row(
         children: [
           // Flat: wala ang icon, pero PANATILI ang dating espasyo para hindi
-          // gumalaw ang posisyon ng title.
-          if (widget.flat)
+          // gumalaw ang posisyon ng title (kapag `showIcon`, kapareho pa rin
+          // ng 30 + 10 ang total width kaya hindi gumagalaw ang title).
+          if (widget.flat && !widget.showIcon)
             const SizedBox(width: 40)
           else ...[
             Container(
@@ -527,10 +534,14 @@ class ModernMenuCard extends StatelessWidget {
   /// profile screens.
   final bool flat;
 
+  /// Sa flat mode ay nakatago ang icon; kapag true, ipinapakita pa rin ito.
+  final bool showIcon;
+
   const ModernMenuCard({
     super.key,
     required this.items,
     this.flat = false,
+    this.showIcon = false,
   });
 
   @override
@@ -544,7 +555,11 @@ class ModernMenuCard extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < items.length; i++) ...[
-            _MenuRow(item: items[i], horizontal: pad, flat: flat),
+            _MenuRow(
+                item: items[i],
+                horizontal: pad,
+                flat: flat,
+                showIcon: showIcon),
             if (i != items.length - 1)
               Divider(
                 height: 1,
@@ -582,10 +597,12 @@ class _MenuRow extends StatelessWidget {
   final ModernMenuItem item;
   final double horizontal;
   final bool flat;
+  final bool showIcon;
   const _MenuRow({
     required this.item,
     this.horizontal = 16,
     this.flat = false,
+    this.showIcon = false,
   });
 
   @override
@@ -595,8 +612,8 @@ class _MenuRow extends StatelessWidget {
       child: Row(
         children: [
           // Flat: wala ang icon, pero PANATILI ang dating espasyo para hindi
-          // gumalaw ang posisyon ng title.
-          if (flat)
+          // gumalaw ang posisyon ng title (kapag `showIcon`, 34 + 12 pa rin).
+          if (flat && !showIcon)
             const SizedBox(width: 46)
           else ...[
             Container(
