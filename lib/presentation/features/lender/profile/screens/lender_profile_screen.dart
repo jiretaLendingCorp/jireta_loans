@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/app_constants.dart';
@@ -16,6 +17,7 @@ import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 // `kDesktopBreakpoint` — isang breakpoint lang ang buong app para sa desktop
 // chrome (sidebar + top bar), kaya dito rin ito sinasalalay ng layout ng body.
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/widgets/legal_links.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
 import '../../../../shared/widgets/security/mfa_settings_card.dart';
 import '../../../../shared/widgets/security/mpin_settings_card.dart';
@@ -181,15 +183,6 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
         // Kapag verified na, may sariling "Edit" button ang bawat section sa
         // ibaba (Personal Details / Residence Address) — hindi na kailangan
         // ang isang "Edit Profile" button na pinagsama ang lahat.
-        if (!isVerified)
-          ModernMenuCard(items: [
-            ModernMenuItem(
-              icon: Icons.verified_outlined,
-              title: 'Complete Verification',
-              onTap: () =>
-                  context.push(RouteConstants.lenderAccountUpgradeStatus),
-            ),
-          ]),
         if (userModel?.isWalkIn == true) ...[
           const SizedBox(height: 12),
           _buildWalkInNote(userModel?.inOfficeApplication,
@@ -202,6 +195,17 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     final sections = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Walang card box (inutos ng user) — plain na link lang, at deretso
+        // ito sa "Upgrade Account" form (hindi sa status page). Nasa TAAS ito
+        // ng Notifications section (inutos ng user).
+        if (!isVerified) ...[
+          _buildSectionLink(
+            'Complete Verification',
+            Icons.verified_outlined,
+            () => context.push(RouteConstants.lenderAccountUpgrade),
+          ),
+          const SizedBox(height: 12),
+        ],
         if (isVerified) ...[
           const SizedBox(height: 20),
           const ModernSectionLabel('Personal'),
@@ -262,25 +266,40 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               icon: Icons.description_outlined,
               sections: const [
                 ModernSheetSection(
-                    title: 'Agreement to Terms',
+                    title: 'Introduction',
                     body:
-                        'By accessing and using the Jireta Loans & Credit Corp 1966 mobile application, you agree to be bound by these Terms and Conditions and our Privacy Policy.'),
+                        'By accessing and using the Jireta Loans & Credit Corp. Web and Mobile-Based Digitized Lending Management System, I acknowledge and agree to the following terms and conditions:'),
                 ModernSheetSection(
-                    title: 'Loan Services',
+                    title: '1. Account Security',
                     body:
-                        'Jireta Loans & Credit Corp 1966 offers loans from ₱3,000 to ₱500,000 at the interest rate set per loan term, subject to verification and credit evaluation.'),
+                        'I agree to provide accurate information during registration and to keep my account credentials and verification codes confidential. I understand that I am responsible for activities performed through my account.'),
                 ModernSheetSection(
-                    title: 'Interest & Penalties',
+                    title: '2. Personal Information',
                     body:
-                        'Interest is charged per loan term at the rate set by Jireta. If the loan term ends with an unpaid balance, a one-time 20% penalty is charged on the outstanding balance at that time.'),
+                        'I authorize the company to collect, store, and process my personal information as necessary for account management, loan processing, payment monitoring, and other legitimate lending-related purposes, subject to applicable data privacy laws and the company\'s Privacy Policy.'),
                 ModernSheetSection(
-                    title: 'Account Requirements',
+                    title: '3. Accurate Information',
                     body:
-                        'Submit a valid government ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.'),
+                        'I confirm that the personal and other information I provide through the system is true, accurate, and complete to the best of my knowledge.'),
                 ModernSheetSection(
-                    title: 'Data Privacy',
+                    title: '4. Proper Use of the System',
                     body:
-                        'We process your information under the Data Privacy Act of 2012 (RA 10173), solely for loan processing and account management.'),
+                        'I agree to use the system only for its intended purposes, including viewing loan information, monitoring payment schedules, receiving notifications, and accessing authorized lending services.'),
+                ModernSheetSection(
+                    title: '5. Notifications and Updates',
+                    body:
+                        'I understand that the company may send relevant notifications regarding my account, loan application, payment schedule, payment status, and other important lending-related updates.'),
+                ModernSheetSection(
+                    title: '6. Acknowledgment of Terms',
+                    body:
+                        'I understand that accepting these Terms and Conditions allows me to proceed with system access. However, accepting these terms does not automatically constitute loan approval or a loan agreement.'),
+                ModernSheetSection(
+                    title: '7. Agreement and Acceptance',
+                    body:
+                        'By checking the acceptance box, I confirm that I have read, understood, and agreed to these Terms and Conditions.'),
+                ModernSheetSection(
+                    title: 'Jireta Loans & Credit Corp.',
+                    body: 'Sta. Barbara, Pangasinan'),
               ],
             ),
           ),
@@ -290,19 +309,12 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             onTap: () => _showSheet(
               title: 'Privacy Policy',
               icon: Icons.privacy_tip_outlined,
-              sections: const [
-                ModernSheetSection(
-                    title: 'Data We Collect',
-                    body:
-                        'We collect your name, contact details, government IDs, financial information, and location data for investigation and collection.'),
-                ModernSheetSection(
-                    title: 'How We Use Your Data',
-                    body:
-                        'Your data is stored securely and used only for loan processing, identity verification, and regulatory compliance.'),
-                ModernSheetSection(
-                    title: 'Your Rights',
-                    body:
-                        'You may access, correct, and request deletion of your data under the Data Privacy Act of 2012 (RA 10173).'),
+              // Buong Privacy Policy mula sa IISANG pinagmumulan
+              // ([kPrivacyPolicySections]) — kapareho ng nasa footer ng web
+              // login at ng mga legal sheet sa ibang screens.
+              sections: [
+                for (final s in kPrivacyPolicySections)
+                  ModernSheetSection(title: s.title, body: s.body),
               ],
             ),
           ),
@@ -312,37 +324,41 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             onTap: () => _showSheet(
               title: 'Help Center',
               icon: Icons.support_agent_outlined,
+              // Kaparehong FAQ (dropdown/collapsible ang sagot) ng Help Center
+              // sa mobile login screen.
+              collapsible: true,
+              // Nakapako sa ibaba (hindi kasama sa scroll): pindutin para
+              // magpatuloy sa chat sa Messenger.
+              footer: _chatButton(),
               sections: const [
+                ModernSheetSection(
+                    title: 'How do I log in to the app?',
+                    body:
+                        'Enter your registered mobile number and tap Send OTP. You will receive a one-time password (OTP) on your Gmail and via SMS to verify your account.'),
+                ModernSheetSection(
+                    title: 'What if I do not receive my OTP?',
+                    body:
+                        'Wait at least 60 seconds before tapping Resend OTP. Check your Gmail inbox (including Spam) and SMS. Make sure your mobile number and Gmail on file are correct and you have a stable connection.'),
                 ModernSheetSection(
                     title: 'How do I apply for a loan?',
                     body:
-                        'Go to Loans and tap Apply. Fill out the required details and submit your application for review.'),
+                        'After logging in, go to the Loans section and tap Apply. Fill out the required details and submit your application for review.'),
                 ModernSheetSection(
-                    title: 'How do I pay?',
+                    title: 'What are the loan requirements?',
                     body:
-                        'Pay via GCash (Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.'),
+                        'You need a valid government-issued ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.'),
                 ModernSheetSection(
-                    title: 'Is my data safe?',
+                    title: 'How do I pay for my loan?',
                     body:
-                        'Yes. We protect your information under the Data Privacy Act of 2012 (RA 10173). Never share your OTP with anyone.'),
-              ],
-            ),
-          ),
-          ModernMenuItem(
-            icon: Icons.info_outline_rounded,
-            title: 'About Jireta',
-            onTap: () => _showSheet(
-              title: 'About Jireta',
-              icon: Icons.info_outline_rounded,
-              sections: const [
+                        'Payments can be made through GCash (via Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.'),
                 ModernSheetSection(
-                    title: 'Company',
+                    title: 'Is my personal data safe?',
                     body:
-                        'Jireta Loans & Credit Corp 1966 provides accessible financial assistance to Filipinos.'),
+                        'Yes. We protect your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173).'),
                 ModernSheetSection(
-                    title: 'Our Services',
+                    title: 'Who can I contact for support?',
                     body:
-                        'Loans from ₱3,000 to ₱500,000 with clear terms and transparent rates.'),
+                        'Visit our office during business hours or reach out to our authorized personnel. Never share your OTP or account credentials with anyone.'),
               ],
             ),
           ),
@@ -428,13 +444,63 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     required String title,
     required IconData icon,
     required List<ModernSheetSection> sections,
+    bool collapsible = false,
+    Widget? footer,
   }) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) =>
-          ModernInfoSheet(title: title, icon: icon, sections: sections),
+      builder: (_) => ModernInfoSheet(
+        title: title,
+        icon: icon,
+        sections: sections,
+        collapsible: collapsible,
+        footer: footer,
+      ),
+    );
+  }
+
+  /// "Chat" button sa dulo ng Help Center FAQ — dinidirekta sa Messenger
+  /// (`AppConstants.supportMessengerUrl`). Compact lang (hindi wide) para
+  /// mukhang link/action sa ilalim ng huling tanong.
+  Widget _chatButton() {
+    return ElevatedButton.icon(
+      onPressed: _openMessenger,
+      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+      label: const Text(
+        'Chat',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.deepNavy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        minimumSize: const Size(0, 38),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMessenger() async {
+    final uri = Uri.parse(AppConstants.supportMessengerUrl);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (opened) return;
+    } catch (_) {
+      // Dadausan ng snackbar sa ibaba — walang crash kapag hindi available
+      // ang Messenger/browser sa device (hal. desktop build).
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+            'Could not open Messenger. You can reach us at ${AppConstants.supportMessengerUrl}'),
+      ),
     );
   }
 
@@ -573,7 +639,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     // web logout flow — hindi na tuloy agad ang logout sa isang tap.
     final confirmed = await showConfirmationDialog(
       context,
-      title: 'Log Out',
+      // Walang heading — tanong lang at Yes/No na nasa gitna.
+      title: '',
       message: 'Are you sure to logout?',
       confirmLabel: 'Yes',
       cancelLabel: 'No',

@@ -66,10 +66,7 @@ async function handleSendOtp(req: Request) {
 
   if (!phone || !otp) return errorResponse('phone and otp are required', 400, 'MISSING_FIELDS');
 
-  const message = `Your Jireta Loans OTP is: ${otp}. Valid for 1 minute. Do not share this code.`;
-
-  const result = await sendSms({ to: phone, message });
-  if (!result) return errorResponse('Failed to send OTP SMS', 500, 'SMS_ERROR');
+  const message = `Your Jireta Loans OTP is: ${otp}. Valid for 5 minutes. Do not share this code.`;
 
   const db = getAdminClient();
   const { data: user } = await db
@@ -78,15 +75,18 @@ async function handleSendOtp(req: Request) {
     .eq('phone_number', phone)
     .maybeSingle();
 
-  await db.from('sms_logs').insert({
-    user_id: user?.id,
-    phone_number: phone,
+  const result = await sendSms({
+    to: phone,
     message,
-    status: 'sent',
-    gateway_reference: null,
+    // Huwag itago ang OTP sa sms_logs — hash lang ang nasa otp_codes.
+    logMessage: 'Your Jireta Loans OTP was sent. Do not share this code.',
+    userId: user?.id,
   });
+  if (!result.accepted) {
+    return errorResponse('Failed to send OTP SMS', 502, 'SMS_ERROR');
+  }
 
-  return jsonResponse({ success: true });
+  return jsonResponse({ success: true, status: result.status });
 }
 
 // ── [moved from functions/sms-send-reminder/index.ts] ───────────────────────
@@ -179,7 +179,10 @@ async function handleSendReminder(req: Request) {
       }
     } catch (_) {}
 
-    results.push({ phone: lender.phone_number, status: smsResult ? 'sent' : 'failed' });
+    results.push({
+      phone: lender.phone_number,
+      status: smsResult.accepted ? 'sent' : 'failed',
+    });
   }
 
   return jsonResponse({

@@ -136,6 +136,15 @@ void main() {
       expect(fake.lastQuery?['role'], 'rider');
     });
 
+    test('UserRemoteDataSource.resetMfa POSTs users-admin?fn=reset-mfa', () async {
+      final ds = UserRemoteDataSource(fake);
+      final removed = await ds.resetMfa('u-2');
+      expect(fake.lastPath, ApiEndpoints.usersResetMfa);
+      expect(fake.lastMethod, 'POST');
+      expect(fake.lastData, {'user_id': 'u-2'});
+      expect(removed, 0);
+    });
+
     test('LoanRemoteDataSource.getLoanList GETs loans-view?fn=get-list', () async {
       final ds = LoanRemoteDataSource(fake);
       await ds.getLoanList(status: 'pending', page: 1);

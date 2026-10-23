@@ -9,6 +9,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
+import '../../../../shared/widgets/security/reset_mfa_dialog.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/hm_rider_provider.dart';
@@ -98,6 +99,20 @@ class HmRiderDetailsScreen extends ConsumerWidget {
                 icon: Icons.settings_outlined,
                 accentColor: AppColors.riderGreen,
                 actions: [
+                  OutlinedButton.icon(
+                    onPressed: () => confirmAndResetMfa(
+                      context,
+                      userId: user.id,
+                      personName: '${user.firstName} ${user.lastName}'.trim(),
+                      roleLabel: 'rider',
+                    ),
+                    icon: const Icon(Icons.security_outlined, size: 18),
+                    label: const Text('Reset 2FA'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.warning,
+                      side: const BorderSide(color: AppColors.warning),
+                    ),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await ref.read(hmRiderProvider.notifier).archive(user.id);

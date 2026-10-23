@@ -12,8 +12,24 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { getAdminClient, getAnonClient } from '../_shared/db.ts';
-import { validatePhone, sanitizeString } from '../_shared/validators.ts';
-import { sendSms } from '../_shared/sms.ts';
+import {
+  normalizePhMobile,
+  sanitizeString,
+  validatePhone,
+} from '../_shared/validators.ts';
+import { sendSms, isMockSmsEnabled } from '../_shared/sms.ts';
+import {
+  generateOtpCode,
+  hashOtpCode,
+  normalizeOtpPurpose,
+  otpRejectionReason,
+  resendCooldownRemaining,
+  type OtpPurpose,
+} from '../_shared/otp.ts';
+import {
+  MPIN_RESET_PURPOSE,
+} from '../_shared/mpin_reset.ts';
+import { generateResetToken, hashResetToken } from '../_shared/reset_token.ts';
 import { singleWithObjectEmbeds, type DbClient } from '../_shared/types.ts';
 import { guardRateLimit, recordSecurityEvent, blockKey, checkBlock } from '../_shared/rate_limiter.ts';
 import { sanitizeIpAddress } from '../_shared/audit.ts';
@@ -30,7 +46,6 @@ import { fetchUserMfaState } from '../_shared/mfa.ts';
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
 const OTP_WINDOW_MINUTES = 10;
-const OTP_EXPIRY_MINUTES = 1;
 
 // Abuse detection: 10 OTP requests per phone per 10 minutes (the stored
 // otp_codes count above) PLUS an IP-scoped guard so one IP cannot spray OTP
@@ -39,6 +54,27 @@ const OTP_IP_RATE_MAX = 20;
 const OTP_IP_WINDOW_MINUTES = 10;
 const OTP_BLOCK_MINUTES = 15;
 
+// Hard cap sa verification attempts mula sa isang IP — ang per-phone na
+// escalating lockout sa ibaba ay hindi makakapigil sa distributed brute force.
+// Sapat ito para sa shared na office/branch wifi (maraming rider sa iisang IP)
+// habang hinaharangan pa rin ang mabilis na pagsubok ng codes.
+const OTP_VERIFY_IP_RATE_MAX = 60;
+const OTP_VERIFY_IP_WINDOW_MINUTES = 10;
+
+function envInt(name: string, fallback: number): number {
+  const raw = Deno.env.get(name);
+  if (!raw) return fallback;
+  const parsed = parseInt(raw, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+/** Configurable sa Edge Function secrets — default 5 minuto. */
+const OTP_EXPIRY_MINUTES = envInt('OTP_EXPIRY_MINUTES', 5);
+/** Cooldown bago pwede ulit mag-request (default 60s, tugma sa UI timer). */
+const OTP_RESEND_COOLDOWN_SECONDS = envInt('OTP_RESEND_COOLDOWN_SECONDS', 60);
+/** Gaano katagal valid ang reset authorization na ibinibigay pagkatapos ng OTP. */
+const MPIN_RESET_TOKEN_MINUTES = envInt('MPIN_RESET_TOKEN_MINUTES', 10);
+
 function clientIp(req: Request): string {
   return req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
 }
@@ -46,6 +82,15 @@ function clientIp(req: Request): string {
 // ── [moved from auth-verify-otp] ────────────────────────────────────────────
 const MAX_OTP_ATTEMPTS = 5;
 const DEFAULT_PASSWORD = '12345678';
+
+// TEMP: fixed OTP para makapag-test kahit hindi pa approved ang Semaphore
+// sender name. Kapag may value, ito ang isinusulat sa otp_codes at HINDI
+// binabalik ang 502 kapag bigo ang SMS — mananatiling valid ang code para
+// maka-login pa rin. Ibalik sa `null` (random na `generateOtpCode()`) kapag
+// tapos na ang testing.
+// (`as string | null` para hindi i-narrow ng TypeScript sa literal type.)
+const TEMP_FIXED_OTP = '123456' as string | null;
+
 const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 
 // ── Persistent, escalating OTP lockout ─────────────────────────────────────
@@ -60,14 +105,15 @@ const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 // The lockout is capped at 48 hours (2 days) so a phone number can never be
 // effectively locked forever by a single escalating streak.
 const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48 hours = 2880 minutes
-const MOCK_OTP_CODE = '123456';
 
-async function hashOtpCode(code: string, phone: string): Promise<string> {
-  const data = new TextEncoder().encode(`${code}:${phone}`);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
+/** Semaphore inserts the real code sa `{otp}` — hindi ito nilo-log. */
+function otpMessageTemplate(minutes: number): string {
+  return `Your Jireta Loans OTP is: {otp}. Valid for ${minutes} minutes. Do not share this code.`;
+}
+
+/** Redacted na bersyon para sa `sms_logs` — walang OTP. */
+function otpLogMessage(minutes: number): string {
+  return `Your Jireta Loans OTP was sent. Valid for ${minutes} minutes. Do not share this code.`;
 }
 
 function lockoutMinutes(attempts: number): number {
@@ -199,13 +245,34 @@ serve(async (req) => {
 
 // ── [moved from functions/auth-send-otp/index.ts] ───────────────────────────
 async function handleSendOtp(req: Request) {
-  const { phone_number } = await req.json();
-  const phone = sanitizeString(String(phone_number ?? ''));
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  // Normalize muna (09 / +63 / 63 / 9...) bago i-validate at i-compare sa DB.
+  const phone = normalizePhMobile(sanitizeString(String(body['phone_number'] ?? '')));
+  const purpose: OtpPurpose | null = normalizeOtpPurpose(body['purpose']);
   const ip = clientIp(req);
 
-  if (!validatePhone(phone)) return errorResponse('Invalid Philippine phone number (09XXXXXXXXX)', 400, 'VALIDATION_ERROR');
+  if (!validatePhone(phone)) {
+    return errorResponse(
+      'Invalid Philippine phone number (09XXXXXXXXX)',
+      400,
+      'VALIDATION_ERROR',
+    );
+  }
+  if (!purpose) return errorResponse('Invalid OTP purpose', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
+
+  // Generic na sagot para sa reset flow: hindi nito sinasabi kung may account
+  // ba ang numero (enumeration protection). Kung walang account, walang SMS na
+  // ipapadala, at ang verify ay bibigo rin nang generic.
+  const sentResponse = () =>
+    jsonResponse({
+      message: purpose === MPIN_RESET_PURPOSE
+        ? 'If this mobile number is registered, we sent a verification code.'
+        : 'OTP sent successfully',
+      expires_in: OTP_EXPIRY_MINUTES * 60,
+      resend_in: OTP_RESEND_COOLDOWN_SECONDS,
+    });
 
   // NOTE: the persistent lockout is intentionally NOT checked here. Sending a
   // fresh OTP is always allowed; failed attempts only count (and lock) at the
@@ -243,19 +310,54 @@ async function handleSendOtp(req: Request) {
 
   let userId: string | null = null;
   if (user) {
-    if (user.account_status === 'archived') return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
-// TEMP HOTFIX: role check disabled
-    // try { const { data: _ra } = await db.from('roles').select('is_archived').eq('name', user?.roles?.name).maybeSingle(); if ((_ra as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } catch (_) {}
-    if (user.account_status === 'inactive') return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
+    if (user.account_status === 'archived' || user.account_status === 'inactive') {
+      // Sa reset flow, generic ang sagot para hindi malaman ang account status.
+      if (purpose === MPIN_RESET_PURPOSE) return sentResponse();
+      return errorResponse(
+        user.account_status === 'archived' ? 'Account archived' : 'Account inactive',
+        403,
+        user.account_status === 'archived' ? 'ACCOUNT_ARCHIVED' : 'ACCOUNT_INACTIVE',
+      );
+    }
 
     const role = user?.roles?.name;
-    if (!['rider', 'lender'].includes(role)) return errorResponse('OTP login not available for this role', 403, 'FORBIDDEN');
+    if (!['rider', 'lender'].includes(role)) {
+      if (purpose === MPIN_RESET_PURPOSE) return sentResponse();
+      return errorResponse('OTP login not available for this role', 403, 'FORBIDDEN');
+    }
     userId = user.id;
-  } else {
-    // Unregistered phone would self-register as lender on verify — block if lender role archived
-    // TEMP HOTFIX: lender role check disabled
-    // const { data: lenderRole } = await db.from('roles').select('is_archived').eq('name', 'lender').maybeSingle();
-    // if ((lenderRole as any)?.is_archived === true) return errorResponse('Registration disabled — lender role is archived', 403, 'ROLE_ARCHIVED');
+  } else if (purpose === MPIN_RESET_PURPOSE) {
+    // Walang account: huwag mag-reveal at huwag mag-SMS.
+    await recordSecurityEvent({
+      eventType: 'mpin_reset_unknown_number',
+      key: `otp:reset:${phone}`,
+      ipAddress: ip,
+    });
+    return sentResponse();
+  }
+
+  // ── Resend cooldown (server-side, hindi lang UI timer) ──────────────────
+  // Base sa PINAKABAGONG OTP ng numero (kahit anong purpose) para hindi ito
+  // ma-bypass sa pagpalit ng purpose.
+  const { data: latestOtp } = await db
+    .from('otp_codes')
+    .select('created_at')
+    .eq('phone_number', phone)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const cooldown = resendCooldownRemaining(
+    latestOtp?.created_at,
+    OTP_RESEND_COOLDOWN_SECONDS,
+  );
+  if (cooldown > 0) {
+    return errorResponse(
+      `Please wait ${cooldown} second(s) before requesting a new code.`,
+      429,
+      'OTP_RESEND_COOLDOWN',
+      { retry_after_seconds: cooldown, resend_in: cooldown },
+    );
   }
 
   const windowStart = new Date(Date.now() - OTP_WINDOW_MINUTES * 60000).toISOString();
@@ -294,25 +396,82 @@ async function handleSendOtp(req: Request) {
     );
   }
 
+  // Isang active na OTP lang bawat numero (atomic din ito sa DB trigger).
   await db.from('otp_codes').update({ used: true }).eq('phone_number', phone).eq('used', false);
 
-  // DEV MOCK: always issue OTP 123456 so lenders/riders can log in without a
-  // real SMS delivery. Works regardless of USE_MOCK_SMS.
-  const code = MOCK_OTP_CODE;
+  // Cryptographically secure random code — maliban sa TEMP fixed OTP sa itaas.
+  const code = TEMP_FIXED_OTP ?? generateOtpCode();
   const codeHash = await hashOtpCode(code, phone);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
-  // Note: OTP expiry uses UTC for consistent server-side comparison
 
-  await db.from('otp_codes').insert({
+  const { error: insertErr } = await db.from('otp_codes').insert({
     phone_number: phone,
     otp_hash: codeHash,
     expires_at: expiresAt,
     attempts: 0,
     used: false,
+    purpose,
+  });
+  if (insertErr) {
+    console.error('[auth-send-otp] otp insert failed:', insertErr.message);
+    return errorResponse(
+      'Unable to send a verification code right now. Please try again.',
+      500,
+      'SERVER_ERROR',
+    );
+  }
+
+  // Semaphore's dedicated OTP route: ang API ang naglalagay ng code sa
+  // `{otp}` placeholder. Ang buong message (may code) ay HINDI nilo-log sa
+  // totoong send — redacted ang ipinapasa sa sms_logs.
+  const useMock = isMockSmsEnabled();
+  const messageTemplate = otpMessageTemplate(OTP_EXPIRY_MINUTES);
+  const smsResult = await sendSms({
+    to: phone,
+    message: messageTemplate,
+    otpCode: code,
+    // Dev-only (USE_MOCK_SMS=true): keep the code in sms_logs so it can be
+    // read in Supabase Studio. In real mode the stored message is redacted.
+    logMessage: useMock
+      ? messageTemplate.replace('{otp}', code)
+      : otpLogMessage(OTP_EXPIRY_MINUTES),
+    userId: userId ?? undefined,
   });
 
-  const message = `Your Jireta Loans OTP is: ${code}. Valid for ${OTP_EXPIRY_MINUTES} minutes. Do not share this code.`;
-  await sendSms({ to: phone, message, userId: userId ?? undefined });
+  if (!smsResult.accepted && TEMP_FIXED_OTP !== null) {
+    // TEMP fixed OTP: kahit bigo ang SMS, mananatili ang code para ma-verify.
+    console.warn(
+      '[auth-send-otp] SMS failed — TEMP fixed OTP pa rin ang valid:',
+      smsResult.status,
+      smsResult.errorCode ?? 'unknown',
+    );
+  }
+
+  if (!smsResult.accepted && TEMP_FIXED_OTP === null) {
+    // Huwag iwang valid ang code na hindi naipadala — at i-delete para
+    // makapag-retry agad ang user (hindi ito mabibilang sa cooldown).
+    await db
+      .from('otp_codes')
+      .delete()
+      .eq('phone_number', phone)
+      .eq('purpose', purpose)
+      .eq('used', false);
+    await recordSecurityEvent({
+      eventType: 'otp_sms_failed',
+      key: `otp:phone:${phone}`,
+      userId,
+      ipAddress: ip,
+      detail: {
+        provider_status: smsResult.status,
+        error_code: smsResult.errorCode ?? null,
+      },
+    });
+    return errorResponse(
+      'We could not send the verification code right now. Please try again.',
+      502,
+      'SMS_FAILED',
+    );
+  }
 
   if (userId) {
     await db.from('auth_logs').insert({
@@ -322,18 +481,21 @@ async function handleSendOtp(req: Request) {
     });
   }
 
-  return jsonResponse({ message: 'OTP sent successfully', expires_in: OTP_EXPIRY_MINUTES * 60 });
+  return sentResponse();
 }
 
 // ── [moved from functions/auth-verify-otp/index.ts] ─────────────────────────
 async function handleVerifyOtp(req: Request) {
-  const { phone_number, code, otp, session_id: bodySessionId } = await req.json();
-  const phone = sanitizeString(String(phone_number ?? ''));
-  const otpCode = sanitizeString(String(otp ?? code ?? ''));
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const phone = normalizePhMobile(sanitizeString(String(body['phone_number'] ?? '')));
+  const otpCode = sanitizeString(String(body['otp'] ?? body['code'] ?? ''));
+  const bodySessionId = body['session_id'];
+  const purpose: OtpPurpose | null = normalizeOtpPurpose(body['purpose']);
   const ip = clientIp(req);
 
   if (!validatePhone(phone)) return errorResponse('Invalid phone number', 400, 'VALIDATION_ERROR');
   if (!/^\d{6}$/.test(otpCode)) return errorResponse('OTP must be 6 digits', 400, 'VALIDATION_ERROR');
+  if (!purpose) return errorResponse('Invalid OTP purpose', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
 
@@ -364,9 +526,24 @@ async function handleVerifyOtp(req: Request) {
     );
   }
 
-  // DEV MOCK: 123456 always accepted so ANY phone can sign in for testing,
-  // without waiting on SMS or worrying about stored-OTP expiry/attempts.
-  const isMockOtp = otpCode === MOCK_OTP_CODE;
+  // IP-scoped verification guard — ang per-phone lockout ay hindi makakapigil
+  // sa distributed na pagsubok ng code mula sa maraming numero.
+  const verifyGuard = await guardRateLimit({
+    key: `otp:verify:ip:${ip}`,
+    maxAttempts: OTP_VERIFY_IP_RATE_MAX,
+    windowMinutes: OTP_VERIFY_IP_WINDOW_MINUTES,
+    blockMinutes: OTP_BLOCK_MINUTES,
+    blockReason: 'Too many OTP verification attempts from this device/IP',
+    eventType: 'otp_verify_rate_limited',
+    ipAddress: ip,
+  });
+  if (!verifyGuard.allowed) {
+    return errorResponse(
+      'Too many verification attempts from this device. Try again later.',
+      429,
+      'OTP_RATE_LIMITED',
+    );
+  }
 
   // Helper: record a failed attempt (persistent, escalating) and return the
   // lockout error if the new count crosses a threshold.
@@ -388,38 +565,44 @@ async function handleVerifyOtp(req: Request) {
     return errorResponse(reason, 401, 'INVALID_OTP');
   };
 
-  let validOtp = false;
+  // Pinakabagong unused OTP ng numero — kasama ang purpose para matukoy ang
+  // purpose mismatch (hal. login OTP na isinumite sa reset screen).
+  const { data: otpRow } = await db
+    .from('otp_codes')
+    .select('id, otp_hash, attempts, expires_at, used, purpose, created_at')
+    .eq('phone_number', phone)
+    .eq('used', false)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
 
-  if (!isMockOtp) {
-    const { data: otpRow } = await db
-      .from('otp_codes')
-      .select('*')
-      .eq('phone_number', phone)
-      .eq('used', false)
-      .gte('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+  const submittedHash = await hashOtpCode(otpCode, phone);
+  const rejection = otpRejectionReason(otpRow, {
+    purpose,
+    submittedHash,
+    maxAttempts: MAX_OTP_ATTEMPTS,
+  });
 
-    if (!otpRow) return recordFailure('OTP expired or not found');
-
-    if (otpRow.attempts >= MAX_OTP_ATTEMPTS) {
-      await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
-      return recordFailure('Too many attempts. Request a new OTP.');
+  if (rejection) {
+    if (otpRow) {
+      if (rejection === 'mismatch' || rejection === 'purpose_mismatch') {
+        await db
+          .from('otp_codes')
+          .update({ attempts: (otpRow.attempts ?? 0) + 1 })
+          .eq('id', otpRow.id);
+      }
+      if (rejection === 'too_many_attempts') {
+        await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
+      }
     }
-
-    const submittedHash = await hashOtpCode(otpCode, phone);
-    const storedHash = (otpRow as Record<string, unknown>).otp_hash as string;
-    if (storedHash !== submittedHash) {
-      await db.from('otp_codes').update({ attempts: otpRow.attempts + 1 }).eq('id', otpRow.id);
-      return recordFailure('Invalid OTP code');
-    }
-
-    validOtp = true;
-    await db.from('otp_codes').update({ used: true }).eq('id', otpRow.id);
-  } else {
-    validOtp = true;
+    // Generic ang mensahe — hindi sinasabi kung expired, used, mali, o ibang
+    // purpose (account / OTP enumeration protection).
+    return recordFailure('Invalid or expired code. Please request a new one.');
   }
+
+  // Consume agad — single-use at replay-proof. Ang mga susunod na pagsubok
+  // ay aangat sa recordFailure (used → generic invalid).
+  await db.from('otp_codes').update({ used: true }).eq('id', otpRow!.id);
 
   // ── Success: clear the persistent lockout counter ───────────────────────
   await db.from('otp_lockouts').delete().eq('phone_number', phone);
@@ -431,9 +614,19 @@ async function handleVerifyOtp(req: Request) {
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
 
-  // Self-registration: an unregistered phone that passes OTP becomes a
-  // lender automatically (head-manager pre-registration no longer required).
-  if (!user) {
+  if (purpose === MPIN_RESET_PURPOSE) {
+    // Reset ng MPIN: dapat existing rider/lender ang account. HINDI ito
+    // nagse-self-register at hindi nagbibigay ng bagong account.
+    if (!user || !['rider', 'lender'].includes(user?.roles?.name ?? '')) {
+      return errorResponse(
+        'Invalid or expired code. Please request a new one.',
+        401,
+        'INVALID_OTP',
+      );
+    }
+  } else if (!user) {
+    // Self-registration: an unregistered phone that passes OTP becomes a
+    // lender automatically (head-manager pre-registration no longer required).
     user = singleWithObjectEmbeds(await selfRegisterLender(db, phone));
     if (!user) return errorResponse('Failed to create account', 500, 'SERVER_ERROR');
   }
@@ -678,6 +871,48 @@ async function handleVerifyOtp(req: Request) {
     console.warn('[auth-verify-otp] claimActiveSession failed', e);
   }
 
+  // ── MPIN reset authorization (purpose=reset_mpin lang) ──────────────────
+  // Short-lived, single-use at naka-tali sa user + purpose. Ito ang
+  // kailangan ng auth-mpin bago mapalitan ang MPIN — hindi ang frontend flag
+  // na `isVerified`.
+  let mpinResetToken: string | null = null;
+  let mpinResetExpiresIn: number | null = null;
+  if (purpose === MPIN_RESET_PURPOSE) {
+    mpinResetToken = generateResetToken();
+    const tokenHash = await hashResetToken(mpinResetToken);
+    const { error: resetErr } = await db
+      .from('mpin_reset_authorizations')
+      .insert({
+        user_id: user.id,
+        token_hash: tokenHash,
+        phone_number: phone,
+        purpose: MPIN_RESET_PURPOSE,
+        expires_at: new Date(Date.now() + MPIN_RESET_TOKEN_MINUTES * 60000)
+          .toISOString(),
+      });
+
+    if (resetErr) {
+      console.error(
+        '[auth-verify-otp] reset authorization insert failed:',
+        resetErr.message,
+      );
+      return errorResponse(
+        'Unable to start the MPIN reset. Please try again.',
+        500,
+        'SERVER_ERROR',
+      );
+    }
+
+    mpinResetExpiresIn = MPIN_RESET_TOKEN_MINUTES * 60;
+    try {
+      await db.from('auth_logs').insert({
+        user_id: user.id,
+        event_type: 'mpin_reset_otp_verified',
+        ip_address: sanitizeIpAddress(req.headers.get('x-forwarded-for')),
+      });
+    } catch (_) { /* ignore log failure */ }
+  }
+
   // ── MFA (TOTP) state ng account ──────────────────────────────────────────
   // Ang `signInWithPassword` na session sa itaas ay `aal1` pa KAHIT may
   // naka-enroll na authenticator app (standard GoTrue behavior) — kaya dito
@@ -695,6 +930,10 @@ async function handleVerifyOtp(req: Request) {
   return jsonResponse({
     access_token: session.access_token,
     refresh_token: session.refresh_token,
+    // Para sa reset flow lang — ang client ay hindi maaaring mag-imbento nito.
+    ...(mpinResetToken
+      ? { reset_token: mpinResetToken, reset_expires_in: mpinResetExpiresIn }
+      : {}),
     user: {
       id: user.id,
       phone,

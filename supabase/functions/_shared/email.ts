@@ -606,7 +606,7 @@ function buildEmailVerifyHtml(
             <h2 style="margin:0 0 12px;font-size:18px;font-weight:700;color:#0f1f3c;">Verify your email address</h2>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">${greeting}</p>
             <p style="margin:0 0 16px;font-size:14px;line-height:1.6;color:#374151;">
-              Please confirm that this email address belongs to you. Click the button below to verify it. This link expires in <strong>${expiresInMinutes} minute(s)</strong> and can only be used once — walang code na ita-type, isang tap lang.
+              Please confirm that this email address belongs to you. Click the button below to verify it. This link expires in <strong>${expiresInMinutes} minute(s)</strong> and can only be used once.
             </p>
             <table cellpadding="0" cellspacing="0" style="margin:20px 0 16px;">
               <tr>

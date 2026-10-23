@@ -18,6 +18,7 @@ import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import 'package:shimmer/shimmer.dart';
 
+import '../../../../shared/widgets/forms/anchored_dropdown.dart';
 import '../../../../shared/widgets/legal_links.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -99,6 +100,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   bool _acceptedTerms = false;
   String? _termsError;
   Timer? _coMakerSignatureTimer;
+
+  /// Gaano katagal nakikita ang red na validation text pagkatapos pindutin ang
+  /// Next/Submit bago ito awtomatikong mawala — 1 segundo lang, para hindi
+  /// mag-stack pataas ang form. Hindi humihina ang validation: ang
+  /// `validate()` / `_isFinancialValid` pa rin ang humaharang sa Next.
+  static const Duration _errorVisibleFor = Duration(seconds: 1);
+  Timer? _errorHideTimer;
 
   // 00128: financial + emergency are declared PER APPLICATION (this loan).
   final _employerNameCtrl = TextEditingController();
@@ -293,6 +301,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   void dispose() {
     _previewDebounce?.cancel();
     _coMakerSignatureTimer?.cancel();
+    _errorHideTimer?.cancel();
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     _amountCtrl.dispose();
@@ -470,6 +479,28 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     setState(() => _previewLoading = false);
   }
 
+  /// Itago ang red na validation text 1 segundo pagkatapos itong lumabas —
+  /// pareho sa Account Upgrade at in-office wizard. Ang error state lang ang
+  /// binabalik (amount, financial flags, signature, valid ID, co-maker form at
+  /// PH address); hindi binabago ang mga sagot at hindi rin lumuluwag ang
+  /// validation sa Next/Submit.
+  void _autoHideErrorsSoon() {
+    _errorHideTimer?.cancel();
+    _errorHideTimer = Timer(_errorVisibleFor, () {
+      if (!mounted) return;
+      setState(() {
+        _amountError = null;
+        _financialAttempted = false;
+        _signatureError = null;
+        _validIdError = null;
+      });
+      // Sariling inline errors ng composite fields — hindi galing sa state ng
+      // screen, kaya hiwalay na tinatawag.
+      _ecAddressKey.currentState?.clearErrors();
+      _coMakerFormKey.currentState?.clearValidationErrors();
+    });
+  }
+
   /// Diretso sa field na may red validation message (scroll habang visible).
   void _focusOn(GlobalKey key) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -519,6 +550,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         }
       });
       _focusOn(!_isAmountValid ? _amountKey : _purposeKey);
+      _autoHideErrorsSoon();
       return;
     }
     // ── Step 1: Financial & Emergency ────────────────────────────────────
@@ -527,6 +559,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       setState(() => _step = 1);
       _ecAddressKey.currentState?.validate();
       _focusOn(_firstInvalidFinancialKey());
+      _autoHideErrorsSoon();
       return;
     }
     // ── Step 2: Co-Maker ─────────────────────────────────────────────────
@@ -534,6 +567,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (!cmValid) {
       setState(() => _step = 2);
       _focusOn(_coMakerFormKey);
+      _autoHideErrorsSoon();
       return;
     }
     // ── Step 3: Signature + Valid ID ─────────────────────────────────────
@@ -543,6 +577,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         _signatureError = 'Co-maker must sign the pad before submission';
       });
       _focusOn(_coMakerSignatureKey);
+      _autoHideErrorsSoon();
       return;
     }
     // 00147: co-maker Valid ID Front + Back required alongside signature.
@@ -556,6 +591,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         }
       });
       _focusOn(_coMakerValidIdKey);
+      _autoHideErrorsSoon();
       return;
     }
     // ── Confirm modal + device credential authentication ─────────────────
@@ -751,6 +787,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
           }
         });
         _focusOn(_amountKey);
+        _autoHideErrorsSoon();
         return;
       }
       if (_purposeCtrl.text.trim().isEmpty) {
@@ -765,12 +802,14 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       if (!_isFinancialValid) {
         _ecAddressKey.currentState?.validate();
         _focusOn(_firstInvalidFinancialKey());
+        _autoHideErrorsSoon();
         return;
       }
     } else if (_step == 2) {
       final valid = _coMakerFormKey.currentState?.validate() ?? false;
       if (!valid) {
         _focusOn(_coMakerFormKey);
+        _autoHideErrorsSoon();
         return;
       }
     } else if (_step == 3) {
@@ -778,6 +817,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         setState(() =>
             _signatureError = 'Co-maker must sign the pad before submission');
         _focusOn(_coMakerSignatureKey);
+        _autoHideErrorsSoon();
         return;
       }
       // 00147: co-maker Valid ID Front + Back required before moving on.
@@ -786,6 +826,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             ? 'Co-maker Valid ID is required'
             : 'Back side of Co-maker Valid ID is required');
         _focusOn(_coMakerValidIdKey);
+        _autoHideErrorsSoon();
         return;
       }
     }
@@ -946,194 +987,214 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle('Loan Amount'),
-          const SizedBox(height: 4),
-          TextField(
-            key: _amountKey,
-            controller: _amountCtrl,
-            keyboardType: TextInputType.number,
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-              _PesoAmountFormatter(),
-            ],
-            onChanged: _onAmountTextChanged,
-            style: const TextStyle(
+      // DESKTOP: magkatabi ang form (amount, frequency, term) sa KALIWA at ang
+      // purpose + live payment schedule preview sa KANAN — hindi nakaunat sa
+      // buong browser ang amount field at mga term card. Sa mobile, isang
+      // column pa rin at pareho ang pagkakasuno-sunod.
+      // Breakpoint 1000: ang 2-step re-apply (max 960) ay nananatiling isang
+      // column, at dito lang sa mas malawak na wizard pumapasok ang 2 columns.
+      child: LenderTwoPane(
+        breakpoint: 1000,
+        left: _buildAmountFrequencyTermSection(preview),
+        right: _buildPurposeScheduleSection(preview),
+      ),
+    );
+  }
+
+  Widget _buildAmountFrequencyTermSection(Map<String, dynamic>? preview) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Loan Amount'),
+        const SizedBox(height: 4),
+        TextField(
+          key: _amountKey,
+          controller: _amountCtrl,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+            _PesoAmountFormatter(),
+          ],
+          onChanged: _onAmountTextChanged,
+          style: const TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: AppColors.lenderBlue,
+          ),
+          decoration: InputDecoration(
+            prefixText: '₱ ',
+            prefixStyle: const TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
               color: AppColors.lenderBlue,
             ),
-            decoration: InputDecoration(
-              prefixText: '₱ ',
-              prefixStyle: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: AppColors.lenderBlue,
-              ),
-              hintText: 'Enter amount',
-              hintStyle: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
-              errorText: _amountError,
-              errorStyle: const TextStyle(fontSize: 12),
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: const BorderSide(color: AppColors.lenderBlue),
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(10),
-                borderSide: BorderSide(
-                  color:
-                      _amountError != null ? AppColors.error : AppColors.border,
-                ),
+            hintText: 'Enter amount',
+            hintStyle: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
+            ),
+            errorText: _amountError,
+            errorStyle: const TextStyle(fontSize: 12),
+            filled: true,
+            fillColor: Colors.white,
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.border),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: const BorderSide(color: AppColors.lenderBlue),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(10),
+              borderSide: BorderSide(
+                color:
+                    _amountError != null ? AppColors.error : AppColors.border,
               ),
             ),
           ),
-          const SizedBox(height: 4),
-          Slider(
-            value: _amount,
-            min: _minAmount,
-            max: _maxAmount,
-            activeColor: AppColors.lenderBlue,
-            inactiveColor: AppColors.lenderBlue.withValues(alpha: 0.2),
-            onChanged: (v) {
-              final rounded = (v / 1000).round() * 1000.0;
-              setState(() {
-                _amount = rounded;
-                _amountError = null;
-                _amountCtrl.text = _formatAmountInput(rounded.toInt());
-              });
-            },
-            onChangeEnd: (_) => _refreshPreview(),
+        ),
+        const SizedBox(height: 4),
+        Slider(
+          value: _amount,
+          min: _minAmount,
+          max: _maxAmount,
+          activeColor: AppColors.lenderBlue,
+          inactiveColor: AppColors.lenderBlue.withValues(alpha: 0.2),
+          onChanged: (v) {
+            final rounded = (v / 1000).round() * 1000.0;
+            setState(() {
+              _amount = rounded;
+              _amountError = null;
+              _amountCtrl.text = _formatAmountInput(rounded.toInt());
+            });
+          },
+          onChangeEnd: (_) => _refreshPreview(),
+        ),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(_pesoLabel(_minAmount),
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary)),
+            Text(_pesoLabel(_maxAmount),
+                style: const TextStyle(
+                    fontSize: 11, color: AppColors.textSecondary)),
+          ],
+        ),
+        const SizedBox(height: 20),
+        const _SectionTitle('Payment Frequency'),
+        const SizedBox(height: 10),
+        Row(
+          children: ['daily', 'weekly', 'monthly'].map((f) {
+            final selected = f == _frequency;
+            return Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _frequency = f;
+                      _termPeriods = null;
+                    });
+                    _refreshPreview();
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    decoration: BoxDecoration(
+                      color: selected ? AppColors.lenderBlue : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color:
+                            selected ? AppColors.lenderBlue : AppColors.border,
+                      ),
+                    ),
+                    child: Text(
+                      f[0].toUpperCase() + f.substring(1),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color:
+                            selected ? Colors.white : AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+        const SizedBox(height: 20),
+        _buildTermSelector((preview?['max_periods'] as num?)?.toInt() ?? 0),
+      ],
+    );
+  }
+
+  Widget _buildPurposeScheduleSection(Map<String, dynamic>? preview) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Purpose'),
+        const SizedBox(height: 8),
+        // Pinili na ang purpose sa full-screen na purpose selection bago
+        // mapindot ang Apply Loan — read-only summary na lang ito dito.
+        Container(
+          key: _purposeKey,
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: _purposeCtrl.text.trim().isEmpty
+                  ? AppColors.error
+                  : AppColors.border,
+            ),
           ),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_pesoLabel(_minAmount),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
-              Text(_pesoLabel(_maxAmount),
-                  style: const TextStyle(
-                      fontSize: 11, color: AppColors.textSecondary)),
+              Expanded(
+                child: Text(
+                  _purposeCtrl.text.trim().isEmpty
+                      ? 'Please choose a loan purpose.'
+                      : _purposeCtrl.text.trim(),
+                  style: TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: _purposeCtrl.text.trim().isEmpty
+                        ? AppColors.error
+                        : AppColors.textPrimary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: () => setState(() => _purposeChosen = false),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4),
+                  child: Text(
+                    'Change',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.lenderBlue,
+                    ),
+                  ),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 20),
-          const _SectionTitle('Payment Frequency'),
-          const SizedBox(height: 10),
-          Row(
-            children: ['daily', 'weekly', 'monthly'].map((f) {
-              final selected = f == _frequency;
-              return Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        _frequency = f;
-                        _termPeriods = null;
-                      });
-                      _refreshPreview();
-                    },
-                    borderRadius: BorderRadius.circular(10),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 200),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      decoration: BoxDecoration(
-                        color: selected ? AppColors.lenderBlue : Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: selected
-                              ? AppColors.lenderBlue
-                              : AppColors.border,
-                        ),
-                      ),
-                      child: Text(
-                        f[0].toUpperCase() + f.substring(1),
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color:
-                              selected ? Colors.white : AppColors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            }).toList(),
-          ),
-          const SizedBox(height: 20),
-          _buildTermSelector((preview?['max_periods'] as num?)?.toInt() ?? 0),
-          const SizedBox(height: 20),
-          const _SectionTitle('Purpose'),
-          const SizedBox(height: 8),
-          // Pinili na ang purpose sa full-screen na purpose selection bago
-          // mapindot ang Apply Loan — read-only summary na lang ito dito.
-          Container(
-            key: _purposeKey,
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: _purposeCtrl.text.trim().isEmpty
-                    ? AppColors.error
-                    : AppColors.border,
-              ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    _purposeCtrl.text.trim().isEmpty
-                        ? 'Please choose a loan purpose.'
-                        : _purposeCtrl.text.trim(),
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      fontWeight: FontWeight.w600,
-                      color: _purposeCtrl.text.trim().isEmpty
-                          ? AppColors.error
-                          : AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: () => setState(() => _purposeChosen = false),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 4),
-                    child: Text(
-                      'Change',
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.lenderBlue,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 20),
-          _SchedulePreview(preview: preview, loading: _previewLoading),
-        ],
-      ),
+        ),
+        const SizedBox(height: 20),
+        _SchedulePreview(preview: preview, loading: _previewLoading),
+      ],
     );
   }
 
@@ -1248,11 +1309,17 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         children: [
           const _SectionTitle('Co-Maker Information'),
           const SizedBox(height: 12),
-          _CoMakerForm(
-            key: _coMakerFormKey,
-            onChanged: (value) {
-              setState(() => _coMaker = value);
-            },
+          // DESKTOP: isang form lang ito (walang katabing card), kaya naka-cap
+          // sa 900 at naka-center — hindi naka-unat ang bawat field sa buong
+          // browser. Sa mobile, buong lapad pa rin.
+          _CenteredMaxWidth(
+            maxWidth: 900,
+            child: _CoMakerForm(
+              key: _coMakerFormKey,
+              onChanged: (value) {
+                setState(() => _coMaker = value);
+              },
+            ),
           ),
         ],
       ),
@@ -1269,166 +1336,176 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         children: [
           const _SectionTitle('Co-Maker Signature'),
           const SizedBox(height: 12),
-          Container(
-            key: _coMakerSignatureKey,
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          // DESKTOP: magkatabi ang signature pad (kaliwa) at Valid ID (kanan) —
+          // hindi na kailangang mag-scroll pababa para makita ang pangalawa.
+          // Sa mobile (< 900px) naka-stack pa rin sila gaya ng dati.
+          LenderTwoPane(
+            left: _buildCoMakerSignatureCard(),
+            right: _buildCoMakerValidIdCard(isSubmitting),
+            gap: 14,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCoMakerSignatureCard() {
+    return Container(
+      key: _coMakerSignatureKey,
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SignaturePad(
+            onSignatureChanged: (sig) {
+              // Kapag na-confirm (at kapag na-clear), agad nawawala ang
+              // status at validation text — hindi ito nananatiling
+              // naka-display.
+              setState(() {
+                _coMakerSignature = sig;
+                _signatureError = null;
+              });
+            },
+            onConfirmed: () {
+              // Panandaliang kumpirmasyon: 3 segundo lang tapos mawawala.
+              _coMakerSignatureTimer?.cancel();
+              setState(() => _showCoMakerSignatureConfirmed = true);
+              _coMakerSignatureTimer = Timer(const Duration(seconds: 3), () {
+                if (mounted) {
+                  setState(() => _showCoMakerSignatureConfirmed = false);
+                }
+              });
+            },
+            onCleared: () {
+              _coMakerSignatureTimer?.cancel();
+              if (_showCoMakerSignatureConfirmed) {
+                setState(() => _showCoMakerSignatureConfirmed = false);
+              }
+            },
+            height: 200,
+          ),
+          if (_showCoMakerSignatureConfirmed) ...[
+            const SizedBox(height: 8),
+            const Row(
               children: [
-                SignaturePad(
-                  onSignatureChanged: (sig) {
-                    // Kapag na-confirm (at kapag na-clear), agad nawawala ang
-                    // status at validation text — hindi ito nananatiling
-                    // naka-display.
-                    setState(() {
-                      _coMakerSignature = sig;
-                      _signatureError = null;
-                    });
-                  },
-                  onConfirmed: () {
-                    // Panandaliang kumpirmasyon: 3 segundo lang tapos mawawala.
-                    _coMakerSignatureTimer?.cancel();
-                    setState(() => _showCoMakerSignatureConfirmed = true);
-                    _coMakerSignatureTimer =
-                        Timer(const Duration(seconds: 3), () {
-                      if (mounted) {
-                        setState(() => _showCoMakerSignatureConfirmed = false);
-                      }
-                    });
-                  },
-                  onCleared: () {
-                    _coMakerSignatureTimer?.cancel();
-                    if (_showCoMakerSignatureConfirmed) {
-                      setState(() => _showCoMakerSignatureConfirmed = false);
-                    }
-                  },
-                  height: 200,
+                Icon(Icons.check_circle_rounded,
+                    size: 16, color: AppColors.success),
+                SizedBox(width: 6),
+                Text(
+                  'Signature confirmed',
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.success,
+                      fontWeight: FontWeight.w600),
                 ),
-                if (_showCoMakerSignatureConfirmed) ...[
-                  const SizedBox(height: 8),
-                  const Row(
+              ],
+            ),
+          ],
+          if (_signatureError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _signatureError!,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 00147: co-maker Valid ID Front + Back — gaya sa Account Upgrade scanner.
+  /// Card lang ito (tap para mag-scan/upload) — walang filename row, View
+  /// buttons o Upload button sa ilalim.
+  Widget _buildCoMakerValidIdCard(bool isSubmitting) {
+    return Container(
+      key: _coMakerValidIdKey,
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: _hasCoMakerValidIdComplete
+            ? AppColors.lenderBlue.withValues(alpha: 0.04)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _validIdError != null
+              ? AppColors.error
+              : _hasCoMakerValidIdComplete
+                  ? AppColors.lenderBlue.withValues(alpha: 0.3)
+                  : AppColors.border,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: isSubmitting ? null : _pickCoMakerValidId,
+            borderRadius: BorderRadius.circular(8),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Image.asset(
+                    'assets/icons/id_card.png',
+                    fit: BoxFit.contain,
+                    filterQuality: FilterQuality.high,
+                    errorBuilder: (_, __, ___) => const Icon(
+                        Icons.contact_page_rounded,
+                        size: 32,
+                        color: AppColors.textTertiary),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.check_circle_rounded,
-                          size: 16, color: AppColors.success),
-                      SizedBox(width: 6),
+                      const Text('Co-Maker Valid ID *',
+                          style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.textPrimary)),
+                      const SizedBox(height: 2),
                       Text(
-                        'Signature confirmed',
+                        _hasCoMakerValidIdComplete
+                            ? 'Front ✓  •  Back ✓'
+                            : _hasCoMakerValidIdFront
+                                ? 'Front ✓  •  Back missing — tap to add'
+                                : "Front + Back of co-maker's government-issued ID",
                         style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.success,
-                            fontWeight: FontWeight.w600),
+                            color: _hasCoMakerValidIdComplete
+                                ? AppColors.lenderBlue
+                                : AppColors.textSecondary),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                    ],
-                  ),
-                ],
-                if (_signatureError != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _signatureError!,
-                    style:
-                        const TextStyle(fontSize: 12, color: AppColors.error),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          // 00147: co-maker Valid ID Front + Back — gaya sa Account Upgrade
-          // scanner. Card lang ito (tap para mag-scan/upload) — walang
-          // filename row, View buttons o Upload button sa ilalim.
-          Container(
-            key: _coMakerValidIdKey,
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: _hasCoMakerValidIdComplete
-                  ? AppColors.lenderBlue.withValues(alpha: 0.04)
-                  : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color: _validIdError != null
-                    ? AppColors.error
-                    : _hasCoMakerValidIdComplete
-                        ? AppColors.lenderBlue.withValues(alpha: 0.3)
-                        : AppColors.border,
-              ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                InkWell(
-                  onTap: isSubmitting ? null : _pickCoMakerValidId,
-                  borderRadius: BorderRadius.circular(8),
-                  child: Row(
-                    children: [
-                      SizedBox(
-                        width: 44,
-                        height: 44,
-                        child: Image.asset(
-                          'assets/icons/id_card.png',
-                          fit: BoxFit.contain,
-                          filterQuality: FilterQuality.high,
-                          errorBuilder: (_, __, ___) => const Icon(
-                              Icons.contact_page_rounded,
-                              size: 32,
-                              color: AppColors.textTertiary),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text('Co-Maker Valid ID *',
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w600,
-                                    color: AppColors.textPrimary)),
-                            const SizedBox(height: 2),
-                            Text(
-                              _hasCoMakerValidIdComplete
-                                  ? 'Front ✓  •  Back ✓'
-                                  : _hasCoMakerValidIdFront
-                                      ? 'Front ✓  •  Back missing — tap to add'
-                                      : "Front + Back of co-maker's government-issued ID",
-                              style: TextStyle(
-                                  fontSize: 12,
-                                  color: _hasCoMakerValidIdComplete
-                                      ? AppColors.lenderBlue
-                                      : AppColors.textSecondary),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                      Icon(
-                          _hasCoMakerValidIdComplete
-                              ? Icons.check_circle
-                              : Icons.upload_file_outlined,
-                          color: _hasCoMakerValidIdComplete
-                              ? AppColors.success
-                              : AppColors.textTertiary),
                     ],
                   ),
                 ),
-                if (_validIdError != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    _validIdError!,
-                    style:
-                        const TextStyle(fontSize: 12, color: AppColors.error),
-                  ),
-                ],
+                Icon(
+                    _hasCoMakerValidIdComplete
+                        ? Icons.check_circle
+                        : Icons.upload_file_outlined,
+                    color: _hasCoMakerValidIdComplete
+                        ? AppColors.success
+                        : AppColors.textTertiary),
               ],
             ),
           ),
+          if (_validIdError != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              _validIdError!,
+              style: const TextStyle(fontSize: 12, color: AppColors.error),
+            ),
+          ],
         ],
       ),
     );
@@ -1531,191 +1608,212 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
       keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionTitle('Financial Details'),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                DropdownButtonFormField<String>(
-                  key: _employmentKey,
-                  initialValue: _employmentType,
-                  decoration: _finFieldDeco('Employment Type'),
-                  items: _employmentOptions
-                      .map((e) =>
-                          DropdownMenuItem(value: e.$1, child: Text(e.$2)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _employmentType = v),
-                ),
-                if (_employmentTypeError != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _employmentTypeError!,
-                    style:
-                        const TextStyle(fontSize: 11.5, color: AppColors.error),
-                  ),
-                ],
-                // "Other" → bigyan ng blank na pwedeng sagutan ng user.
-                if (_employmentType == 'other') ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _employmentOtherCtrl,
-                    maxLength: 100,
-                    onChanged: (_) => setState(() {}),
-                    scrollPadding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-                    decoration: _finFieldDeco('Please specify employment type',
-                        errorText: _employmentOtherError),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                TextField(
-                  key: _employerKey,
-                  controller: _employerNameCtrl,
-                  maxLength: 255,
-                  onChanged: (_) => setState(() {}),
-                  scrollPadding: EdgeInsets.only(
-                      bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-                  decoration: _finFieldDeco('Employer / Business Name',
-                      errorText: _employerNameError),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  key: _incomeKey,
-                  controller: _monthlyIncomeCtrl,
-                  focusNode: _monthlyIncomeFocus,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [
-                    _PesoIncomeFormatter(),
-                  ],
-                  onChanged: (_) => setState(() {}),
-                  decoration: _finFieldDeco('Monthly Income',
-                      errorText: _monthlyIncomeError, prefixText: '₱ '),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: _sourceKey,
-                  initialValue: _sourceOfFunds,
-                  decoration: _finFieldDeco('Source of Funds'),
-                  items: _sourceOfFundsOptions
-                      .map((e) =>
-                          DropdownMenuItem(value: e.$1, child: Text(e.$2)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _sourceOfFunds = v),
-                ),
-                if (_sourceOfFundsError != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _sourceOfFundsError!,
-                    style:
-                        const TextStyle(fontSize: 11.5, color: AppColors.error),
-                  ),
-                ],
-                if (_sourceOfFunds == 'other') ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _sourceOtherCtrl,
-                    maxLength: 100,
-                    onChanged: (_) => setState(() {}),
-                    scrollPadding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-                    decoration: _finFieldDeco('Please specify source of funds',
-                        errorText: _sourceOtherError),
-                  ),
-                ],
-              ],
-            ),
+      // DESKTOP: magkatabi ang Financial Details (kaliwa) at Emergency Contact
+      // (kanan) — hindi na naka-unat sa buong browser ang mga field. Sa mobile
+      // (< 900px) naka-stack pa rin sila gaya ng dati.
+      child: LenderTwoPane(
+        left: _buildFinancialDetailsSection(),
+        right: _buildEmergencyContactSection(),
+      ),
+    );
+  }
+
+  Widget _buildFinancialDetailsSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Financial Details'),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
           ),
-          const SizedBox(height: 20),
-          const _SectionTitle('Emergency Contact'),
-          const SizedBox(height: 12),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.border),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Naka-anchor: bumubukas sa IBABA ng field (at lumilipat sa
+              // itaas kapag kulang ang espasyo) — hindi natatakpan ang
+              // kasunod na fields.
+              AnchoredDropdownField(
+                key: _employmentKey,
+                label: 'Employment Type',
+                value: _employmentType,
+                options: [
+                  for (final option in _employmentOptions)
+                    AnchoredDropdownOption(option.$1, option.$2),
+                ],
+                onChanged: (v) => setState(() => _employmentType = v),
+              ),
+              if (_employmentTypeError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _employmentTypeError!,
+                  style:
+                      const TextStyle(fontSize: 11.5, color: AppColors.error),
+                ),
+              ],
+              // "Other" → bigyan ng blank na pwedeng sagutan ng user.
+              if (_employmentType == 'other') ...[
+                const SizedBox(height: 12),
                 TextField(
-                  key: _ecNameKey,
-                  controller: _ecNameCtrl,
+                  controller: _employmentOtherCtrl,
                   maxLength: 100,
                   onChanged: (_) => setState(() {}),
                   scrollPadding: EdgeInsets.only(
                       bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-                  decoration:
-                      _finFieldDeco('Contact Name', errorText: _ecNameError),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  key: _ecRelationshipKey,
-                  initialValue: _ecRelationship,
-                  decoration: _finFieldDeco('Relationship'),
-                  items: _relationshipOptions
-                      .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                      .toList(),
-                  onChanged: (v) => setState(() => _ecRelationship = v),
-                ),
-                if (_ecRelationshipError != null) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    _ecRelationshipError!,
-                    style:
-                        const TextStyle(fontSize: 11.5, color: AppColors.error),
-                  ),
-                ],
-                if (_ecRelationship == 'Other') ...[
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _ecRelationshipOtherCtrl,
-                    maxLength: 100,
-                    onChanged: (_) => setState(() {}),
-                    scrollPadding: EdgeInsets.only(
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-                    decoration: _finFieldDeco('Please specify relationship',
-                        errorText: _ecRelationshipOtherError),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                TextField(
-                  key: _ecPhoneKey,
-                  controller: _ecPhoneCtrl,
-                  keyboardType: TextInputType.phone,
-                  maxLength: 11,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(11),
-                  ],
-                  onChanged: (_) => setState(() {}),
-                  decoration: _finFieldDeco('Contact Phone Number',
-                      errorText: _ecPhoneError),
-                ),
-                const SizedBox(height: 12),
-                // Required na; RPCMB cascading address (Region → Barangay).
-                PhilippinesAddressField(
-                  key: _ecAddressKey,
-                  onChanged: (v) => setState(() => _ecAddress = v),
+                  decoration: _finFieldDeco('Please specify employment type',
+                      errorText: _employmentOtherError),
                 ),
               ],
-            ),
+              const SizedBox(height: 12),
+              TextField(
+                key: _employerKey,
+                controller: _employerNameCtrl,
+                maxLength: 255,
+                onChanged: (_) => setState(() {}),
+                scrollPadding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+                decoration: _finFieldDeco('Employer / Business Name',
+                    errorText: _employerNameError),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                key: _incomeKey,
+                controller: _monthlyIncomeCtrl,
+                focusNode: _monthlyIncomeFocus,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  _PesoIncomeFormatter(),
+                ],
+                onChanged: (_) => setState(() {}),
+                decoration: _finFieldDeco('Monthly Income',
+                    errorText: _monthlyIncomeError, prefixText: '₱ '),
+              ),
+              const SizedBox(height: 12),
+              AnchoredDropdownField(
+                key: _sourceKey,
+                label: 'Source of Funds',
+                value: _sourceOfFunds,
+                options: [
+                  for (final option in _sourceOfFundsOptions)
+                    AnchoredDropdownOption(option.$1, option.$2),
+                ],
+                onChanged: (v) => setState(() => _sourceOfFunds = v),
+              ),
+              if (_sourceOfFundsError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _sourceOfFundsError!,
+                  style:
+                      const TextStyle(fontSize: 11.5, color: AppColors.error),
+                ),
+              ],
+              if (_sourceOfFunds == 'other') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _sourceOtherCtrl,
+                  maxLength: 100,
+                  onChanged: (_) => setState(() {}),
+                  scrollPadding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+                  decoration: _finFieldDeco('Please specify source of funds',
+                      errorText: _sourceOtherError),
+                ),
+              ],
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildEmergencyContactSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const _SectionTitle('Emergency Contact'),
+        const SizedBox(height: 12),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                key: _ecNameKey,
+                controller: _ecNameCtrl,
+                maxLength: 100,
+                onChanged: (_) => setState(() {}),
+                scrollPadding: EdgeInsets.only(
+                    bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+                decoration:
+                    _finFieldDeco('Contact Name', errorText: _ecNameError),
+              ),
+              const SizedBox(height: 12),
+              AnchoredDropdownField(
+                key: _ecRelationshipKey,
+                label: 'Relationship',
+                value: _ecRelationship,
+                options: [
+                  for (final option in _relationshipOptions)
+                    AnchoredDropdownOption(option, option),
+                ],
+                onChanged: (v) => setState(() => _ecRelationship = v),
+              ),
+              if (_ecRelationshipError != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  _ecRelationshipError!,
+                  style:
+                      const TextStyle(fontSize: 11.5, color: AppColors.error),
+                ),
+              ],
+              if (_ecRelationship == 'Other') ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ecRelationshipOtherCtrl,
+                  maxLength: 100,
+                  onChanged: (_) => setState(() {}),
+                  scrollPadding: EdgeInsets.only(
+                      bottom: MediaQuery.of(context).viewInsets.bottom + 24),
+                  decoration: _finFieldDeco('Please specify relationship',
+                      errorText: _ecRelationshipOtherError),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                key: _ecPhoneKey,
+                controller: _ecPhoneCtrl,
+                keyboardType: TextInputType.phone,
+                maxLength: 11,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(11),
+                ],
+                onChanged: (_) => setState(() {}),
+                decoration: _finFieldDeco('Contact Phone Number',
+                    errorText: _ecPhoneError),
+              ),
+              const SizedBox(height: 12),
+              // Required na; RPCMB cascading address (Region → Barangay).
+              PhilippinesAddressField(
+                key: _ecAddressKey,
+                onChanged: (v) => setState(() => _ecAddress = v),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -1989,7 +2087,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// ng loan-state views ("view status") bago mag-modal at mag-home.
   Widget _buildWizardStepContent(
       NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
-    return Column(
+    final wizard = Column(
       children: [
         _StepIndicator(current: _step),
         Expanded(
@@ -2008,6 +2106,18 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         // hindi na ito kasama sa scroll ng step, kaya laging nakikita.
         _buildStepNav(isSubmitting),
       ],
+    );
+    // DESKTOP: naka-center at may max width ang BUONG wizard (step indicator,
+    // step content, at Back/Next) — kapareho ng 2-step re-apply at ng Account
+    // Upgrade wizard. Kung hindi ito naka-cap, naka-unat ang mga field sa buong
+    // browser sa wide screens. Sa mobile (< kDesktopBreakpoint) buong lapad pa
+    // rin ang dating layout — walang binago sa phone.
+    if (MediaQuery.sizeOf(context).width < kDesktopBreakpoint) return wizard;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1120),
+        child: wizard,
+      ),
     );
   }
 
@@ -2097,6 +2207,9 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   String? _relationship;
   DateTime? _dob;
   String? _dobError;
+  // Naka-off muna ang inline errors: lumalabas lang pagkatapos ng validate()
+  // at binabalik sa false ng parent (1 segundo lang nakikita).
+  bool _showErrors = false;
 
   static const _relationshipOptions = [
     'Spouse',
@@ -2134,11 +2247,28 @@ class _CoMakerFormState extends State<_CoMakerForm> {
   bool validate() {
     final dobOk = _dob != null;
     setState(() {
+      _showErrors = true;
       _dobError = dobOk ? null : 'Date of birth is required';
     });
     final formOk = _formKey.currentState?.validate() ?? false;
     final addressOk = _addressKey.currentState?.validate() ?? false;
     return formOk && dobOk && addressOk;
+  }
+
+  /// Itago muli ang red na validation text nang hindi binabago ang mga sagot —
+  /// tinatawag ng parent 1 segundo pagkatapos lumabas ng errors.
+  void clearValidationErrors() {
+    final hadErrors = _showErrors || _dobError != null;
+    if (hadErrors) {
+      setState(() {
+        _showErrors = false;
+        _dobError = null;
+      });
+    }
+    _addressKey.currentState?.clearErrors();
+    // I-re-run ang validators (null na ngayon) para mawala rin ang error text
+    // sa ilalim ng bawat field.
+    if (hadErrors) _formKey.currentState?.validate();
   }
 
   Future<void> _pickDob() async {
@@ -2211,9 +2341,12 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               maxLength: 100,
               scrollPadding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'First name is required'
-                  : null,
+              validator: (v) {
+                if (!_showErrors) return null;
+                return (v == null || v.trim().isEmpty)
+                    ? 'First name is required'
+                    : null;
+              },
               decoration: _coFieldDeco('First Name'),
             ),
             const SizedBox(height: 10),
@@ -2223,9 +2356,12 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               maxLength: 100,
               scrollPadding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Last name is required'
-                  : null,
+              validator: (v) {
+                if (!_showErrors) return null;
+                return (v == null || v.trim().isEmpty)
+                    ? 'Last name is required'
+                    : null;
+              },
               decoration: _coFieldDeco('Last Name'),
             ),
             const SizedBox(height: 10),
@@ -2237,6 +2373,7 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               scrollPadding: EdgeInsets.only(
                   bottom: MediaQuery.of(context).viewInsets.bottom + 24),
               validator: (v) {
+                if (!_showErrors) return null;
                 if (v == null || v.trim().isEmpty) {
                   return 'Contact number is required';
                 }
@@ -2249,14 +2386,20 @@ class _CoMakerFormState extends State<_CoMakerForm> {
               decoration: _coFieldDeco('Contact Number'),
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              initialValue: _relationship,
-              decoration: _coFieldDeco('Relationship'),
-              validator: (v) => v == null ? 'Relationship is required' : null,
-              items: _relationshipOptions
-                  .map((item) =>
-                      DropdownMenuItem(value: item, child: Text(item)))
-                  .toList(),
+            // Naka-anchor din ito: bumubukas sa IBABA ng field (o sa itaas
+            // kapag kulang ang espasyo) — hindi natatakpan ang address/DOB
+            // fields sa ibaba nito.
+            AnchoredDropdownField(
+              label: 'Relationship',
+              value: _relationship,
+              options: [
+                for (final item in _relationshipOptions)
+                  AnchoredDropdownOption(item, item),
+              ],
+              validator: (v) {
+                if (!_showErrors || v != null) return null;
+                return 'Relationship is required';
+              },
               onChanged: (v) {
                 setState(() => _relationship = v);
                 _emit();
@@ -2271,9 +2414,12 @@ class _CoMakerFormState extends State<_CoMakerForm> {
                 maxLength: 100,
                 scrollPadding: EdgeInsets.only(
                     bottom: MediaQuery.of(context).viewInsets.bottom + 24),
-                validator: (v) => (v == null || v.trim().isEmpty)
-                    ? 'Please specify the relationship'
-                    : null,
+                validator: (v) {
+                  if (!_showErrors) return null;
+                  return (v == null || v.trim().isEmpty)
+                      ? 'Please specify the relationship'
+                      : null;
+                },
                 decoration: _coFieldDeco('Please specify relationship'),
               ),
             ],
@@ -2768,6 +2914,31 @@ class _ReviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final rows = <Widget>[
+      _row(
+        'Loan Amount',
+        '₱${fmt.format(amount)}',
+      ),
+      _row(
+        'Payment Frequency',
+        frequency[0].toUpperCase() + frequency.substring(1),
+      ),
+      _row('Loan Term', termLabel),
+      _row('Purpose', purpose.isEmpty ? '-' : purpose),
+      if (interest != null)
+        _row(interestRateLabel(interestRate),
+            '₱${fmt.format((interest as num).toDouble())}'),
+      if (totalPayable != null)
+        _row('Total Payable',
+            '₱${fmt.format((totalPayable as num).toDouble())}'),
+      if (installment != null)
+        _row('Per Installment',
+            '₱${fmt.format((installment as num).toDouble())}'),
+    ];
+    // DESKTOP: hati sa dalawang column ang mga row (kaliwa/kanan) — hindi
+    // nakaunat ang label at value sa buong lapad ng browser. Sa mobile isang
+    // column pa rin, at naka-preserba ang dating pagkakasunod-sunod.
+    final half = (rows.length + 1) ~/ 2;
     // Naka-card para malinis at hindi nakakalat ang review details sa page
     // (puti + border + radius 12).
     return Container(
@@ -2778,32 +2949,18 @@ class _ReviewCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _row(
-            'Loan Amount',
-            '₱${fmt.format(amount)}',
-          ),
-          _row(
-            'Payment Frequency',
-            frequency[0].toUpperCase() + frequency.substring(1),
-          ),
-          _row('Loan Term', termLabel),
-          _row('Purpose', purpose.isEmpty ? '-' : purpose),
-          if (interest != null) ...[
-            _row(interestRateLabel(interestRate),
-                '₱${fmt.format((interest as num).toDouble())}'),
-          ],
-          if (totalPayable != null) ...[
-            _row('Total Payable',
-                '₱${fmt.format((totalPayable as num).toDouble())}'),
-          ],
-          if (installment != null) ...[
-            _row('Per Installment',
-                '₱${fmt.format((installment as num).toDouble())}'),
-          ],
-        ],
+      child: LenderTwoPane(
+        breakpoint: 720,
+        gap: 24,
+        stackGap: 0,
+        left: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: rows.sublist(0, half),
+        ),
+        right: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: rows.sublist(half),
+        ),
       ),
     );
   }
@@ -4083,6 +4240,57 @@ class _LenderLoanPurposePickerState extends State<LenderLoanPurposePicker> {
         ],
       ),
     );
+  }
+}
+
+/// Desktop layout helper para sa wizard steps: kapag sapat ang lapad (>= 900px
+/// sa loob ng step), magkatabi at pantay ang lapad ng [left] at [right] — kaya
+/// hindi nakaunat sa buong browser ang isang field/card. Kapag makitid (mobile
+/// o makitid na desktop), naka-stack sila gaya ng dating isang column.
+class LenderTwoPane extends StatelessWidget {
+  final Widget left;
+  final Widget right;
+
+  /// Sa ilalim ng lapad na ito, naka-stack ang dalawang pane.
+  final double breakpoint;
+
+  /// Pagitan ng dalawang pane kapag magkatabi.
+  final double gap;
+
+  /// Pagitan kapag naka-stack; kapag `null`, [gap] din ang gamit.
+  final double? stackGap;
+
+  const LenderTwoPane({
+    super.key,
+    required this.left,
+    required this.right,
+    this.breakpoint = 900,
+    this.gap = 20,
+    this.stackGap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, c) {
+      if (c.maxWidth < breakpoint) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            left,
+            SizedBox(height: stackGap ?? gap),
+            right,
+          ],
+        );
+      }
+      return Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(child: left),
+          SizedBox(width: gap),
+          Expanded(child: right),
+        ],
+      );
+    });
   }
 }
 

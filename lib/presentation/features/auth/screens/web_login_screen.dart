@@ -34,6 +34,12 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
   Timer? _lockTimer;
   int _lockSecondsLeft = 0;
 
+  /// Red error text sa ilalim ng fields — 1 segundo lang bago mawala
+  /// (hindi ginagalaw ang naka-type na email/password).
+  String? _emailError;
+  String? _passError;
+  Timer? _validationClearTimer;
+
   late final AnimationController _pageCtrl;
   late final Animation<double> _cardFade;
   late final Animation<Offset> _cardSlide;
@@ -68,6 +74,7 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
     _emailFocus.dispose();
     _passFocus.dispose();
     _lockTimer?.cancel();
+    _validationClearTimer?.cancel();
     _pageCtrl.dispose();
     super.dispose();
   }
@@ -103,7 +110,16 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
       _showNoInternetToast();
       return;
     }
-    if (!_formKey.currentState!.validate()) return;
+    final emailMissing = _emailCtrl.text.trim().isEmpty;
+    final passMissing = _passCtrl.text.isEmpty;
+    if (emailMissing || passMissing) {
+      setState(() {
+        _emailError = emailMissing ? 'Email is required' : null;
+        _passError = passMissing ? 'Password is required' : null;
+      });
+      _clearValidationSoon();
+      return;
+    }
     final notifier = ref.read(authProvider.notifier);
     final ok = await notifier.login(
       email: _emailCtrl.text.trim(),
@@ -126,6 +142,20 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
       _showError(
           notifier.extractErrorMessage(err ?? 'Error') ?? 'Login failed.');
     }
+  }
+
+  /// Namumula sandali ang fields pero mawawala agad ang red error text
+  /// pagkatapos ng 1 segundo.
+  void _clearValidationSoon() {
+    _validationClearTimer?.cancel();
+    _validationClearTimer = Timer(const Duration(seconds: 1), () {
+      if (!mounted) return;
+      // Error text lang ang tinatanggal — buo pa rin ang naka-type na laman.
+      setState(() {
+        _emailError = null;
+        _passError = null;
+      });
+    });
   }
 
   void _goToRoleHome() {
@@ -239,6 +269,8 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
           isLoading: isLoading,
           isOnline: isOnline,
           lockSecondsLeft: _lockSecondsLeft,
+          emailError: _emailError,
+          passError: _passError,
           lockLabel: _lockLabel,
         ),
       ),
@@ -342,6 +374,11 @@ class _PremiumLoginCard extends StatefulWidget {
   final int lockSecondsLeft;
   final String lockLabel;
 
+  /// Error text sa ilalim ng fields (null = walang error). Naka-manage sa
+  /// parent para mawala ito pagkatapos ng 1 segundo.
+  final String? emailError;
+  final String? passError;
+
   const _PremiumLoginCard({
     required this.formKey,
     required this.emailCtrl,
@@ -355,6 +392,8 @@ class _PremiumLoginCard extends StatefulWidget {
     required this.isOnline,
     required this.lockSecondsLeft,
     required this.lockLabel,
+    this.emailError,
+    this.passError,
   });
 
   @override
@@ -456,6 +495,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
+                    errorText: widget.emailError,
                     hintText: 'you@example.com',
                     hintStyle: TextStyle(
                         fontSize: 13.5,
@@ -496,11 +536,8 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                   ),
                   // Walang email-format validation: ang head manager ay
                   // maaaring mag-login gamit ang pangalan lang (hal. "juan") —
-                  // hindi email — kaya required lang ang sinusuri dito.
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Email is required';
-                    return null;
-                  },
+                  // hindi email — kaya required lang ang sinusuri (sa `_submit`,
+                  // ipinapasa bilang `errorText` para 1s lang nakikita).
                   onFieldSubmitted: (_) => widget.passFocus.requestFocus(),
                 ),
               ),
@@ -539,6 +576,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                       color: AppColors.textPrimary,
                       fontWeight: FontWeight.w500),
                   decoration: InputDecoration(
+                    errorText: widget.passError,
                     hintText: '••••••••',
                     hintStyle: TextStyle(
                         fontSize: 13.5,
@@ -588,10 +626,7 @@ class _PremiumLoginCardState extends State<_PremiumLoginCard> {
                           widget.obscure ? 'Show password' : 'Hide password',
                     ),
                   ),
-                  validator: (v) {
-                    if (v == null || v.isEmpty) return 'Password is required';
-                    return null;
-                  },
+
                   onFieldSubmitted: (_) => widget.onSubmit(),
                 ),
               ),

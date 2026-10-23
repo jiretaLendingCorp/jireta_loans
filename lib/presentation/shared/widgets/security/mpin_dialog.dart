@@ -53,9 +53,9 @@ Future<bool> showMpinSetupDialog(
   bool requireCurrent = false,
   String? reason,
   MpinService? mpin,
-  /// Tinatawag kapag nag-reset (turn off) ang user mula sa itaas ng modal —
-  /// naka-clear na ang MPIN bago ito tawagin. Ang caller ang nagre-reload at
-  /// nagpapakita ng kaukulang mensahe.
+  /// Tinatawag kapag pinili ng user ang "Reset MPIN" — HINDI pa nagbabago ang
+  /// MPIN dito. Ang caller ang magsisimula ng OTP verification flow (ang
+  /// server ay tumatanggap lang ng reset na may OTP-issued authorization).
   VoidCallback? onReset,
 }) async {
   final result = await showDialog<bool>(
@@ -274,10 +274,8 @@ class _MpinDialogState extends State<MpinDialog> {
     switch (result.status) {
       case MpinStatus.success:
         if (_resetMode) {
-          // Reset: i-off ang MPIN sa server bago isara ang modal.
-          setState(() => _busy = true);
-          await _service.clear();
-          if (!mounted) return;
+          // Hindi direktang binubura ang MPIN: kailangan muna ng OTP na may
+          // purpose=reset_mpin (server-side). Ipaubaya sa caller ang flow.
           widget.onReset?.call();
           Navigator.of(context).pop(false);
           return;

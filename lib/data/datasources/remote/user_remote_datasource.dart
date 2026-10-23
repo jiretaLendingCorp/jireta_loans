@@ -93,6 +93,22 @@ class UserRemoteDataSource {
     );
   }
 
+  /// Head Manager-assisted 2FA (TOTP) reset: inaalis lahat ng authenticator
+  /// factor ng account (`users-admin?fn=reset-mfa`). HEAD MANAGER lang ang
+  /// tinatanggap ng server, bawal ang sariling account, at naka-audit.
+  ///
+  /// Returns ang bilang ng naalis na factor — `0` kapag wala pang naka-set na
+  /// 2FA (hindi ito error).
+  Future<int> resetMfa(String userId) async {
+    final res = await _client.post(
+      ApiEndpoints.usersResetMfa,
+      data: {'user_id': userId},
+    );
+    final data = res.data;
+    if (data is Map) return (data['removed'] as num?)?.toInt() ?? 0;
+    return 0;
+  }
+
   Future<UserModel> getProfile({String? userId}) async {
     try {
       final res = await _client.get(

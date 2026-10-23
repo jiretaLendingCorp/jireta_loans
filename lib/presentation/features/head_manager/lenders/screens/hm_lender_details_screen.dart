@@ -10,6 +10,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/details_actions_card.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../../shared/widgets/security/reset_mfa_dialog.dart';
 import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/details/details_section_card.dart';
 import '../../../../shared/widgets/details/user_profile_header_card.dart';
@@ -212,6 +213,20 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                         side: const BorderSide(color: AppColors.success),
                       ),
                     ),
+                  OutlinedButton.icon(
+                    onPressed: () => confirmAndResetMfa(
+                      context,
+                      userId: user.id,
+                      personName: '${user.firstName} ${user.lastName}'.trim(),
+                      roleLabel: 'lender',
+                    ),
+                    icon: const Icon(Icons.security_outlined, size: 18),
+                    label: const Text('Reset 2FA'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.warning,
+                      side: const BorderSide(color: AppColors.warning),
+                    ),
+                  ),
                   OutlinedButton.icon(
                     onPressed: () async {
                       await ref.read(hmLenderProvider.notifier).archive(user.id);

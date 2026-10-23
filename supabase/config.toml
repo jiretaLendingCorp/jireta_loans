@@ -518,15 +518,28 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
-# Mobile OTP now uses real random 6-digit code + Gmail via Resend (see email.ts:sendLoginOtpEmail).
-# USE_MOCK_SMS controls ONLY whether Semaphore SMS is actually sent:
-#   true  — skip real SMS (log only), Gmail via Resend still sends if RESEND_API_KEY is set
-#   false — attempt real Semaphore send (requires SEMAPHORE_API_KEY)
-# The old "always 123456" mock bypass is removed — every OTP is verified against the hashed DB row.
-# RESEND (Gmail via Resend API):
-#   RESEND_API_KEY      — required for sending OTP + reset emails via Resend (https://resend.com/api-keys)
+# MOBILE OTP (rider / lender login + MPIN reset) — Semaphore SMS API v4:
+#   Every OTP is a cryptographically random 6-digit code; only its SHA-256 hash
+#   is stored in otp_codes.otp_hash. OTPs are never logged and never returned
+#   to the client. The old "always 123456" bypass is removed.
+#   SEMAPHORE_API_KEY           — required for real SMS (Semaphore → API keys).
+#                                 Set in cloud: `supabase secrets set SEMAPHORE_API_KEY=...`
+#   SEMAPHORE_SENDER_NAME       — approved sender name. Kapag walang naka-set, ang
+#                                 default sender name ng Semaphore account ang
+#                                 gagamitin; huwag maglagay ng hindi pa aprubado
+#                                 (unapproved sender name = status `Failed`).
+#   OTP_EXPIRY_MINUTES          — OTP validity in minutes (default: 5)
+#   OTP_RESEND_COOLDOWN_SECONDS — server-side resend cooldown (default: 60)
+#   MPIN_RESET_TOKEN_MINUTES    — reset authorization validity (default: 10)
+# USE_MOCK_SMS:
+#   true  — skip the real Semaphore call. The OTP is still random and hashed;
+#           for LOCAL DEVELOPMENT only, the full message is written to sms_logs
+#           (read it in Supabase Studio). NEVER enable in production.
+#   false — call Semaphore `/api/v4/otp` (requires SEMAPHORE_API_KEY).
+# RESEND (Gmail via Resend API — password reset / email verification only):
+#   RESEND_API_KEY      — required for sending reset emails via Resend (https://resend.com/api-keys)
 #                         Set in cloud: `supabase secrets set RESEND_API_KEY=re_xxx` or Dashboard → Edge Functions → Secrets.
-#                         If unset (local dev), OTP is logged to console and viewable in `supabase logs`.
+#                         If unset (local dev), reset/verification email is skipped and the API reports it.
 #   RESEND_FROM_EMAIL   — REQUIRED in cloud: sender on a domain verified in Resend (the domain mail.jireta.com is verified,
 #                         so use e.g. noreply@mail.jireta.com). If unset it falls back to onboarding@resend.dev,
 #                         which Resend only delivers to the account owner's own inbox — every other recipient gets

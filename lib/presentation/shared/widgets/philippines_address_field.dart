@@ -9,6 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:philippines_rpcmb/philippines_rpcmb.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'forms/anchored_dropdown.dart';
 
 /// Hinahanap ang Region ng isang City/Municipality name sa PSG/PSA data.
 ///
@@ -197,20 +198,26 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
     final municipalities = _province?.municipalities ?? const <Municipality>[];
     final barangays = _municipality?.barangays ?? const <String>[];
 
+    // Naka-anchor sa field ang mga dropdown (Region → Barangay): bumubukas
+    // ang menu sa IBABA ng field — hindi sa ibabaw ng field/selected item —
+    // kaya hindi natatakpan ang kasunod na fields. Kapag kulang ang espasyo
+    // sa ibaba, awtomatikong lumilipat ang menu sa ITAAS.
     Widget dropdown({
       Key? key,
       required String label,
       required String? value,
-      required List<DropdownMenuItem<String>> items,
+      required List<String> options,
       required void Function(String?) onChanged,
     }) {
-      return DropdownButtonFormField<String>(
+      return AnchoredDropdownField(
         key: key,
-        initialValue: value,
-        isExpanded: true,
-        decoration: _deco(label, errorText: null),
-        items: items,
-        onChanged: items.isEmpty ? null : onChanged,
+        label: label,
+        value: value,
+        options: [
+          for (final option in options) AnchoredDropdownOption(option, option),
+        ],
+        enabled: options.isNotEmpty,
+        onChanged: onChanged,
       );
     }
 
@@ -219,10 +226,7 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
       final regionDropdown = dropdown(
         label: 'Region *',
         value: _region?.regionName,
-        items: regions
-            .map((r) =>
-                DropdownMenuItem(value: r.regionName, child: Text(r.regionName)))
-            .toList(),
+        options: regions.map((r) => r.regionName).toList(),
         onChanged: (v) {
           if (v == null) return;
           setState(() {
@@ -238,9 +242,7 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
         key: ValueKey('paf-prov-${_region?.regionName ?? ''}'),
         label: 'Province *',
         value: _province?.name,
-        items: provinces
-            .map((p) => DropdownMenuItem(value: p.name, child: Text(p.name)))
-            .toList(),
+        options: provinces.map((p) => p.name).toList(),
         onChanged: (v) {
           if (v == null) return;
           setState(() {
@@ -255,9 +257,7 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
         key: ValueKey('paf-city-${_province?.name ?? ''}'),
         label: 'City / Municipality *',
         value: _municipality?.name,
-        items: municipalities
-            .map((m) => DropdownMenuItem(value: m.name, child: Text(m.name)))
-            .toList(),
+        options: municipalities.map((m) => m.name).toList(),
         onChanged: (v) {
           if (v == null) return;
           setState(() {
@@ -272,9 +272,7 @@ class PhilippinesAddressFieldState extends State<PhilippinesAddressField> {
         key: ValueKey('paf-brgy-${_municipality?.name ?? ''}'),
         label: 'Barangay *',
         value: _barangay,
-        items: barangays
-            .map((b) => DropdownMenuItem(value: b, child: Text(b)))
-            .toList(),
+        options: barangays,
         onChanged: (v) {
           setState(() => _barangay = v);
           _emit();

@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../legal_links.dart';
 
 /// Premium footer — keeps Explore & Contact as requested, no logo/brand,
 /// no Privacy/Terms at bottom (copyright only, centered), compact height
@@ -267,12 +268,29 @@ class _LegalSheet extends StatelessWidget {
             const SizedBox(height: 20),
             Text(isTerms ? 'Terms & Conditions' : 'Privacy Policy', style: const TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
             const SizedBox(height: 12),
-            Text(
-              isTerms
-                  ? 'By accessing the Jireta staff portal, you agree to be bound by these Terms and our Privacy Policy. Loan services are subject to verification. Do not share credentials.'
-                  : 'We collect and process personal information per Data Privacy Act 2012 (RA 10173). Data is used solely for loan processing and compliance. You have rights to access, correct, and request deletion.',
-              style: const TextStyle(fontSize: 13, height: 1.6, color: AppColors.textSecondary),
-            ),
+            // Kaparehong nilalaman ng T&C at Privacy Policy sa profile at sa
+            // loan-apply wizard ([kTermsAndConditionsSections] /
+            // [kPrivacyPolicySections]) — hindi na paikling bersyon dito sa
+            // footer ng web login.
+            for (final section in isTerms
+                ? kTermsAndConditionsSections
+                : kPrivacyPolicySections) ...[
+              Text(
+                section.title,
+                style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.deepNavy,
+                    height: 1.5),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                section.body,
+                style: const TextStyle(
+                    fontSize: 13, height: 1.6, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 14),
+            ],
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

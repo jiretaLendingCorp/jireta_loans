@@ -11,6 +11,11 @@ class AppConstants {
   /// modal, kaya iisang lugar lang ang babaguhin kapag nagpalit ng number.
   static const String supportPhone = '09755849954';
 
+  /// Messenger chat link — binubuksan ng "Chat" button sa pinaka-baba ng
+  /// Help Center. Iisang lugar lang ito para madaling palitan kapag
+  /// nagbago ang official page ng Jireta.
+  static const String supportMessengerUrl = 'https://m.me/jireta';
+
   static const int connectTimeoutMs = 30000;
   static const int receiveTimeoutMs = 30000;
   static const int sendTimeoutMs = 30000;
@@ -20,6 +25,11 @@ class AppConstants {
 
   static const int otpLength = 6;
   static const int otpResendSeconds = 60;
+
+  /// Purpose na ipinapadala sa `auth-otp` — inihahambing ito ng server, kaya
+  /// hindi magagamit ang OTP ng login sa pag-reset ng MPIN (at kabaliktaran).
+  static const String otpPurposeLogin = 'login';
+  static const String otpPurposeResetMpin = 'reset_mpin';
 
   static const int locationUpdateIntervalSeconds = 30;
 

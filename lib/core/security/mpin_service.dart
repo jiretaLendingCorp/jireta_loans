@@ -158,11 +158,19 @@ class MpinService {
   /// nagbabato ng [MpinChangeLimitException] — kailangan maghintay hanggang
   /// mag-reset ang window. Ang unang set-up (wala pang naka-set na MPIN) ay
   /// hindi binibilang.
-  Future<void> setMpin(String pin, {String? currentMpin}) async {
+  Future<void> setMpin(
+    String pin, {
+    String? currentMpin,
+    String? resetToken,
+  }) async {
     if (!isValidFormat(pin)) {
       throw ArgumentError('MPIN must be exactly $pinLength digits');
     }
-    final reply = await _remote.setMpin(mpin: pin, currentMpin: currentMpin);
+    final reply = await _remote.setMpin(
+      mpin: pin,
+      currentMpin: currentMpin,
+      resetToken: resetToken,
+    );
     if (!reply.saved) {
       throw MpinChangeLimitException(
         reply.changeLimitRemaining ?? Duration.zero,
@@ -214,11 +222,12 @@ class MpinService {
 
   /// Binubura ang MPIN ng account (forgot MPIN).
   ///
-  /// Ginagamit pagkatapos ng OTP login (napatunayan na ng OTP ang numero) at ng
-  /// "Reset MPIN" sa Profile (pagkatapos ma-verify ang kasalukuyang MPIN).
-  Future<void> clear() async {
+  /// Kailangan ang [resetToken] na galing sa `verify-otp` na may
+  /// purpose=reset_mpin. Hindi tinatanggap ng server ang session lang — kaya
+  /// hindi ito maaaring tawagin ng client nang walang OTP.
+  Future<void> clear({required String resetToken}) async {
     try {
-      await _remote.reset();
+      await _remote.reset(resetToken: resetToken);
     } finally {
       await _cacheExists(false);
     }

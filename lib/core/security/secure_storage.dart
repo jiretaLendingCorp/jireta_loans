@@ -61,6 +61,7 @@ class SecureStorage {
     AppConstants.lastActivityKey,
     AppConstants.sessionIdKey,
     AppConstants.mfaPendingKey,
+    _mpinResetAuthKey,
   ];
 
   static Future<void> saveTokens({
@@ -410,6 +411,36 @@ class SecureStorage {
     try {
       await _storage.delete(key: _resetOtpTokenKey);
       await _storage.delete(key: _resetOtpPhoneKey);
+    } catch (_) {}
+  }
+
+  // ── MPIN reset authorization (server-issued, single-use) ────────────────
+  // Galing ito sa matagumpay na OTP verification na may purpose `reset_mpin`.
+  // Hindi ito ang MPIN at hindi ito makakapasok sa app — kailangan lang ng
+  // `auth-mpin` bago mapalitan ang MPIN. Short-lived at single-use sa server.
+  static const _mpinResetAuthKey = 'mpin_reset_authorization';
+
+  static Future<void> saveMpinResetAuthorization(String token) async {
+    final clean = token.trim();
+    if (clean.isEmpty) return;
+    try {
+      await _storage.write(key: _mpinResetAuthKey, value: clean);
+    } catch (_) {}
+  }
+
+  static Future<String?> getMpinResetAuthorization() async {
+    try {
+      final value = await _storage.read(key: _mpinResetAuthKey);
+      if (value == null || value.trim().isEmpty) return null;
+      return value.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearMpinResetAuthorization() async {
+    try {
+      await _storage.delete(key: _mpinResetAuthKey);
     } catch (_) {}
   }
 

@@ -45,6 +45,7 @@ class _FakeMpinServer implements MpinRemoteDataSource {
   Future<MpinSetReply> setMpin({
     required String mpin,
     String? currentMpin,
+    String? resetToken,
   }) async {
     if (offline) _noConnection();
     pin = mpin;
@@ -52,7 +53,7 @@ class _FakeMpinServer implements MpinRemoteDataSource {
   }
 
   @override
-  Future<void> reset() async {
+  Future<void> reset({required String resetToken}) async {
     if (offline) _noConnection();
     pin = null;
   }
@@ -252,7 +253,7 @@ void main() {
     await service().setMpin('1234');
     expect(await service().isSet(), isTrue);
 
-    await service().clear();
+    await service().clear(resetToken: 'test-reset-token');
     expect(await service().isSet(), isFalse);
 
     // Kahit walang userId, wala na ring MPIN na makikita.

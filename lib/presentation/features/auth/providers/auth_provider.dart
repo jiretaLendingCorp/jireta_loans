@@ -38,6 +38,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 
   LoginMfaInfo get loginMfa => _loginMfa;
 
+  /// Server-issued, single-use na authorization mula sa matagumpay na
+  /// `verify-otp` na may purpose `reset_mpin`. Ito lang ang tinatanggap ng
+  /// `auth-mpin` para palitan ang MPIN — hindi ang client-side na flag.
+  String? _mpinResetToken;
+  String? get mpinResetToken => _mpinResetToken;
+
   /// True kapag dapat dumaan muna sa authenticator (TOTP) challenge ang
   /// bagong login.
   ///
@@ -200,10 +206,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<bool> sendOtp({required String phone}) async {
+  Future<bool> sendOtp({
+    required String phone,
+    String purpose = AppConstants.otpPurposeLogin,
+  }) async {
     state = const AsyncLoading();
     try {
-      await _ds.sendOtp(phone: phone);
+      await _ds.sendOtp(phone: phone, purpose: purpose);
       state = const AsyncData(null);
       return true;
     } catch (e, s) {
@@ -339,9 +348,15 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<bool> verifyOtp({required String phone, required String otp}) async {
+  Future<bool> verifyOtp({
+    required String phone,
+    required String otp,
+    String purpose = AppConstants.otpPurposeLogin,
+  }) async {
     _authState.startInteractiveAuth();
     state = const AsyncLoading();
+    // Bawat verification ay bagong authorization — huwag mag-reuse ng luma.
+    _mpinResetToken = null;
     try {
       // Claim this device's STABLE session id server-side (survives refresh).
       final sessionId = await _ensureSessionId();
@@ -349,7 +364,11 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         phone: phone,
         otp: otp,
         sessionId: sessionId,
+        purpose: purpose,
       );
+      final resetToken = res['reset_token'];
+      _mpinResetToken =
+          resetToken is String && resetToken.isNotEmpty ? resetToken : null;
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;

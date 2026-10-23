@@ -743,11 +743,22 @@ class ModernInfoSheet extends StatelessWidget {
   final IconData icon;
   final List<ModernSheetSection> sections;
 
+  /// Kapag true, naka-collapsible (ExpansionTile) ang bawat section — ang
+  /// sagot ay dropdown at isa-isa lang bubukas (hal. FAQ ng Help Center).
+  /// Default na false: nakabukas agad lahat (Terms / Privacy Policy).
+  final bool collapsible;
+
+  /// Opsyonal na action sa dulo ng content (kasama sa scroll, hindi nakapako)
+  /// — hal. "Chat" button ng Help Center na bubukas ng Messenger.
+  final Widget? footer;
+
   const ModernInfoSheet({
     super.key,
     required this.title,
     required this.icon,
     required this.sections,
+    this.collapsible = false,
+    this.footer,
   });
 
   @override
@@ -820,24 +831,69 @@ class ModernInfoSheet extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     for (final s in sections) ...[
-                      Text(
-                        s.title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: context.cTextPrimary,
+                      if (collapsible)
+                        Theme(
+                          data: Theme.of(context).copyWith(
+                            dividerColor: Colors.transparent,
+                          ),
+                          child: ExpansionTile(
+                            tilePadding: EdgeInsets.zero,
+                            childrenPadding:
+                                const EdgeInsets.only(bottom: 8),
+                            shape: const Border(),
+                            collapsedShape: const Border(),
+                            iconColor: context.cTextPrimary,
+                            collapsedIconColor: context.cTextPrimary,
+                            title: Text(
+                              s.title,
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: context.cTextPrimary,
+                              ),
+                            ),
+                            children: [
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  s.body,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    height: 1.65,
+                                    color: context.cTextSecondary,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      else ...[
+                        Text(
+                          s.title,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: context.cTextPrimary,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 4),
+                        Text(
+                          s.body,
+                          style: TextStyle(
+                            fontSize: 13,
+                            height: 1.65,
+                            color: context.cTextSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                    ],
+                    if (footer != null) ...[
                       const SizedBox(height: 4),
-                      Text(
-                        s.body,
-                        style: TextStyle(
-                          fontSize: 13,
-                          height: 1.65,
-                          color: context.cTextSecondary,
-                        ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: footer,
                       ),
-                      const SizedBox(height: 16),
                     ],
                   ],
                 ),

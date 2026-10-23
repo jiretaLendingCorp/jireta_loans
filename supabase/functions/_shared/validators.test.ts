@@ -21,8 +21,10 @@ import {
 import {
   credentialEmailFor,
   isEmailFormat,
+  normalizePhMobile,
   phoneCredentialEmail,
   validateEmail,
+  validatePhone,
 } from "./validators.ts";
 
 // ── phoneCredentialEmail ──────────────────────────────────────────────────
@@ -103,4 +105,23 @@ Deno.test("credentialEmailFor is stable for the same identifier", () => {
   // head manager account (naka-save sa auth.users ang lumang anyo).
   assertEquals(credentialEmailFor("juan"), credentialEmailFor("juan"));
   assertEquals(credentialEmailFor("juan"), "juan@jireta.temp");
+});
+
+Deno.test("normalizePhMobile returns the system's 09XXXXXXXXX format", () => {
+  for (const input of [
+    "09171234567",
+    "+63 917 123 4567",
+    "639171234567",
+    "9171234567",
+    "0917-123-4567",
+  ]) {
+    assertEquals(normalizePhMobile(input), "09171234567", `input: ${input}`);
+    assert(validatePhone(normalizePhMobile(input)));
+  }
+});
+
+Deno.test("normalizePhMobile rejects landlines and malformed numbers", () => {
+  for (const input of ["", "12345", "+1 555 0100", "0917123456", "091712345678"]) {
+    assertEquals(normalizePhMobile(input), "", `input: ${input}`);
+  }
 });

@@ -332,7 +332,13 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
                   // Scrollable content box
                   Expanded(
                     child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 16),
+                      // Desktop: hindi i-wide ang box — naka-cap sa 820px at
+                      // naka-center; mobile: buong lapad (16px margins).
+                      margin: EdgeInsets.symmetric(
+                        horizontal: MediaQuery.of(context).size.width > 900
+                            ? (MediaQuery.of(context).size.width - 820) / 2
+                            : 16,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         border: Border.all(
@@ -354,45 +360,40 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
                             child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _sectionTitle('1. Agreement to Terms'),
                             _body(
-                              'By accessing and using the Jireta Loans & Credit Corp 1966 mobile application, you agree to be bound by these Terms and Conditions and our Privacy Policy.',
+                              'By accessing and using the Jireta Loans & Credit Corp. Web and Mobile-Based Digitized Lending Management System, I acknowledge and agree to the following terms and conditions:',
                             ),
-                            _sectionTitle('2. Loan Services'),
+                            _sectionTitle('1. Account Security'),
                             _body(
-                              'Jireta Loans & Credit Corp 1966 offers lending services ranging from ₱3,000 to ₱500,000 at the interest rate set by Jireta for the loan term. Loan amounts and terms are subject to credit evaluation, account upgrade verification, and credit investigation.',
+                              'I agree to provide accurate information during registration and to keep my account credentials and verification codes confidential. I understand that I am responsible for activities performed through my account.',
                             ),
-                            _sectionTitle('3. Interest & Penalties'),
+                            _sectionTitle('2. Personal Information'),
                             _body(
-                              'Interest is charged on the principal amount at the rate set by Jireta for the loan term. A penalty of 20% on the total payable amount will be applied if payment is delayed by one (1) month or more.',
+                              'I authorize the company to collect, store, and process my personal information as necessary for account management, loan processing, payment monitoring, and other legitimate lending-related purposes, subject to applicable data privacy laws and the company\'s Privacy Policy.',
                             ),
-                            _sectionTitle('4. Account Upgrade Requirements'),
+                            _sectionTitle('3. Accurate Information'),
                             _body(
-                              'You are required to submit valid government-issued identification, proof of billing, selfie verification, and proof of income. All documents are subject to verification by authorized personnel.',
+                              'I confirm that the personal and other information I provide through the system is true, accurate, and complete to the best of my knowledge.',
                             ),
-                            _sectionTitle('5. Credit Investigation'),
+                            _sectionTitle('4. Proper Use of the System'),
                             _body(
-                              'Loan applications are subject to a credit investigation conducted by authorized riders. You agree to cooperate with and receive visits from assigned investigators.',
+                              'I agree to use the system only for its intended purposes, including viewing loan information, monitoring payment schedules, receiving notifications, and accessing authorized lending services.',
                             ),
-                            _sectionTitle('6. Payment Methods'),
+                            _sectionTitle('5. Notifications and Updates'),
                             _body(
-                              'Payments may be made through GCash (via Xendit payment gateway), office cash payment, or rider cash collection. All transactions are recorded and receipts are issued.',
+                              'I understand that the company may send relevant notifications regarding my account, loan application, payment schedule, payment status, and other important lending-related updates.',
                             ),
-                            _sectionTitle('7. Data Privacy'),
+                            _sectionTitle('6. Acknowledgment of Terms'),
                             _body(
-                              'We collect and process your personal information in accordance with the Data Privacy Act of 2012 (Republic Act No. 10173) and our Privacy Policy. Your information is used solely for loan processing and account management.',
+                              'I understand that accepting these Terms and Conditions allows me to proceed with system access. However, accepting these terms does not automatically constitute loan approval or a loan agreement.',
                             ),
-                            _sectionTitle('8. Prohibited Acts'),
+                            _sectionTitle('7. Agreement and Acceptance'),
                             _body(
-                              'You agree not to provide false information, commit fraud, or use the application for any unlawful purpose. Violations may result in account suspension, blacklisting, and legal action.',
+                              'By checking the acceptance box, I confirm that I have read, understood, and agreed to these Terms and Conditions.',
                             ),
-                            _sectionTitle('9. Governing Law'),
+                            const SizedBox(height: 12),
                             _body(
-                              'These terms are governed by the laws of the Republic of the Philippines. Any disputes shall be resolved in the appropriate courts of the Philippines.',
-                            ),
-                            _sectionTitle('10. Contact'),
-                            _body(
-                              'For inquiries, please visit our office or contact our authorized personnel. Do not share your OTP or account credentials with anyone.',
+                              'Jireta Loans & Credit Corp.\nSta. Barbara, Pangasinan',
                             ),
                             const Divider(height: 32),
                             _sectionTitle('Privacy Policy Summary'),
@@ -469,7 +470,9 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
                     color: Colors.black.withValues(alpha: 0.55),
                     alignment: Alignment.center,
                     padding: const EdgeInsets.all(20),
-                    child: SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      child: SingleChildScrollView(
                       padding: EdgeInsets.only(
                           bottom: MediaQuery.of(context).viewInsets.bottom),
                       child: TweenAnimationBuilder<double>(
@@ -488,6 +491,7 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
                           ),
                         ),
                       ),
+                    ),
                     ),
                   ),
                 ),

@@ -14,6 +14,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../core/constants/route_constants.dart';
+import '../../../../data/datasources/remote/mpin_remote_datasource.dart';
 import '../../../../core/security/mpin_login_gate.dart';
 import '../../../../core/security/mpin_service.dart';
 import '../../../../core/security/secure_storage.dart';
@@ -42,6 +43,10 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
   String? _error;
   bool _busy = false;
   String? _phone;
+
+  /// Server-issued reset authorization (galing sa OTP na purpose=reset_mpin).
+  /// `null` kapag ordinaryong first-time setup — hindi ito kailangan doon.
+  String? _resetToken;
 
   /// Auto-hide ng mga pansamantalang mensahe (hal. "MPIN did not match.") —
   /// 3 segundo lang, para hindi ito manatiling nakabitin habang nagta-type
@@ -86,8 +91,12 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
 
   Future<void> _loadPhone() async {
     final phone = await SecureStorage.getLoginPhone();
+    final resetToken = await SecureStorage.getMpinResetAuthorization();
     if (!mounted) return;
-    setState(() => _phone = phone);
+    setState(() {
+      _phone = phone;
+      _resetToken = resetToken;
+    });
   }
 
   /// Kapag puno na ang 4 na digit — depende sa hakbang kung i-save o
@@ -122,7 +131,13 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
     final hideLoading = showLoadingOverlay(context);
 
     try {
-      await ref.read(mpinServiceProvider).setMpin(pin);
+      await ref
+          .read(mpinServiceProvider)
+          .setMpin(pin, resetToken: _resetToken);
+      // Single-use na ang reset authorization — burahin ang local copy.
+      if (_resetToken != null) {
+        await SecureStorage.clearMpinResetAuthorization();
+      }
       // Bahagyang paghinto para kitang-kita ang loading bago lumipat.
       await Future.delayed(const Duration(milliseconds: 900));
       hideLoading();
@@ -143,6 +158,24 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
       // numerong ginamit at hihingin ang bagong MPIN — para makita mismo ng
       // user na ito na ang gagamitin sa susunod na login.
       await _goToLoginWithMpin();
+    } on MpinResetAuthorizationException catch (e) {
+      hideLoading();
+      if (!mounted) return;
+      // Expired / nagamit na / hindi tugma ang token — hindi na magagamit ito.
+      // Bumalik sa login para makapag-request ng bagong OTP.
+      await SecureStorage.clearMpinResetAuthorization();
+      if (!mounted) return;
+      _errorTimer?.cancel();
+      setState(() {
+        _busy = false;
+        _error = e.message;
+        _firstEntry = '';
+        _step = _SetupStep.create;
+      });
+      _padController.clear();
+      await Future<void>.delayed(const Duration(seconds: 3));
+      if (!mounted) return;
+      context.go(RouteConstants.mobileLogin);
     } on MpinChangeLimitException catch (e) {
       hideLoading();
       if (!mounted) return;

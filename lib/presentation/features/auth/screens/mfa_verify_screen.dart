@@ -234,15 +234,9 @@ class _MfaVerifyScreenState extends ConsumerState<MfaVerifyScreen> {
   /// (setup o \"Enter MPIN\"), staff ay sa dashboard.
   Future<void> _continueAfterVerification() async {
     if (widget.args?.resetMpin == true) {
-      final cleared = await clearMpinForReset(ref);
-      if (!mounted) return;
-      if (!cleared) {
-        setState(() {
-          _error = 'We could not reset your MPIN. Please check your internet '
-              'connection and try again.';
-        });
-        return;
-      }
+      // Naka-save na ang server-issued reset authorization bago pa dumating
+      // dito ang user (OTP screen). Dito lang siya dadalhin sa paggawa ng
+      // bagong MPIN; ang server pa rin ang magpapatunay ng token.
       context.go(RouteConstants.mpinSetup);
       return;
     }

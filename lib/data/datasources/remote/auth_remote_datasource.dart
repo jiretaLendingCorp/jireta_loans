@@ -1,6 +1,7 @@
 // lib/data/datasources/remote/auth_remote_datasource.dart
 import '../../../core/network/dio_client.dart';
 import '../../../core/network/api_endpoints.dart';
+import '../../../core/constants/app_constants.dart';
 
 class AuthRemoteDataSource {
   final DioClient _client;
@@ -67,10 +68,13 @@ class AuthRemoteDataSource {
     );
   }
 
-  Future<Map<String, dynamic>> sendOtp({required String phone}) async {
+  Future<Map<String, dynamic>> sendOtp({
+    required String phone,
+    String purpose = AppConstants.otpPurposeLogin,
+  }) async {
     final res = await _client.post(
       ApiEndpoints.authSendOtp,
-      data: {'phone_number': phone},
+      data: {'phone_number': phone, 'purpose': purpose},
     );
     return res.data as Map<String, dynamic>;
   }
@@ -79,12 +83,14 @@ class AuthRemoteDataSource {
     required String phone,
     required String otp,
     String? sessionId,
+    String purpose = AppConstants.otpPurposeLogin,
   }) async {
     final res = await _client.post(
       ApiEndpoints.authVerifyOtp,
       data: {
         'phone_number': phone,
         'otp': otp,
+        'purpose': purpose,
         if (sessionId != null && sessionId.isNotEmpty) 'session_id': sessionId,
       },
     );

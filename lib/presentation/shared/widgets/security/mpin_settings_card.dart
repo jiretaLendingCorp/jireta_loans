@@ -7,15 +7,21 @@
 // Ang palit at ang reset ay parehong dumadaan muna sa verification ng
 // kasalukuyang MPIN kaya hindi ito mababago ng ibang tao kahit bukas ang app.
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
+import '../../../../core/constants/app_constants.dart';
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/security/mpin_service.dart';
+import '../../../../core/security/secure_storage.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../features/auth/providers/auth_provider.dart';
 import '../profile/modern_profile_widgets.dart';
 import 'mpin_dialog.dart';
 
-class MpinSettingsCard extends StatefulWidget {
+class MpinSettingsCard extends ConsumerStatefulWidget {
   /// Walang card box — plain text row lang, nakalapat sa page (rider profile).
   final bool flat;
 
@@ -25,10 +31,10 @@ class MpinSettingsCard extends StatefulWidget {
   const MpinSettingsCard({super.key, this.flat = false, this.showIcon = false});
 
   @override
-  State<MpinSettingsCard> createState() => _MpinSettingsCardState();
+  ConsumerState<MpinSettingsCard> createState() => _MpinSettingsCardState();
 }
 
-class _MpinSettingsCardState extends State<MpinSettingsCard> {
+class _MpinSettingsCardState extends ConsumerState<MpinSettingsCard> {
   final _service = MpinService();
 
   /// `null` habang tinitingnan pa kung may naka-set nang MPIN.
@@ -82,16 +88,9 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
     );
     if (!mounted) return;
     if (wasReset) {
-      await _load();
-      if (!mounted) return;
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text(
-            'Your MPIN has been reset. Set a new one anytime from this screen.',
-          ),
-          backgroundColor: AppColors.info,
-        ),
-      );
+      // Hindi direktang binubura ang MPIN — kailangan muna ng OTP na may
+      // purpose=reset_mpin. Reuse ang existing na Verify OTP screen.
+      await _startOtpReset();
       return;
     }
     if (!ok) return;
@@ -107,6 +106,56 @@ class _MpinSettingsCardState extends State<MpinSettingsCard> {
         ),
         backgroundColor: AppColors.success,
       ),
+    );
+  }
+
+  /// Sinisimulan ang "Reset MPIN" flow: magpapadala ng OTP (purpose=
+  /// reset_mpin) at dadalhin ang user sa Verify OTP. Doon lang makakagawa ng
+  /// bagong MPIN, at ang server-issued na reset token ang magpapatunay.
+  Future<void> _startOtpReset() async {
+    final phone = await SecureStorage.getLoginPhone();
+    if (!mounted) return;
+    if (phone == null || phone.trim().isEmpty) {
+      context.showSnackBarAsToast(
+        const SnackBar(
+          content: Text(
+            'We could not find your registered number. Please log in again.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    final ok = await ref.read(authProvider.notifier).sendOtp(
+          phone: phone,
+          purpose: AppConstants.otpPurposeResetMpin,
+        );
+    if (!mounted) return;
+    if (!ok) {
+      final err = ref.read(authProvider).error;
+      context.showSnackBarAsToast(
+        SnackBar(
+          content: Text(
+            ref.read(authProvider.notifier).extractErrorMessage(err ?? '') ??
+                'Failed to send the verification code.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+
+    // Opaque na token sa URL; ang numero ay nasa secure storage (hindi sa
+    // address bar / browser history).
+    final sessionToken = await SecureStorage.createResetOtpSession(phone);
+    if (!mounted) return;
+    context.go(
+      Uri(
+        path: RouteConstants.resetMpinOtpVerify,
+        queryParameters: {'s': sessionToken},
+      ).toString(),
+      extra: phone,
     );
   }
 

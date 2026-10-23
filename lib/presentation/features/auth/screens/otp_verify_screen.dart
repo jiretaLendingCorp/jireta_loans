@@ -226,12 +226,37 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     // makapag-navigate ang screen mismo.
     ref.read(otpSuccessHandoffProvider.notifier).state = true;
     try {
-      final ok = await ref
-          .read(authProvider.notifier)
-          .verifyOtp(phone: _phone, otp: otp);
+      final ok = await ref.read(authProvider.notifier).verifyOtp(
+            phone: _phone,
+            otp: otp,
+            purpose: widget.resetMpin
+                ? AppConstants.otpPurposeResetMpin
+                : AppConstants.otpPurposeLogin,
+          );
       if (!mounted) return;
       setState(() => _loading = false);
       if (ok) {
+        // ── Reset authorization (reset flow lang) ────────────────────────────
+        // Ang server ang gumawa ng single-use token na ito pagkatapos ng
+        // purpose-matched na OTP. Ito ang kailangan ng `auth-mpin` para
+        // palitan ang MPIN — hindi ang `resetMpin` flag ng app.
+        if (widget.resetMpin) {
+          final resetToken = ref.read(authProvider.notifier).mpinResetToken;
+          if (resetToken == null || resetToken.isEmpty) {
+            if (!mounted) return;
+            setState(() => _error =
+                'We could not verify the reset session. Please request a new code.');
+            return;
+          }
+          await SecureStorage.saveMpinResetAuthorization(resetToken);
+          final stored = await SecureStorage.getMpinResetAuthorization();
+          if (!mounted) return;
+          if (stored == null) {
+            setState(() => _error =
+                'We could not save the reset session. Please request a new code.');
+            return;
+          }
+        }
         // ── Authenticator (TOTP) challenge MUNA, bago ang lahat ──────────────
         // Ang desisyon ay kinuha na ng [AuthNotifier] habang nag-e-verify ng OTP
         // (server ang unang pinagkukunan ng factor state, Supabase Auth ang
@@ -253,45 +278,19 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           );
           return;
         }
-        // ── "Reset MPIN": burahin ang lumang MPIN, tapos DERETSO sa create ────
-        // Sa takbong ito, napatunayan na ng OTP ang numero, kaya ngayon pa lang
-        // binubura ang lumang MPIN (kung mag-back ang user bago ito, hindi
-        // nasisira ang dating MPIN at babalik siya sa MPIN screen na may numero —
-        // hindi sa "Mobile Number" form).
-        //
-        // MAHALAGA: hindi na ito dumadaan pa sa `statusHasMpin()` sa ibaba.
-        // Nasa kamay na natin ang sagot — nabura na ang MPIN — kaya
-        // "Create Your MPIN" ang tanging tamang susunod na screen.
-        //
-        // DATI: kahit sa reset flow ay tumitingin pa sa `statusHasMpin()`, at
-        // tanging ang TAHASANG `false` lang ang dumadaan sa create. Kapag nabigo
-        // ang `clear()` (tahimik na kinakain ng `catch (_) {}`) o hindi maabot
-        // ang `status`, `true`/`null` ang isinasagot nito — kaya nauuwi ang user
-        // sa "Enter MPIN" na hindi naman niya alam ang sagot. Ngayon, ang bigong
-        // pag-reset ay sinasabi nang malinaw sa halip na ituloy sa maling screen.
+        // ── "Reset MPIN": DERETSO sa paggawa ng bagong MPIN ─────────────────
+        // Hindi na binubura dito ang lumang MPIN: ang bagong MPIN mismo ang
+        // ipapalit ng `auth-mpin?fn=set` kapag may valid na reset token. Kung
+        // mag-back ang user bago matapos, mananatili ang dating MPIN at hindi
+        // siya maiiwang walang MPIN nang hindi sinasadya.
         if (widget.resetMpin) {
-          final cleared = await clearMpinForReset(ref);
-          if (!mounted) return;
-          if (!cleared) {
-            setState(() {
-              _error = 'We could not reset your MPIN. Please check your '
-                  'internet connection and try again.';
-            });
-            return;
-          }
           // Isang beses lang dapat gamitin ang reset link/token na nasa URL.
           await SecureStorage.clearResetOtpSession();
           if (!mounted) return;
-          // Malinaw sa user kung ano ang nangyari sa MPIN niya — hindi lang
-          // "verified" ang nakalagay kundi pati ang naburang lumang MPIN.
-          // Dito muna ito sa Verify OTP screen at kusang nawawala pagkalipas ng
-          // 2 segundo (`_showSuccessAndGo` → `SuccessDialog.showAutoDismiss`),
-          // bago lumipat sa "Create Your MPIN".
           await _showSuccessAndGo(
             RouteConstants.mpinSetup,
-            title: 'Successfully Reset MPIN',
-            message: 'Your OTP has been verified and your old MPIN has been '
-                'reset. Create your new MPIN now.',
+            title: 'OTP Verified',
+            message: 'Your mobile number is verified. Create your new MPIN now.',
             // Dito muna sa Verify OTP screen: 2 segundo ang dialog, tapos
             // deretso sa "Create Your MPIN".
             dialogDuration: const Duration(seconds: 2),
@@ -383,8 +382,12 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
 
   Future<void> _resend() async {
     if (_secondsLeft > 0 || _lockSecondsLeft > 0) return;
-    final ok =
-        await ref.read(authProvider.notifier).sendOtp(phone: _phone);
+    final ok = await ref.read(authProvider.notifier).sendOtp(
+          phone: _phone,
+          purpose: widget.resetMpin
+              ? AppConstants.otpPurposeResetMpin
+              : AppConstants.otpPurposeLogin,
+        );
     if (!mounted) return;
     if (ok) {
       _startTimer();

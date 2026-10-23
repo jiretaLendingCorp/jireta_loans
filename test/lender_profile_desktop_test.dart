@@ -176,7 +176,6 @@ void main() {
         Icons.description_outlined, // Terms & Conditions
         Icons.privacy_tip_outlined, // Privacy Policy
         Icons.support_agent_outlined, // Help Center
-        Icons.info_outline_rounded, // About Jireta
       ]) {
         expect(find.byIcon(icon), findsWidgets,
             reason: 'Walang icon ($icon) sa profile item');

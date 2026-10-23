@@ -90,4 +90,29 @@ void main() {
 
     await disposeTree(tester);
   });
+
+  // Help Center ng mobile login: dating nakaunat sa buong browser at walang
+  // paraan para makipag-chat. Ngayon naka-center/capped ang content sa
+  // desktop at may "Chat" button sa dulo ng FAQ.
+  testWidgets('desktop (1280px) Help Center: capped ang lapad at may Chat',
+      (tester) async {
+    await pumpLogin(tester, 1280);
+
+    await tester.tap(find.byIcon(Icons.more_horiz_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Help Center'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Frequently Asked Questions'), findsOneWidget);
+    expect(find.widgetWithText(ElevatedButton, 'Chat'), findsOneWidget);
+
+    final faqCard = tester.getSize(find.byType(Card).first);
+    final faqCenter = tester.getCenter(find.byType(Card).first);
+    expect(faqCard.width, lessThanOrEqualTo(760),
+        reason: 'Nakaunat pa rin ang FAQ sa buong lapad ng desktop');
+    expect(faqCenter.dx, closeTo(640, 3),
+        reason: 'Hindi naka-center ang Help Center content sa desktop');
+
+    await disposeTree(tester);
+  });
 }

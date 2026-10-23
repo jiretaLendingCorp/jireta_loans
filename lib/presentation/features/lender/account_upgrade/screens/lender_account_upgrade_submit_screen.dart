@@ -5,7 +5,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, debugPrint;
+import 'package:flutter/foundation.dart' show kDebugMode, debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,11 +18,13 @@ import 'package:philippines_rpcmb/philippines_rpcmb.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/validation/kyc_document_rules.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/signature_pad.dart';
+import '../../profile/screens/widgets/legal_info_sheet.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -33,9 +35,108 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint;
 import '../providers/lender_account_upgrade_provider.dart';
 import 'face_verification_screen.dart';
 import 'valid_id_scanner_screen.dart';
+import 'webcam_capture_screen.dart';
+
+/// Kapag nakapag-submit na ang lender (`submitted` / `under_review`),
+/// deretso dapat sa Account Upgrade Status page — HINDI na sa verification
+/// screen na may "Account Upgrade Status" button pa lang.
+///
+/// Hindi kasama ang `isLoading` (hindi pa alam ang status), `successSubmitted`
+/// (kaka-submit lang sa screen na ito — dapat success modal muna at home), at
+/// `isSubmitting` (tumatakbo pa ang submit).
+bool shouldOpenAccountUpgradeStatus({
+  required String status,
+  required bool isLoading,
+  required bool successSubmitted,
+  required bool isSubmitting,
+}) {
+  if (isLoading || successSubmitted || isSubmitting) return false;
+  return status == 'submitted' || status == 'under_review';
+}
+
+/// Buong nilalaman ng Terms and Conditions na bubukas kapag pinindot ang
+/// "Terms and Conditions" heading sa Required Documents step.
+const List<LegalSection> _loanTermsSections = [
+  LegalSection(
+    title: 'JIRETA LOANS & CREDIT CORP.',
+    body: 'Loan Amount, Payment, and Process Confirmation',
+  ),
+  LegalSection(
+    title: '1. Loan Amount',
+    body:
+        'I confirm that I have reviewed the requested loan amount and understand that the final approved loan amount will be determined by Jireta Loans & Credit Corp. The amount approved by the company may differ from the amount originally requested.',
+  ),
+  LegalSection(
+    title: '2. Interest and Total Repayment',
+    body:
+        'I understand that the applicable interest rate, interest computation, total amount payable, and any applicable fees or deductions must be clearly disclosed to me before I accept the final loan agreement.',
+  ),
+  LegalSection(
+    title: '3. Payment Schedule',
+    body:
+        'I acknowledge that I must review my payment schedule, including the amount due per installment, payment frequency, due dates, and final payment deadline. I agree to make payments according to the schedule stated in my accepted loan agreement.',
+  ),
+  LegalSection(
+    title: '4. Payment Methods',
+    body:
+        'I understand that payments may be made through the company\'s authorized payment methods, such as:\n'
+        '\u2022 Payment collected by an authorized company rider.\n'
+        '\u2022 Payment made directly at the company office.\n'
+        '\u2022 Online payment through an authorized payment provider, when available.\n'
+        'I understand that I should keep the receipt or electronic confirmation as proof of payment.',
+  ),
+  LegalSection(
+    title: '5. Loan Release Process',
+    body:
+        'I understand that the release of the approved loan amount is subject to the company\'s verification, approval, and release procedures. The loan may be delivered through an authorized company representative or released at the company office, as applicable.',
+  ),
+  LegalSection(
+    title: '6. Payment Recording and Monitoring',
+    body:
+        'I understand that my payment records and outstanding balance will be monitored through the company\'s lending management system. I may review my available loan information and payment status through the authorized interface.',
+  ),
+  LegalSection(
+    title: '7. Late or Missed Payments',
+    body:
+        'I understand that missed or late payments must be handled according to the terms disclosed in my loan agreement and applicable laws. Any penalties, additional charges, or other consequences must be clearly disclosed before I agree to them.',
+  ),
+  LegalSection(
+    title: '8. Confirmation of Loan Details',
+    body:
+        'Before confirming the loan, I will verify the following:\n'
+        '\u2022 Approved loan amount.\n'
+        '\u2022 Interest rate and interest computation.\n'
+        '\u2022 Total repayment amount.\n'
+        '\u2022 Installment amount and payment frequency.\n'
+        '\u2022 Payment due dates and final deadline.\n'
+        '\u2022 Applicable fees, deductions, and other disclosed charges.\n'
+        '\u2022 Loan release method and repayment procedures.',
+  ),
+  LegalSection(
+    title: '9. Accuracy and Disputes',
+    body:
+        'I agree to notify the company promptly if I discover an error in my loan details or payment records. I understand that I may request clarification or correction through the company\'s authorized personnel.',
+  ),
+  LegalSection(
+    title: '10. Voluntary Acceptance',
+    body:
+        'I confirm that I have had the opportunity to review the loan details and ask questions before accepting the agreement. I understand that I should not confirm the loan if any amount, charge, or payment condition is unclear.',
+  ),
+  LegalSection(
+    title: '11. Electronic Confirmation',
+    body:
+        'By checking the confirmation box and selecting the confirmation button, I acknowledge that I have reviewed the displayed loan details and agree to proceed under the final loan agreement presented to me. The system should record the confirmation date, time, and applicable loan details.',
+  ),
+  LegalSection(
+    title: 'Jireta Loans & Credit Corp.',
+    body: 'Sta. Barbara, Pangasinan',
+  ),
+];
 
 class LenderAccountUpgradeSubmitScreen extends ConsumerStatefulWidget {
   const LenderAccountUpgradeSubmitScreen({super.key});
@@ -98,11 +199,21 @@ class _LenderAccountUpgradeSubmitScreenState
 
   bool get _hasValidIdFront => _selectedFiles['valid_id'] != null;
   bool get _hasValidIdBack => _validIdBackFile != null;
-  bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
+  /// Client-side guard bago itago ang file sa state: laki (10MB ang Valid ID,
+  /// 5MB ang iba), uri (JPG/PNG/WEBP/PDF), at hindi blangko.
+  bool _acceptDoc(String docType, PlatformFile file) {
+    final error = KycDocumentRules.validate(
+      documentType: docType,
+      fileName: file.name,
+      sizeBytes: file.size,
+    );
+    if (error == null) return true;
+    context.showErrorToast(error);
+    return false;
+  }
 
-  // REQUIRED: Valid Government ID at Business Permit. Ang Selfie with ID at
-  // Face Recognition ay OPTIONAL supporting documents — may "(Optional)"
-  // suffix sila sa card (tingnan ang [_docOptional]). Wala nang `*` marker.
+  // LAHAT ng dokumento ay required na (inutos ng user): Valid Government ID,
+  // Selfie with ID, Business Permit, at Face Recognition.
   final Map<String, String> _docLabels = {
     'valid_id': 'Valid Government ID',
     'selfie': 'Selfie with ID',
@@ -110,9 +221,10 @@ class _LenderAccountUpgradeSubmitScreenState
     'face_recognition': 'Face Recognition',
   };
 
-  /// Mga dokumentong HINDI required — ipinapakita ang "(Optional)" sa tabi ng
-  /// label sa halip na `*` marker.
-  static const Set<String> _docOptional = {'selfie', 'face_recognition'};
+  /// Mga dokumentong HINDI required — wala na sa ngayon (required na ulit ang
+  /// Valid Government ID). Nasa set pa rin ang mekanismo para madaling ibalik
+  /// kung may gawing optional muli.
+  static const Set<String> _docOptional = {};
 
   final Map<String, IconData> _docIcons = {
     'valid_id': Icons.contact_page_rounded,
@@ -148,6 +260,10 @@ class _LenderAccountUpgradeSubmitScreenState
   DateTime? _dob;
   String? _dobError;
   bool _showDocsError = false;
+  // Required ang Terms and Conditions checkbox sa ilalim ng Required
+  // Documents step — hindi makaka-submit hangga't hindi naka-check.
+  bool _termsAccepted = false;
+  bool _showTermsError = false;
   // Ang mga red validation message (docs / signature / DOB) ay 2 SEGUNDO lang
   // nakikita — pagkatapos noon, awtomatikong nawawala (tulad ng walk-in
   // wizard). Hindi humihina ang validation: ang `_hasMissingDocs` /
@@ -464,8 +580,15 @@ class _LenderAccountUpgradeSubmitScreenState
     // 00149: Face Recognition uses the live Face Verification flow (camera
     // preview + liveness/compare animation), not a photo/gallery card.
     if (docType == 'face_recognition') {
-      // Hindi gagana ang live scan sa web/desktop (walang ML Kit at walang
-      // camera image stream) — malinaw na notice imbes na dead-end na screen.
+      // Web: walang ML Kit liveness sa browser, pero PUWEDE pa ring kumuha ng
+      // litrato gamit ang webcam (camera_web) — nire-review naman ito ng staff.
+      if (!FaceVerificationScreen.isSupported &&
+          WebcamCaptureScreen.isSupported) {
+        await _captureFacePhotoOnWeb();
+        return;
+      }
+      // Iba pang desktop build (walang camera plugin): malinaw na notice
+      // imbes na dead-end na screen.
       if (!FaceVerificationScreen.isSupported) {
         await showInfoDialog(
           context,
@@ -481,13 +604,13 @@ class _LenderAccountUpgradeSubmitScreenState
         MaterialPageRoute(builder: (_) => const FaceVerificationScreen()),
       );
       if (result != null && mounted) {
-        setState(() {
-          _selectedFiles['face_recognition'] = PlatformFile(
-            name: 'face_recognition_${DateTime.now().millisecondsSinceEpoch}.jpg',
-            size: result.imageBytes.length,
-            bytes: result.imageBytes,
-          );
-        });
+        final file = PlatformFile(
+          name: 'face_recognition_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          size: result.imageBytes.length,
+          bytes: result.imageBytes,
+        );
+        if (!_acceptDoc('face_recognition', file)) return;
+        setState(() => _selectedFiles['face_recognition'] = file);
       }
       return;
     }
@@ -525,19 +648,50 @@ class _LenderAccountUpgradeSubmitScreenState
       );
       if (result != null && mounted) {
         final stamp = DateTime.now().millisecondsSinceEpoch;
+        final front = PlatformFile(
+          name: 'valid_id_front_$stamp.jpg',
+          size: result.frontBytes.length,
+          bytes: result.frontBytes,
+        );
+        final back = PlatformFile(
+          name: 'valid_id_back_$stamp.jpg',
+          size: result.backBytes.length,
+          bytes: result.backBytes,
+        );
+        // Valid ID ang 10MB limit per side; ayaw natin itago ang oversize na
+        // scan (mahaba at mabigat ang base64 payload sa submit).
+        if (!_acceptDoc('valid_id', front)) return;
+        if (!_acceptDoc('valid_id_back', back)) return;
         setState(() {
-          _selectedFiles['valid_id'] = PlatformFile(
-            name: 'valid_id_front_$stamp.jpg',
-            size: result.frontBytes.length,
-            bytes: result.frontBytes,
-          );
-          _validIdBackFile = PlatformFile(
-            name: 'valid_id_back_$stamp.jpg',
-            size: result.backBytes.length,
-            bytes: result.backBytes,
-          );
+          _selectedFiles['valid_id'] = front;
+          _validIdBackFile = back;
         });
       }
+      return;
+    }
+
+    // Browser: tunay na webcam capture — hindi file chooser (dati kasi ang
+    // `ImagePicker` camera source sa web ay nagbubukas lang ng gallery/file
+    // dialog, kaya parang walang nangyayari ang "Take Photo").
+    if (WebcamCaptureScreen.isSupported) {
+      final bytes = await _captureWithWebcam(docType);
+      if (bytes == null || !mounted) return;
+      final file = PlatformFile(
+        name: '${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        size: bytes.length,
+        bytes: bytes,
+      );
+      if (!_acceptDoc(docType, file)) return;
+      setState(() => _selectedFiles[docType] = file);
+      return;
+    }
+
+    // Windows/Linux/macOS desktop build: walang camera plugin — huwag hayaang
+    // "mag-hang" na tila walang nangyari.
+    if (!kIsWeb && !Platform.isAndroid && !Platform.isIOS) {
+      if (!mounted) return;
+      context.showErrorToast(
+          'Camera capture is not available on this device. Please use From Gallery.');
       return;
     }
 
@@ -546,14 +700,49 @@ class _LenderAccountUpgradeSubmitScreenState
     if (img != null && mounted) {
       final bytes = await img.readAsBytes();
       if (!mounted) return;
-      setState(() {
-        _selectedFiles[docType] = PlatformFile(
-          name: '${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg',
-          size: bytes.length,
-          bytes: bytes,
-        );
-      });
+      final file = PlatformFile(
+        name: '${docType}_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        size: bytes.length,
+        bytes: bytes,
+      );
+      if (!_acceptDoc(docType, file)) return;
+      setState(() => _selectedFiles[docType] = file);
     }
+  }
+
+  /// Webcam snapshot sa browser. Null kapag nag-cancel; kapag pinili ang
+  /// "Choose a file instead", deretso sa file picker (gallery).
+  Future<Uint8List?> _captureWithWebcam(String docType) async {
+    final result = await Navigator.of(context).push<WebcamCaptureResult>(
+      MaterialPageRoute(
+        builder: (_) => WebcamCaptureScreen(
+          title: _docLabels[docType] ?? 'Take Photo',
+          preferFrontCamera:
+              docType == 'selfie' || docType == 'face_recognition',
+        ),
+      ),
+    );
+    if (!mounted || result == null) return null;
+    if (result.useFileFallback) {
+      await _pickFromGallery(docType);
+      return null;
+    }
+    return result.bytes;
+  }
+
+  /// Face Recognition sa browser: litrato mula sa webcam. Walang liveness
+  /// detection dito (mobile-only ang live Face Verification), pero may tunay
+  /// na larawan pa ring nakukuha para ma-review ng staff.
+  Future<void> _captureFacePhotoOnWeb() async {
+    final bytes = await _captureWithWebcam('face_recognition');
+    if (bytes == null || !mounted) return;
+    final file = PlatformFile(
+      name: 'face_recognition_${DateTime.now().millisecondsSinceEpoch}.jpg',
+      size: bytes.length,
+      bytes: bytes,
+    );
+    if (!_acceptDoc('face_recognition', file)) return;
+    setState(() => _selectedFiles['face_recognition'] = file);
   }
 
   Future<void> _pickFromGallery(String docType) async {
@@ -569,8 +758,15 @@ class _LenderAccountUpgradeSubmitScreenState
         withData: true,
       );
       if (result == null || result.files.isEmpty || !mounted) return;
+      final files = result.files;
+      // I-check muna ang lahat ng piniling file bago baguhin ang state.
+      if (_hasValidIdFront && !_hasValidIdBack && files.length == 1) {
+        if (!_acceptDoc('valid_id_back', files.first)) return;
+      } else {
+        if (!_acceptDoc('valid_id', files.first)) return;
+        if (files.length > 1 && !_acceptDoc('valid_id_back', files[1])) return;
+      }
       setState(() {
-        final files = result.files;
         if (_hasValidIdFront && !_hasValidIdBack && files.length == 1) {
           // Front already captured — this one completes the back side.
           _validIdBackFile = files.first;
@@ -587,11 +783,13 @@ class _LenderAccountUpgradeSubmitScreenState
     }
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'pdf'],
       withData: true,
     );
     if (result != null && result.files.isNotEmpty && mounted) {
-      setState(() => _selectedFiles[docType] = result.files.first);
+      final file = result.files.first;
+      if (!_acceptDoc(docType, file)) return;
+      setState(() => _selectedFiles[docType] = file);
     }
   }
 
@@ -671,6 +869,34 @@ class _LenderAccountUpgradeSubmitScreenState
     });
   }
 
+  /// Binubuksan ang buong Terms and Conditions (loan terms) sa scrollable na
+  /// bottom sheet — parehong ginagamit ng heading at ng "Terms and Conditions"
+  /// link sa tabi ng required checkbox.
+  void _openTermsSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => const LegalInfoSheet(
+        title: 'Terms and Conditions',
+        sections: _loanTermsSections,
+      ),
+    );
+  }
+
+  /// Dinadala sa pinakailalim ng scroll — para sa T&C checkbox na nasa dulo
+  /// ng Required Documents step.
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
   /// Ini-schedule ang 2-segundong auto-hide ng mga red validation message
   /// (docs / signature / DOB). Kada bagong error, ni-re-reset ang timer para
   /// buong 2 segundo pa ring nakikita ang pinakabagong mensahe.
@@ -729,6 +955,8 @@ class _LenderAccountUpgradeSubmitScreenState
     });
   }
 
+  bool get _hasValidIdComplete => _hasValidIdFront && _hasValidIdBack;
+
   String? _validIdError() {
     if (!_showDocsError) return null;
     if (!_hasValidIdFront) return 'Valid Government ID is required';
@@ -739,19 +967,16 @@ class _LenderAccountUpgradeSubmitScreenState
   String? _docError(String key) {
     if (!_showDocsError) return null;
     if (_selectedFiles[key] != null) return null;
-    switch (key) {
-      case 'mayors_permit':
-        return 'Business Permit is required';
-      default:
-        // Selfie with ID at Face Recognition ay optional pa rin.
-        return null;
-    }
+    return '${_docLabels[key] ?? 'Document'} is required';
   }
 
   bool get _hasMissingDocs {
-    // Required: Valid Government ID (front + back) at Business Permit. Ang
-    // Selfie with ID at Face Recognition ay optional.
-    return !_hasValidIdComplete || _selectedFiles['mayors_permit'] == null;
+    // LAHAT required: Valid Government ID (front + back), Selfie with ID,
+    // Business Permit, at Face Recognition.
+    return !_hasValidIdComplete ||
+        _selectedFiles['mayors_permit'] == null ||
+        _selectedFiles['selfie'] == null ||
+        _selectedFiles['face_recognition'] == null;
   }
 
   Future<void> _submit() async {
@@ -771,6 +996,12 @@ class _LenderAccountUpgradeSubmitScreenState
       _scrollToTop();
       // Ang red na "... is required" sa ilalim ng card ay 2s lang nakikita.
       _autoHideErrorsSoon();
+      return;
+    }
+    // Required ang T&C checkbox sa ilalim ng documents bago makapag-submit.
+    if (!_termsAccepted) {
+      setState(() => _showTermsError = true);
+      _scrollToBottom();
       return;
     }
     // Full validation across all 3 steps — no toast here since every text/
@@ -989,6 +1220,30 @@ class _LenderAccountUpgradeSubmitScreenState
       );
     }
 
+    // Nakapag-submit na: deretso sa Account Upgrade Status page — hindi na sa
+    // verification screen na may "Account Upgrade Status" button pa lang.
+    // Hindi kasama ang kaka-submit lang (`_successSubmitted`) at ang loading,
+    // para hindi maagaw ang success modal bago mag-home.
+    if (shouldOpenAccountUpgradeStatus(
+      status: state.status,
+      isLoading: state.isLoading,
+      successSubmitted: _successSubmitted,
+      isSubmitting: _isSubmitting,
+    )) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          context.pushReplacement(RouteConstants.lenderAccountUpgradeStatus);
+        }
+      });
+      return const MobileScaffold(
+        title: 'Account Upgrade Verification',
+        accentColor: AppColors.lenderBlue,
+        navItems: _navItems,
+        showBackButton: true,
+        body: _AccountUpgradeVerificationSkeleton(),
+      );
+    }
+
     return MobileScaffold(
       title: 'Account Upgrade Verification',
       accentColor: AppColors.lenderBlue,
@@ -1005,12 +1260,11 @@ class _LenderAccountUpgradeSubmitScreenState
       return const SizedBox.shrink();
     }
     if (status == 'submitted' || status == 'under_review') {
-      // After an in-screen successful submit the success dialog is about to
-      // open — stay on the wizard underneath it. Do not swap to the status
-      // page (that is for when the screen is reopened later). Habang
-      // nagsu-submit (loading ang button) hindi rin dapat sumilip ang status
-      // page bago mag-modal at mag-home.
-      if (!_successSubmitted && !_isSubmitting) return _buildSubmittedView();
+      // Ang redirect papuntang Account Upgrade Status ay sa build() — dito na
+      // lang skeleton habang natutuloy ang navigation. Kapag `_successSubmitted`
+      // (kaka-submit lang sa screen na ito) o `_isSubmitting`, hindi ito
+      // naaabot dahil bumaba ang flow sa wizard para sa success modal.
+      return const SizedBox.shrink();
     }
     // Rejected: 1-month cooldown before resubmit.
     // Still in cooldown → blocked view (text + button only, no icon).
@@ -1020,7 +1274,13 @@ class _LenderAccountUpgradeSubmitScreenState
     }
 
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
-    return Column(
+    // Desktop view: naka-cap sa 900px at naka-center ang buong wizard
+    // (banner, step indicator, form, at Next/Back bar). Sa mobile, buong
+    // lapad pa rin dahil mas maliit sa 900 ang screen.
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 900),
+        child: Column(
       children: [
         _buildStatusBanner(state),
         _StepIndicator(current: _step, labels: _steps),
@@ -1036,22 +1296,6 @@ class _LenderAccountUpgradeSubmitScreenState
         // ng form) — nasa TAAS ito ng floating bottom nav pill.
         _buildWizardBar(state),
       ],
-    );
-  }
-
-  Widget _buildSubmittedView() {
-    // Nakasentro (gitna ng screen) ang button — walang banner sa itaas kaya
-    // hindi na kailangang dumikit sa taas.
-    return Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        child: AppButton(
-          label: 'Account Upgrade Status',
-          onPressed: () =>
-              context.push(RouteConstants.lenderAccountUpgradeStatus),
-          color: AppColors.lenderBlue,
-          icon: Icons.timeline_outlined,
         ),
       ),
     );
@@ -1126,7 +1370,9 @@ class _LenderAccountUpgradeSubmitScreenState
               setState(() => _showSignatureConfirmed = false);
             }
           },
-          height: 180,
+          // Mas mataas na signing area (inutos ng user) — mas komportable
+          // mag-sign, lalo na sa desktop.
+          height: 240,
         ),
         const SizedBox(height: 4),
         if (_showSignatureConfirmed) ...[
@@ -1197,6 +1443,98 @@ class _LenderAccountUpgradeSubmitScreenState
                     errorText: _docError(e.key),
                   ),
                 )),
+        const SizedBox(height: 4),
+        // ── Terms and Conditions + required checkbox (inutos ng user) ──────
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _showTermsError ? AppColors.error : AppColors.border,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'I certify that all the information and documents I have '
+                'submitted are true, correct, and complete. I authorize '
+                'Jireta Loans & Credit Corp. and its authorized personnel to '
+                'verify my identity and documents. I understand that '
+                'submitting these requirements does not guarantee approval, '
+                'and that false or incomplete information may result in '
+                'rejection or suspension of my account.',
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 1.5,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _termsAccepted,
+                    activeColor: AppColors.lenderBlue,
+                    onChanged: (v) => setState(() {
+                      _termsAccepted = v ?? false;
+                      if (_termsAccepted) _showTermsError = false;
+                    }),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      // Ang "Terms and Conditions" sa pangungusap ay
+                      // tappable (inutos ng user) — binubuksan ang buong
+                      // loan terms sheet, pareho ng heading sa itaas.
+                      child: Text.rich(
+                        TextSpan(
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textPrimary,
+                          ),
+                          children: [
+                            const TextSpan(
+                                text: 'I have read, understood, and agree to '
+                                    'the '),
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.baseline,
+                              baseline: TextBaseline.alphabetic,
+                              child: GestureDetector(
+                                onTap: _openTermsSheet,
+                                child: const Text(
+                                  'Terms and Conditions',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.lenderBlue,
+                                    decoration: TextDecoration.underline,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const TextSpan(text: ' above.'),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              if (_showTermsError)
+                const Padding(
+                  padding: EdgeInsets.only(top: 6, left: 12),
+                  child: Text(
+                    'Please agree to the Terms and Conditions to submit.',
+                    style: TextStyle(fontSize: 12, color: AppColors.error),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1300,9 +1638,10 @@ class _LenderAccountUpgradeSubmitScreenState
   Widget _buildResidenceAddress({bool wrapForm = true}) {
     // Cascading location dropdowns: Region → Province → City/Municipality →
     // Barangay (official PSA data). Street + ZIP remain free-text. On wide
-    // screens the location pairs share a row (capped at 640px so the form
-    // never stretches awkwardly); on narrow screens they stack full-width so
-    // nothing overflows. Dropdowns use isExpanded so long values ellipsize.
+    // screens the location pairs share a row; on narrow screens they stack
+    // full-width so nothing overflows. Ang card ay sumusunod sa lapad ng
+    // wizard (max 900 sa desktop) para pantay ito sa Lender Signature card at
+    // sa step indicator — dati 640 lang ito kaya hindi naka-align.
     final content = LayoutBuilder(builder: (context, constraints) {
       final pairUp = constraints.maxWidth >= 520;
       const regions = philippineRegions;
@@ -1444,12 +1783,7 @@ class _LenderAccountUpgradeSubmitScreenState
           ),
         ],
       );
-      return Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 640),
-          child: card,
-        ),
-      );
+      return card;
     });
     if (!wrapForm) return content;
     return Form(key: _formKey, child: content);
@@ -1511,7 +1845,14 @@ class _LenderAccountUpgradeSubmitScreenState
     // idinadagdag ang clearance para hindi lumutang ang buttons.
     final navInset = mobileBottomNavHeight(context);
     final keyboardInset = MediaQuery.of(context).viewInsets.bottom;
-    final bottomPad = keyboardInset > 0 ? 10.0 : 10.0 + navInset;
+    // Desktop (WebScaffold): WALANG floating bottom nav, kaya hindi na
+    // mag-reserve ng clearance para dito — dati nag-iiwan ito ng ~110px na
+    // blangkong espasyo sa ilalim ng Next/Submit sa desktop view.
+    final hasBottomNav =
+        MediaQuery.sizeOf(context).width < kDesktopBreakpoint;
+    final bottomPad = keyboardInset > 0
+        ? 10.0
+        : 10.0 + (hasBottomNav ? navInset : 0.0);
     // Walang background card / border / shadow — transparent ang likod ng
     // buttons, nakalutang lang sila sa itaas ng bottom nav.
     return Padding(
@@ -1596,6 +1937,13 @@ class _LenderAccountUpgradeSubmitScreenState
     return (v) => (v == null || v.trim().isEmpty) ? '$label is required' : null;
   }
 
+  /// Dropdown na naka-anchor sa field: bumubukas sa IBABA ng field (may 4px
+  /// gap), at awtomatikong lumilipat sa ITAAS kapag kulang ang space sa ibaba.
+  ///
+  /// BAKIT: ang `DropdownButtonFormField` ay nagpo-position ng menu sa ibabaw
+  /// ng field/selected item — natatakpan ang mga kasunod na form field. Ang
+  /// `PopupMenuButton` (position: under) ang gumagawa ng tamang placement at
+  /// flip, at ang `constraints` nito ay naka-pareho sa lapad ng field.
   Widget _buildDropdown({
     required String label,
     required String? value,
@@ -1603,39 +1951,99 @@ class _LenderAccountUpgradeSubmitScreenState
     required String? Function(String?) validator,
     required void Function(String?) onChanged,
   }) {
-    return DropdownButtonFormField<String>(
-      initialValue: value,
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle:
-            const TextStyle(fontSize: 14, color: AppColors.textSecondary),
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.border),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.lenderBlue, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: AppColors.error),
-        ),
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-        filled: true,
-        fillColor: Colors.white,
-      ),
-      validator: validator,
-      items: items
-          .map((item) => DropdownMenuItem(value: item, child: Text(item)))
-          .toList(),
-      onChanged: onChanged,
-    );
+    return LayoutBuilder(builder: (context, constraints) {
+      return FormField<String>(
+        initialValue: value,
+        validator: validator,
+        builder: (field) {
+          final hasValue = value != null && value.isNotEmpty;
+          return PopupMenuButton<String>(
+            tooltip: '',
+            position: PopupMenuPosition.under,
+            offset: const Offset(0, 4),
+            // Parehong lapad ng field (naka-align sa kaliwa) ang menu.
+            constraints: BoxConstraints.tightFor(
+              width: constraints.maxWidth,
+            ),
+            color: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+              side: const BorderSide(color: AppColors.border),
+            ),
+            onSelected: (picked) {
+              field.didChange(picked);
+              onChanged(picked);
+            },
+            itemBuilder: (_) => items
+                .map((option) => PopupMenuItem<String>(
+                      value: option,
+                      height: 44,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              option,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: option == value
+                                    ? FontWeight.w600
+                                    : FontWeight.w400,
+                                color: AppColors.textPrimary,
+                              ),
+                            ),
+                          ),
+                          if (option == value)
+                            const Icon(Icons.check_rounded,
+                                size: 18, color: AppColors.lenderBlue),
+                        ],
+                      ),
+                    ))
+                .toList(),
+            child: InputDecorator(
+              isEmpty: !hasValue,
+              decoration: InputDecoration(
+                labelText: label,
+                labelStyle: const TextStyle(
+                    fontSize: 14, color: AppColors.textSecondary),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.border),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide:
+                      const BorderSide(color: AppColors.lenderBlue, width: 1.5),
+                ),
+                errorBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: AppColors.error),
+                ),
+                errorText: field.errorText,
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                filled: true,
+                fillColor: Colors.white,
+                suffixIcon: const Icon(Icons.keyboard_arrow_down_rounded,
+                    size: 20, color: AppColors.textSecondary),
+              ),
+              child: Text(
+                value ?? '',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: hasValue
+                      ? AppColors.textPrimary
+                      : AppColors.textTertiary,
+                ),
+              ),
+            ),
+          );
+        },
+      );
+    });
   }
 
   Widget _buildDateField() {
@@ -2064,11 +2472,26 @@ class _ValidIdCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Valid Government ID',
-                          style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.textPrimary)),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text('Valid Government ID',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: AppColors.textPrimary)),
+                          ),
+                          // Required na ulit ang Valid ID — may `*` gaya ng
+                          // ibang kailangang dokumento.
+                          Text(' *',
+                              style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.error)),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -2192,6 +2615,13 @@ class _DocUploadCard extends StatelessWidget {
                                     fontSize: 11,
                                     fontStyle: FontStyle.italic,
                                     color: AppColors.textTertiary)),
+                          ] else ...[
+                            // Required na dokumento (inutos ng user) — may `*`.
+                            const Text(' *',
+                                style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.error)),
                           ],
                         ],
                       ),

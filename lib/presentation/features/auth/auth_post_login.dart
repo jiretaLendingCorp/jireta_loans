@@ -13,7 +13,6 @@ import '../../../core/constants/app_constants.dart';
 import '../../../core/constants/route_constants.dart';
 import '../../../core/security/mpin_login_gate.dart';
 import '../../../core/security/mpin_service.dart';
-import '../../../core/utils/logger.dart';
 import '../../shared/providers/auth_state_provider.dart';
 
 class PostAuthDestination {
@@ -72,26 +71,4 @@ Future<PostAuthDestination> resolvePostAuthDestination(
     default:
       return const PostAuthDestination(RouteConstants.mobileLogin);
   }
-}
-
-/// Binubura ang lumang MPIN (server-side) sa "Reset MPIN" na takbo. Dalawang
-/// beses itong sinusubukan — kapag sumablay ang unang tawag dahil saglit na
-/// nawala ang internet, hindi natutuloy ang pag-reset at mahuhulog ang user sa
-/// "Enter MPIN" na hindi na niya alam ang sagot.
-Future<bool> clearMpinForReset(WidgetRef ref) async {
-  for (var attempt = 0; attempt < 2; attempt++) {
-    try {
-      await ref.read(mpinServiceProvider).clear();
-      return true;
-    } catch (e) {
-      AppLogger.w(
-        '[MPIN] Reset bago mag-create: bigong burahin ang MPIN '
-        '(try ${attempt + 1}) — $e',
-      );
-      if (attempt == 0) {
-        await Future<void>.delayed(const Duration(milliseconds: 400));
-      }
-    }
-  }
-  return false;
 }

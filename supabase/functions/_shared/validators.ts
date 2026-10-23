@@ -30,6 +30,21 @@ export function validatePhone(phone: string): boolean {
 }
 
 /**
+ * Kini-normalize ang Philippine mobile number sa system format (`09XXXXXXXXX`).
+ *
+ * Tinatanggap ang `09171234567`, `+639171234567`, `639171234567`, at
+ * `9171234567`. `''` ang isinasagot kapag hindi mobile number ang hugis — para
+ * hindi makalusot ang landline / putol na numero sa SMS provider.
+ */
+export function normalizePhMobile(value: string | null | undefined): string {
+  const digits = (value ?? '').replace(/\D/g, '');
+  if (/^09\d{9}$/.test(digits)) return digits;
+  if (/^639\d{9}$/.test(digits)) return `0${digits.slice(2)}`;
+  if (/^9\d{9}$/.test(digits)) return `0${digits}`;
+  return '';
+}
+
+/**
  * Ang E.164 (`+639XXXXXXXXX`) na katumbas ng isang Philippine mobile number —
  * ito ang format na tinatanggap ng GoTrue sa `auth.users.phone`.
  *

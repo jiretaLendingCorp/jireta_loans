@@ -55,6 +55,9 @@ class ApiEndpoints {
   static const String usersRestore =
       'users-admin?fn=unarchive'; // alias for restore
   static const String usersResetPassword = 'users-admin?fn=reset-password';
+  // Head Manager-assisted 2FA (TOTP) reset — recovery kapag nawala ang
+  // authenticator app ng lender / rider. HM only at naka-audit (`mfa_reset`).
+  static const String usersResetMfa = 'users-admin?fn=reset-mfa';
   // Roles — archived role = all users with that role blocked; unarchived = restored
   static const String rolesArchive = 'users-admin?fn=archive-role';
   static const String rolesUnarchive = 'users-admin?fn=unarchive-role';

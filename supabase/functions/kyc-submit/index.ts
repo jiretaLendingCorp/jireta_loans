@@ -11,6 +11,12 @@ import { getAdminClient } from "../_shared/db.ts";
 import { notifyStaff } from "../_shared/notifications.ts";
 import { requireRole, ROLES } from "../_shared/rbac.ts";
 import { sanitizeString } from "../_shared/validators.ts";
+import {
+  validateDocumentMeta,
+  validateDocumentSet,
+  validateDocumentSize,
+} from "../_shared/kyc_docs.ts";
+import { guardRateLimit } from "../_shared/rate_limiter.ts";
 import { geocodeInBackground } from "../_shared/geocode.ts";
 
 function normalizeEnum(value: string | undefined | null): string | null {
@@ -105,6 +111,29 @@ serve(async (req) => {
 
     const db = getAdminClient();
 
+    // ── Rate limit: 5 submits / 15 min bawat lender ──────────────────────
+    // Abusadong paulit-ulit na submit (at upload ng base64 documents) ang
+    // pinipigilan dito. Ang bawat lumampas ay naba-block pansamantala at
+    // naitala sa security events.
+    const submitGuard = await guardRateLimit({
+      key: `kyc_submit:${user.id}`,
+      maxAttempts: 5,
+      windowMinutes: 15,
+      blockMinutes: 15,
+      blockReason: "too many account upgrade submissions",
+      eventType: "kyc_submit_rate_limited",
+      userId: user.id,
+      ipAddress: req.headers.get("x-forwarded-for") ?? null,
+    });
+    if (!submitGuard.allowed) {
+      return errorResponse(
+        "Too many submission attempts. Please try again in a few minutes.",
+        429,
+        "RATE_LIMITED",
+        { retry_after_seconds: submitGuard.block?.retryAfterSeconds ?? 0 },
+      );
+    }
+
     // ── 1-month resubmit cooldown after rejection ─────────────────────────
     // Rejected lenders may only resubmit once 30 days have passed since the
     // latest rejection (anchored on account_upgrade_documents.reviewed_at,
@@ -156,20 +185,27 @@ serve(async (req) => {
       emergency_contact,
     } = body;
 
-    // Valid ID gallery always produces 2 images (front + back), so a
-    // complete Account Upgrade submit needs at least 2 documents.
-    if (!documents || !Array.isArray(documents) || documents.length < 2) {
+    if (!documents || !Array.isArray(documents)) {
       return errorResponse(
-        "2 documents required",
+        "Documents are required",
         400,
         "VALIDATION_ERROR",
       );
     }
 
-    // Valid ID must have both sides — front alone is not enough.
+    // Bilang / duplicates / required docs. Kasama sa kailangan ang Valid
+    // Government ID (front + back), Selfie with ID, Business Permit, at Face
+    // Recognition.
     const docTypes = documents.map((d) =>
-      String(d?.document_type ?? "").toLowerCase()
+      normalizeEnum(d?.document_type) ?? ""
     );
+    const setError = validateDocumentSet(docTypes);
+    if (setError) {
+      return errorResponse(setError, 400, "VALIDATION_ERROR");
+    }
+
+    // Kapag may Valid ID front, kailangan ding may back — hindi pwedeng
+    // kalahati lang ang ID (optional pa rin ang buong ID).
     if (docTypes.includes("valid_id") && !docTypes.includes("valid_id_back")) {
       return errorResponse(
         "Valid ID needs both sides — front and back required",
@@ -272,11 +308,41 @@ serve(async (req) => {
       const objectPath =
         `account-upgrade/${user.id}/${crypto.randomUUID()}.${safeExt}`;
 
+      // Uri ng file (extension + mime) bago pa mag-decode ng base64.
+      const metaError = validateDocumentMeta({
+        document_type: doc.document_type,
+        file_name: doc.file_name,
+        mime_type: doc.mime_type,
+      });
+      if (metaError) {
+        return errorResponse(metaError, 400, "VALIDATION_ERROR");
+      }
+
       let storedPath = doc.file_url ?? null;
+      let uploadedBytes: Uint8Array | null = null;
       if (doc.content_base64) {
+        try {
+          uploadedBytes = base64ToBytes(doc.content_base64);
+        } catch {
+          return errorResponse(
+            `Invalid file content for ${doc.document_type}`,
+            400,
+            "VALIDATION_ERROR",
+          );
+        }
+
+        // Laki: 10MB per side ng Valid ID, 5MB sa ibang dokumento.
+        const sizeError = validateDocumentSize(
+          doc.document_type,
+          uploadedBytes.length,
+        );
+        if (sizeError) {
+          return errorResponse(sizeError, 400, "VALIDATION_ERROR");
+        }
+
         const { error: uploadErr } = await db.storage
           .from("account-upgrade-documents")
-          .upload(objectPath, base64ToBytes(doc.content_base64), {
+          .upload(objectPath, uploadedBytes, {
             contentType: doc.mime_type ?? mimeFromExt(safeExt),
             upsert: false,
           });
@@ -303,7 +369,9 @@ serve(async (req) => {
         document_type: doc.document_type,
         file_path: storedPath,
         file_name: doc.file_name ?? "document",
-        file_size: doc.file_size ?? 1,
+        // Ang totoong laki ng na-upload ang itinatala, hindi ang sinabi ng
+        // client (mababaluktot kasi iyon).
+        file_size: uploadedBytes?.length ?? doc.file_size ?? 1,
         mime_type: doc.mime_type ?? mimeFromExt(safeExt),
         status: "pending",
       });

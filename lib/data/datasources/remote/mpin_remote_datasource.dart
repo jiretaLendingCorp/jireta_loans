@@ -60,6 +60,18 @@ class MpinStatusReply {
   final Duration? changeResetIn;
 }
 
+/// Ibinabato kapag invalid, expired, o nagamit na ang server-issued reset
+/// authorization (galing sa OTP na purpose=reset_mpin).
+class MpinResetAuthorizationException implements Exception {
+  const MpinResetAuthorizationException(this.message);
+
+  /// Generic na mensahe mula sa server (walang detalye tungkol sa account).
+  final String message;
+
+  @override
+  String toString() => 'MpinResetAuthorizationException($message)';
+}
+
 /// Resulta ng `?fn=set`.
 class MpinSetReply {
   const MpinSetReply({required this.saved, this.changeLimitRemaining});
@@ -123,16 +135,20 @@ class MpinRemoteDataSource {
   Future<MpinSetReply> setMpin({
     required String mpin,
     String? currentMpin,
+    String? resetToken,
   }) async {
     try {
       await _client.post(ApiEndpoints.authMpinSet, data: {
         'mpin': mpin,
         if (currentMpin != null && currentMpin.isNotEmpty)
           'current_mpin': currentMpin,
+        if (resetToken != null && resetToken.isNotEmpty)
+          'reset_token': resetToken,
       });
       return const MpinSetReply(saved: true);
     } on DioException catch (e) {
-      if (_errorCode(e) == 'MPIN_CHANGE_LIMIT') {
+      final code = _errorCode(e);
+      if (code == 'MPIN_CHANGE_LIMIT') {
         return MpinSetReply(
           saved: false,
           changeLimitRemaining: Duration(
@@ -140,14 +156,26 @@ class MpinRemoteDataSource {
           ),
         );
       }
+      if (code == 'MPIN_RESET_EXPIRED' ||
+          code == 'MPIN_RESET_UNAUTHORIZED' ||
+          code == 'MPIN_RESET_LOCKED') {
+        throw MpinResetAuthorizationException(
+          _errorMessage(e) ??
+              'Your reset authorization is no longer valid. Please verify '
+                  'your mobile number again.',
+        );
+      }
       rethrow;
     }
   }
 
-  /// Binubura ang MPIN ng account (forgot MPIN — pagkatapos ng OTP login, kung
-  /// saan napatunayan na ng OTP ang pagmamay-ari ng numero).
-  Future<void> reset() async {
-    await _client.post(ApiEndpoints.authMpinReset);
+  /// Binubura ang MPIN ng account. Kailangan ang server-issued na reset token
+  /// (galing sa OTP na purpose=reset_mpin) — hindi sapat ang session lang.
+  Future<void> reset({required String resetToken}) async {
+    await _client.post(
+      ApiEndpoints.authMpinReset,
+      data: {'reset_token': resetToken},
+    );
   }
 
   // ── Error helpers ─────────────────────────────────────────────────────────
@@ -158,6 +186,17 @@ class MpinRemoteDataSource {
       final err = data['error'];
       if (err is Map && err['code'] != null) return err['code'].toString();
       if (data['code'] != null) return data['code'].toString();
+    }
+    return null;
+  }
+
+  String? _errorMessage(DioException e) {
+    final data = e.response?.data;
+    if (data is Map) {
+      final err = data['error'];
+      if (err is Map && err['message'] != null) {
+        return err['message'].toString();
+      }
     }
     return null;
   }

@@ -8,6 +8,7 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../../../shared/widgets/security/reset_mfa_dialog.dart';
 import '../../../../shared/widgets/edit_user_modal.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
@@ -225,6 +226,18 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
               'Unpause',
               AppColors.success,
               () => _confirmUnpause(user),
+            ),
+          if (user.accountStatus != 'archived')
+            _btn(
+              Icons.security_outlined,
+              'Reset 2FA',
+              AppColors.warning,
+              () => confirmAndResetMfa(
+                context,
+                userId: user.id,
+                personName: '${user.firstName} ${user.lastName}'.trim(),
+                roleLabel: 'lender',
+              ),
             ),
           if (user.accountStatus != 'archived')
             _btn(

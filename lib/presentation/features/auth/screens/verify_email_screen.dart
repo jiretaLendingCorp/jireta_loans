@@ -395,11 +395,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                 const SizedBox(height: 10),
                 Text(
                   ok
-                      ? 'Nakumpirma na ang email address mo. Bumalik ka na sa '
-                          'Jireta Loans app at mag-login.'
+                      ? 'Your email address is confirmed. You can go back to '
+                          'the Jireta Loans app and sign in.'
                       : (_error ??
-                          'Hindi ma-verify ang link na ito. Paki-request ng '
-                              'bagong link mula sa app.'),
+                          'We could not verify this link. Please request a new '
+                              'link from the app.'),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13.5,
@@ -470,9 +470,12 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
               builder: (context, constraints) => SingleChildScrollView(
                 physics: const ClampingScrollPhysics(),
                 padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: ConstrainedBox(
-                  constraints:
-                      BoxConstraints(minHeight: constraints.maxHeight),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: constraints.maxHeight,
+                      maxWidth: 460,
+                    ),
                   child: IntrinsicHeight(
                     child: Column(
                       children: [
@@ -525,7 +528,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                   // ang pangunahing paliwanag.
                   Text(
                     _verified
-                        ? 'Salamat! Nakumpirma na ang email address mo.'
+                        ? 'Thank you! Your email address is now verified.'
                         : 'Please check your email. We sent a verification '
                             'link to this address.',
                     textAlign: TextAlign.center,
@@ -677,6 +680,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                       ],
                     ),
                   ),
+                ),
                 ),
               ),
             ),

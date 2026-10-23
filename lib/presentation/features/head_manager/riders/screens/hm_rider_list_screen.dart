@@ -14,6 +14,7 @@ import '../../../../shared/widgets/search_results_chip.dart';
 import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/tables/records_pagination.dart';
 import '../../../../shared/widgets/profile_avatar.dart';
+import '../../../../shared/widgets/security/reset_mfa_dialog.dart';
 import '../providers/hm_rider_provider.dart';
 import '../widgets/create_rider_modal.dart';
 
@@ -216,6 +217,18 @@ class _HmRiderListScreenState extends ConsumerState<HmRiderListScreen> {
             AppColors.primary,
             () => _openEdit(user),
           ),
+          if (user.accountStatus != 'archived')
+            _btn(
+              Icons.security_outlined,
+              'Reset 2FA',
+              AppColors.warning,
+              () => confirmAndResetMfa(
+                context,
+                userId: user.id,
+                personName: '${user.firstName} ${user.lastName}'.trim(),
+                roleLabel: 'rider',
+              ),
+            ),
           if (user.accountStatus != 'archived')
             _btn(
               Icons.archive_outlined,

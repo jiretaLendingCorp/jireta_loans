@@ -59,7 +59,8 @@ Future<void> performLogout(BuildContext context, WidgetRef ref) async {
   // dark mode gaya ng default na AlertDialog action).
   final confirmed = await showConfirmationDialog(
     context,
-    title: 'Log Out',
+    // Walang heading — tanong lang at Yes/No na nasa gitna.
+    title: '',
     message: 'Are you sure to logout?',
     confirmLabel: 'Yes',
     cancelLabel: 'No',

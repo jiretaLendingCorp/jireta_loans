@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/security/mpin_login_gate.dart';
 import '../../../../core/security/mpin_service.dart';
@@ -361,15 +362,16 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     unawaited(SecureStorage.clearLoginOwner());
   }
 
-  /// Nagpapadala ng bagong OTP at dinadala ang user sa Verify OTP — doon lang
-  /// siya muling makakapag-set ng bagong MPIN. (Walang Semaphore API pa sa
-  /// ngayon, kaya `123456` ang tinatanggap na code ng backend.)
+  /// Nagpapadala ng bagong OTP (purpose=reset_mpin) at dinadala ang user sa
+  /// Verify OTP. Ang tunay na 6-digit code ay ipinapadala ng Semaphore sa
+  /// registered na numero; ang OTP verification ang magbibigay ng single-use
+  /// reset authorization para sa bagong MPIN.
   ///
   /// Sadyang HINDI pa binubura dito ang lumang MPIN: kung mag-back ang user
   /// bago matapos (o hindi matuloy ang reset), mananatili ang dating MPIN at
   /// babalik siya sa MPIN screen na may numero — imbes na maiwang walang MPIN
-  /// nang hindi sinasadya. Ang pagbura ay nangyayari pagkatapos ng matagumpay
-  /// na OTP verification, bago ang bagong MPIN setup.
+  /// nang hindi sinasadya. Ang bagong MPIN ang ipapalit ng `auth-mpin` kapag
+  /// may valid na reset token.
   Future<void> _resetMpin() async {
     final phone = _mpinPhone;
     if (_mpinBusy || phone == null || phone.isEmpty) return;
@@ -379,14 +381,25 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     });
     // Naka-center na loading modal habang nagsasagawa ng bagong OTP.
     final hideLoading = showLoadingOverlay(context);
-    // Bagong OTP bago ang muling pag-set — best effort lang; may "Resend code"
-    // naman sa OTP screen kung hindi umabot ang SMS.
-    try {
-      await ref.read(authProvider.notifier).sendOtp(phone: phone);
-    } catch (_) {}
+    // Bagong OTP bago ang muling pag-set. Huwag tumuloy sa Verify OTP kapag
+    // hindi naipadala (resend cooldown / SMS failure / network) — dito pa lang
+    // makikita ang tamang error, imbes na maghintay ng code na hindi darating.
+    final sent = await ref.read(authProvider.notifier).sendOtp(
+          phone: phone,
+          purpose: AppConstants.otpPurposeResetMpin,
+        );
     hideLoading();
     if (!mounted) return;
     setState(() => _mpinBusy = false);
+    if (!sent) {
+      final err = ref.read(authProvider).error;
+      setState(() {
+        _mpinError =
+            ref.read(authProvider.notifier).extractErrorMessage(err ?? '') ??
+                'We could not send a verification code. Please try again.';
+      });
+      return;
+    }
     // Sariling URI ang reset flow — `/reset-mpin/verify-otp?s=<token>` — kaya
     // kitang iba ito sa ordinaryong login OTP. Opaque na token lang ang nasa
     // URL; nasa secure storage ang numero (security: huwag ilagay ang numero
@@ -608,6 +621,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         builder: (_) => const _InfoPage(
           title: 'Help Center',
           icon: Icons.support_agent_rounded,
+          showChat: true,
           faq: [
             _FaqItem(
               question: 'How do I log in to the app?',
@@ -1879,11 +1893,16 @@ class _InfoPage extends StatelessWidget {
   final List<_InfoSection> sections;
   final List<_FaqItem> faq;
 
+  /// Kapag true, may "Chat" button sa dulo ng content (Help Center) na
+  /// bubukas ng Messenger.
+  final bool showChat;
+
   const _InfoPage({
     required this.title,
     required this.icon,
     this.sections = const [],
     this.faq = const [],
+    this.showChat = false,
   });
 
   @override
@@ -1917,52 +1936,115 @@ class _InfoPage extends StatelessWidget {
           ],
         ),
       ),
+      // Desktop view: naka-center at may max width (760) ang content — hindi
+      // nakaunat sa buong lapad ng browser. Sa phone, buong lapad pa rin
+      // dahil mas maliit ito sa 760.
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),
-        child: faq.isNotEmpty
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Text(
-                    'Frequently Asked Questions',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.deepNavy,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  for (final f in faq) _buildFaqTile(f),
-                  const SizedBox(height: 8),
-                ],
-              )
-            : Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (final s in sections) ...[
-                    Padding(
-                      padding: const EdgeInsets.only(top: 12, bottom: 6),
-                      child: Text(
-                        s.title,
-                        style: const TextStyle(
-                          fontSize: 14,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: faq.isNotEmpty
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Frequently Asked Questions',
+                        style: TextStyle(
+                          fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: AppColors.deepNavy,
                         ),
                       ),
-                    ),
-                    Text(
-                      s.body,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: AppColors.textSecondary,
-                        height: 1.6,
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 24),
-                ],
-              ),
+                      const SizedBox(height: 16),
+                      for (final f in faq) _buildFaqTile(f),
+                      if (showChat) ...[
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _chatButton(context),
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                    ],
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final s in sections) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12, bottom: 6),
+                          child: Text(
+                            s.title,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.deepNavy,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          s.body,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                            height: 1.6,
+                          ),
+                        ),
+                      ],
+                      if (showChat) ...[
+                        const SizedBox(height: 20),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: _chatButton(context),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// "Chat" button — dinidirekta sa Messenger (`AppConstants.supportMessengerUrl`).
+  Widget _chatButton(BuildContext context) {
+    return ElevatedButton.icon(
+      onPressed: () => _openMessenger(context),
+      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
+      label: const Text(
+        'Chat',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.deepNavy,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        minimumSize: const Size(0, 38),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openMessenger(BuildContext context) async {
+    final uri = Uri.parse(AppConstants.supportMessengerUrl);
+    try {
+      final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (opened) return;
+    } catch (_) {
+      // Dadausan ng snackbar sa ibaba — walang crash kapag hindi available
+      // ang Messenger/browser sa device.
+    }
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+            'Could not open Messenger. You can reach us at ${AppConstants.supportMessengerUrl}'),
       ),
     );
   }

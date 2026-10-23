@@ -398,10 +398,14 @@ class _ConfirmDialogShell extends StatelessWidget {
                           _iconTile(),
                           const SizedBox(height: 14),
                         ],
-                        Text(title,
-                            textAlign: TextAlign.center,
-                            style: _titleStyle(context)),
-                        const SizedBox(height: 10),
+                        // Walang title (empty string) = simpleng tanong lang,
+                        // hal. "Are you sure to logout?" na walang heading.
+                        if (title.isNotEmpty) ...[
+                          Text(title,
+                              textAlign: TextAlign.center,
+                              style: _titleStyle(context)),
+                          const SizedBox(height: 10),
+                        ],
                         Text(message,
                             textAlign: TextAlign.center,
                             style: _messageStyle(context)),
@@ -452,8 +456,11 @@ class _ConfirmDialogShell extends StatelessWidget {
               Divider(height: 1, thickness: 1, color: context.cDivider),
             Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              // Sa centered variant (centered title/message) naka-center din
+              // ang actions (Yes / No) para pantay ang layout.
               child: Align(
-                alignment: Alignment.centerRight,
+                alignment:
+                    centerText ? Alignment.center : Alignment.centerRight,
                 child: actions,
               ),
             ),

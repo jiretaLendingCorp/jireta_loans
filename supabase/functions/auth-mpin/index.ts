@@ -29,7 +29,17 @@ import { isAuthUser, requireAuth } from "../_shared/auth.ts";
 import { requireMfaIfEnrolled } from "../_shared/mfa.ts";
 import { errorResponse, handleCors, jsonResponse } from "../_shared/cors.ts";
 import { getAdminClient } from "../_shared/db.ts";
-import { hashPassword } from "../_shared/password_hash.ts";
+import {
+  hashMpin,
+  isLegacyMpinHash,
+  verifyMpinHash,
+} from "../_shared/password_hash.ts";
+import { hashResetToken, isResetToken } from "../_shared/reset_token.ts";
+import {
+  mpinResetError,
+  mpinResetRejectionReason,
+  type MpinResetAuthRow,
+} from "../_shared/mpin_reset.ts";
 import { sanitizeString } from "../_shared/validators.ts";
 
 // ── Mga pare-parehong bilang (tugma sa client: MpinService) ──────────────────
@@ -57,14 +67,6 @@ function isValidMpinFormat(value: string): boolean {
   return value.length === MPIN_LENGTH && MPIN_RE.test(value);
 }
 
-/**
- * Hindi kailanman plain text ang naiimbak: `sha256$<hex>` na may salt na user
- * id (hindi mai-replay kahit ma-leak ang row para sa ibang account).
- */
-function hashMpin(userId: string, mpin: string): Promise<string> {
-  return hashPassword(userId, mpin);
-}
-
 type MpinRow = {
   user_id: string;
   mpin_hash: string;
@@ -84,6 +86,47 @@ async function readMpinRow(
     .eq("user_id", userId)
     .maybeSingle();
   return (data as MpinRow | null) ?? null;
+}
+
+type MpinResetAuthDbRow = MpinResetAuthRow & { id: string };
+
+/**
+ * Hinahanap ang reset authorization sa hash ng token. `null` kapag hindi
+ * valid ang hugis o wala sa DB — hindi ito nagpapakita kung bakit.
+ */
+async function readMpinResetAuth(
+  db: ReturnType<typeof getAdminClient>,
+  token: string,
+): Promise<MpinResetAuthDbRow | null> {
+  if (!isResetToken(token)) return null;
+  const tokenHash = await hashResetToken(token);
+  const { data } = await db
+    .from("mpin_reset_authorizations")
+    .select("id, user_id, purpose, expires_at, used_at, attempts")
+    .eq("token_hash", tokenHash)
+    .maybeSingle();
+  return (data as MpinResetAuthDbRow | null) ?? null;
+}
+
+/**
+ * Sinusuri at AGAD na kinukuha (atomic claim) ang reset authorization.
+ *
+ * Single-use: ang conditional `used_at IS NULL` update ang nagpapanalo sa
+ * isang caller lang kahit sabay-sabay ang dalawang request. Kapag nabigo ang
+ * claim, `null` ang isinasagot at dapat tanggihan ang set/reset.
+ */
+async function claimMpinResetAuth(
+  db: ReturnType<typeof getAdminClient>,
+  resetAuth: MpinResetAuthDbRow,
+): Promise<boolean> {
+  const { data } = await db
+    .from("mpin_reset_authorizations")
+    .update({ used_at: new Date(nowMs()).toISOString() })
+    .eq("id", resetAuth.id)
+    .is("used_at", null)
+    .select("id")
+    .maybeSingle();
+  return data != null;
 }
 
 /** Locked pa ba? (may `locked_until` pa sa hinaharap) */
@@ -215,6 +258,7 @@ async function handleSet(req: Request) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   const mpin = sanitizeString(body["mpin"]);
   const currentMpin = sanitizeString(body["current_mpin"]);
+  const resetToken = sanitizeString(body["reset_token"]);
 
   if (!isValidMpinFormat(mpin)) {
     return errorResponse(
@@ -228,11 +272,33 @@ async function handleSet(req: Request) {
   const row = await readMpinRow(db, authResult.id);
   const isChange = row != null;
 
-  // ── Nagpapalit: kailangan ang KASALUKUYANG MPIN ──────────────────────────
+  // ── Reset authorization (OTP purpose=reset_mpin) ────────────────────────
+  // Kapag may reset_token, iyon ang authorization para palitan ang MPIN nang
+  // hindi hinihingi ang dating MPIN. HINDI kailanman pinaniniwalaan ang
+  // frontend flag (`isVerified`) o ang session lang.
+  let resetAuth: MpinResetAuthDbRow | null = null;
+  if (resetToken) {
+    resetAuth = await readMpinResetAuth(db, resetToken);
+    const rejection = mpinResetRejectionReason(resetAuth, {
+      userId: authResult.id,
+    });
+    if (rejection) {
+      if (resetAuth?.id) {
+        await db
+          .from("mpin_reset_authorizations")
+          .update({ attempts: (resetAuth.attempts ?? 0) + 1 })
+          .eq("id", resetAuth.id);
+      }
+      const err = mpinResetError(rejection);
+      return errorResponse(err.message, err.status, err.code);
+    }
+  }
+
+  // ── Nagpapalit: kailangan ang KASALUKUYANG MPIN (kung walang reset token) ──
   // Ang UI ay dumadaan muna sa `?fn=verify` (kaya buo ang attempts/lockout
   // handling doon); dito ay pangalawang tsek para hindi ma-bypass ang change
   // flow sa isang direktang tawag.
-  if (isChange) {
+  if (isChange && !resetAuth) {
     if (!currentMpin || !isValidMpinFormat(currentMpin)) {
       return errorResponse(
         "Current MPIN is required to change your MPIN",
@@ -240,8 +306,12 @@ async function handleSet(req: Request) {
         "INVALID_CURRENT_MPIN",
       );
     }
-    const expected = await hashMpin(authResult.id, currentMpin);
-    if (expected !== row.mpin_hash) {
+    const currentOk = await verifyMpinHash(
+      authResult.id,
+      currentMpin,
+      row.mpin_hash,
+    );
+    if (!currentOk) {
       const { attemptsLeft, lockSeconds } = await registerFailedAttempt(db, authResult.id, row);
       if (lockSeconds > 0) return lockedResponse(lockSeconds);
       return errorResponse("Current MPIN is incorrect.", 400, "INVALID_CURRENT_MPIN", {
@@ -260,6 +330,16 @@ async function handleSet(req: Request) {
         "MPIN_CHANGE_LIMIT",
         { retry_after_seconds: quota.resetInSeconds ?? 0 },
       );
+    }
+  }
+
+  // Single-use: i-claim (atomic) ang reset authorization BAGO isulat ang
+  // bagong MPIN. Kapag may naunang nagamit, mabibigo ang claim.
+  if (resetAuth) {
+    const claimed = await claimMpinResetAuth(db, resetAuth);
+    if (!claimed) {
+      const err = mpinResetError("used");
+      return errorResponse(err.message, err.status, err.code);
     }
   }
 
@@ -299,10 +379,14 @@ async function handleSet(req: Request) {
     }
   }
 
+  const eventType = resetAuth
+    ? "mpin_reset_completed"
+    : (isChange ? "mpin_changed" : "mpin_set");
+
   try {
     await db.from("auth_logs").insert({
       user_id: authResult.id,
-      event_type: isChange ? "mpin_changed" : "mpin_set",
+      event_type: eventType,
       ip_address: sanitizeIpAddress(req.headers.get("x-forwarded-for")),
     });
   } catch (_) { /* ignore log failure */ }
@@ -310,7 +394,7 @@ async function handleSet(req: Request) {
   try {
     await writeAuditLog({
       performedBy: authResult.id,
-      action: isChange ? "mpin_changed" : "mpin_set",
+      action: eventType,
       tableName: "user_mpins",
       recordId: authResult.id,
       ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
@@ -345,12 +429,17 @@ async function handleVerify(req: Request) {
   const lockSeconds = lockSecondsLeft(row);
   if (lockSeconds > 0) return lockedResponse(lockSeconds);
 
-  const submitted = await hashMpin(authResult.id, mpin);
-  if (submitted === row.mpin_hash) {
-    await db
-      .from("user_mpins")
-      .update({ failed_attempts: 0, locked_until: null })
-      .eq("user_id", authResult.id);
+  const submittedOk = await verifyMpinHash(authResult.id, mpin, row.mpin_hash);
+  if (submittedOk) {
+    const updates: Record<string, unknown> = {
+      failed_attempts: 0,
+      locked_until: null,
+    };
+    // Legacy one-round SHA-256 → PBKDF2 sa unang matagumpay na verification.
+    if (isLegacyMpinHash(row.mpin_hash)) {
+      updates.mpin_hash = await hashMpin(authResult.id, mpin);
+    }
+    await db.from("user_mpins").update(updates).eq("user_id", authResult.id);
     return jsonResponse({ message: "MPIN verified", verified: true });
   }
 
@@ -370,7 +459,7 @@ async function handleVerify(req: Request) {
   });
 }
 
-// ── RESET: burahin ang MPIN (forgot MPIN, pagkatapos ng OTP login) ──────────
+// ── RESET: burahin ang MPIN (forgot MPIN, pagkatapos ng OTP reset purpose) ──
 async function handleReset(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
@@ -380,7 +469,33 @@ async function handleReset(req: Request) {
   const mfaGuard = await requireMfaIfEnrolled(getAdminClient(), authResult);
   if (mfaGuard) return mfaGuard;
 
+  // Hindi sapat ang session: kailangan ang server-issued reset authorization
+  // na galing sa OTP na may purpose=reset_mpin. Walang frontend flag dito.
+  const body = await req.json().catch(() => ({})) as Record<string, unknown>;
+  const resetToken = sanitizeString(body["reset_token"]);
   const db = getAdminClient();
+
+  const resetAuth = await readMpinResetAuth(db, resetToken);
+  const rejection = mpinResetRejectionReason(resetAuth, {
+    userId: authResult.id,
+  });
+  if (rejection) {
+    if (resetAuth?.id) {
+      await db
+        .from("mpin_reset_authorizations")
+        .update({ attempts: (resetAuth.attempts ?? 0) + 1 })
+        .eq("id", resetAuth.id);
+    }
+    const err = mpinResetError(rejection);
+    return errorResponse(err.message, err.status, err.code);
+  }
+
+  const claimed = await claimMpinResetAuth(db, resetAuth!);
+  if (!claimed) {
+    const err = mpinResetError("used");
+    return errorResponse(err.message, err.status, err.code);
+  }
+
   const { error } = await db.from("user_mpins").delete().eq("user_id", authResult.id);
   if (error) {
     console.error("[auth-mpin] reset failed:", error.message);

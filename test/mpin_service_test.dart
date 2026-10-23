@@ -104,6 +104,7 @@ class _FakeMpinServer implements MpinRemoteDataSource {
   Future<MpinSetReply> setMpin({
     required String mpin,
     String? currentMpin,
+    String? resetToken,
   }) async {
     if (offline) _noConnection();
     final isChange = pin != null;
@@ -126,7 +127,7 @@ class _FakeMpinServer implements MpinRemoteDataSource {
   }
 
   @override
-  Future<void> reset() async {
+  Future<void> reset({required String resetToken}) async {
     if (offline) _noConnection();
     pin = null;
     failedAttempts = 0;
@@ -267,7 +268,7 @@ void main() {
 
     test('clear removes the MPIN', () async {
       await service.setMpin('1234');
-      await service.clear();
+      await service.clear(resetToken: 'test-reset-token');
       expect(await service.isSet(), isFalse);
       expect((await service.verify('1234')).status, MpinStatus.notSet);
     });

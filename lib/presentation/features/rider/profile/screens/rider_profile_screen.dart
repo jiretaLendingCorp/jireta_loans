@@ -280,6 +280,11 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                       'Lender and company information must be kept confidential and used only for official duties, under the Data Privacy Act of 2012 (RA 10173).',
                 ),
                 ModernSheetSection(
+                  title: 'SMS messages & sender name',
+                  body:
+                      'One-time passwords and collection notices are sent by SMS under the Sender Name "JiretaLoans", never a shared or unregistered name. As a capstone project, messages are sent only to the project team and volunteer testers who agreed to receive them for the duration of the project.',
+                ),
+                ModernSheetSection(
                   title: 'Prohibited acts',
                   body:
                       'Do not collect more than the amount shown, tamper with evidence or signatures, or use company resources for personal gain.',
