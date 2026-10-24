@@ -120,7 +120,7 @@ workflows:
           set -e
           mkdir -p assets/env
           cat > assets/env/.env <<EOF
-          SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL is required for a device-testing build}
+          SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL is required for a device-testing build. Add it in Codemagic App settings, Environment variables, group jireta_env (same value as local assets/env/.env)}
           SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required for a device-testing build}
           EDGE_FUNCTIONS_URL=${EDGE_FUNCTIONS_URL:-}
           GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
@@ -193,7 +193,7 @@ workflows:
           set -e
           mkdir -p assets/env
           cat > assets/env/.env <<EOF
-          SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL is required for a TestFlight build}
+          SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL is required for a TestFlight build. Add it in Codemagic App settings, Environment variables, group jireta_env (same value as local assets/env/.env)}
           SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
           EDGE_FUNCTIONS_URL=${EDGE_FUNCTIONS_URL:-}
           GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}

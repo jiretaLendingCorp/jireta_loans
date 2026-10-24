@@ -49,10 +49,19 @@ Ito ang **development build sa sariling iPhone**, hindi TestFlight. 7 araw
 ang bisa ng cert ng free Apple ID, at hindi nito kayang magdala ng push
 notifications.
 
-1. **Codemagic** → App settings → Environment variables: `SUPABASE_URL`,
-   `SUPABASE_ANON_KEY`, `GOOGLE_MAPS_API_KEY`, `XENDIT_PUBLIC_KEY`. Ang
-   `ios-sideload-ipa` ay **hihinto** kapag kulang ang dalawang Supabase
-   values — sinasadya ito para hindi ka mag-install ng placeholder build.
+1. **Codemagic** → App settings → Environment variables → **group na
+   `jireta_env`** (kailangang eksaktong ganoon ang pangalan — ito ang
+   nakalista sa `groups` ng `codemagic.yaml`): `SUPABASE_URL`,
+   `SUPABASE_ANON_KEY`, `GOOGLE_MAPS_API_KEY`, `XENDIT_PUBLIC_KEY`. Ang mga
+   value ay nasa lokal na `assets/env/.env`. I-save, tapos gumawa ng
+   **bagong** build — hindi na-a-apply sa kasalukuyang build ang bagong
+   variable. Ang `ios-sideload-ipa` ay **hihinto** kapag kulang ang dalawang
+   Supabase values — sinasadya ito para hindi ka mag-install ng placeholder
+   build.
+
+   Kapag lumabas ang `SUPABASE_URL is required for a device-testing build`,
+   ibig sabihin ay wala sa build machine ang variable: tingnan na umiiral ang
+   `jireta_env` group, may laman itong `SUPABASE_URL`, at naka-save.
 2. **Start new build** → piliin ang
    `iOS unsigned IPA (free Apple ID, sideload sa iPhone)` → hintayin ang
    `jireta-loans-unsigned.ipa` sa Artifacts.
@@ -91,12 +100,14 @@ Kapag naka-enroll na sa paid program, isang beses lang ang setup para sa
 3. **Apple Developer** → Identifiers → gumawa ng App ID para sa `BUNDLE_ID`
    (may Push Notifications), pagkatapos ay gumawa ng app record sa App Store
    Connect.
-4. **Codemagic** → app environment variables: `SUPABASE_URL`,
-   `SUPABASE_ANON_KEY`, `GOOGLE_MAPS_API_KEY`, `XENDIT_PUBLIC_KEY` (ito ang
-   isinusulat sa `assets/env/.env`; ang `ios-compile` ay may placeholder kapag
-   wala) at `CERTIFICATE_PRIVATE_KEY` (secret) para makagawa ng distribution
-   certificate. Kung wala pang certificate private key sa Mac, puwedeng
-   gumawa sa Git Bash at i-paste ang buong file:
+4. **Codemagic** → App settings → Environment variables → group na
+   `jireta_env` (eksaktong pangalan, tugma sa `groups` ng `codemagic.yaml`):
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `GOOGLE_MAPS_API_KEY`,
+   `XENDIT_PUBLIC_KEY` (ito ang isinusulat sa `assets/env/.env`; ang
+   `ios-compile` ay may placeholder kapag wala) at `CERTIFICATE_PRIVATE_KEY`
+   (secret) para makagawa ng distribution certificate. Kung wala pang
+   certificate private key sa Mac, puwedeng gumawa sa Git Bash at i-paste
+   ang buong file:
 
    ```bash
    ssh-keygen -t rsa -b 2048 -m PEM -f ios_distribution_private_key -q -N ""
