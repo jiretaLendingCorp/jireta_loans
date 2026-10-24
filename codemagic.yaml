@@ -1,0 +1,157 @@
+# codemagic.yaml
+# ─────────────────────────────────────────────────────────────────────────────
+# Codemagic CI para sa iOS — para makapag-build kahit walang Mac sa dev machine.
+#
+# Dalawang workflow:
+#
+#   • ios-compile   — `flutter build ios --release --no-codesign`.
+#                     WALANG signing, kaya gumagana kahit free/personal Apple ID.
+#                     Kapareho ito ng .github/workflows/ios-build.yml: pinapatunayan
+#                     lang na nagko-compile ang Runner + mga pod (Swift, pod
+#                     install, iOS 15.5, ML Kit, Firebase), hindi nagpi-produce ng
+#                     mailalagay sa iPhone.
+#
+#   • ios-testflight — signed IPA + upload sa TestFlight.
+#                     KAILANGAN ng BAYAD na Apple Developer Program membership.
+#                     Ang automatic signing ay dumadaan sa App Store Connect API
+#                     key (`app-store-connect fetch-signing-files`); wala itong
+#                     access sa free/personal team, at wala ring distribution
+#                     certificate/profile ang free account.
+#
+# MAHALAGA: kapag may codemagic.yaml sa root, ITO ang ginagamit ng Codemagic at
+# binabalewala ang workflow editor ("Default Workflow") sa UI. Kung ang dating
+# error ay:
+#   "Building a deployable iOS app requires a selected Development Team with a
+#    Provisioning Profile."
+# hindi ito bug sa app — humihingi lang ng signing ang device build. Sa free
+# Apple ID, `ios-compile` ang patakbuhin. Tingnan ang docs/IOS_SETUP.md.
+# ─────────────────────────────────────────────────────────────────────────────
+
+workflows:
+  ios-compile:
+    name: iOS compile gate (no signing)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      # assets/env/.env ay git-ignored (may keys) pero naka-declare sa
+      # pubspec.yaml assets, kaya kailangan itong umiral bago mag-build.
+      # Galing sa Codemagic app environment variables; placeholder kapag wala.
+      - name: Write assets/env/.env
+        script: |
+          set -e
+          mkdir -p assets/env
+          if [ -z "${SUPABASE_URL:-}" ]; then
+            echo "WARNING: walang SUPABASE_URL sa Codemagic env vars — placeholders ang isusulat;"
+            echo "         mag-compile ito pero hindi gagana ang app sa device."
+          fi
+          cat > assets/env/.env <<EOF
+          SUPABASE_URL=${SUPABASE_URL:-https://ci-placeholder.supabase.co}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-ci-placeholder}
+          EDGE_FUNCTIONS_URL=${EDGE_FUNCTIONS_URL:-}
+          GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+          XENDIT_PUBLIC_KEY=${XENDIT_PUBLIC_KEY:-}
+          APP_ENV=${APP_ENV:-ci}
+          EOF
+          echo "Wrote assets/env/.env (values masked):"
+          sed -E 's/=(.{0,6}).*/=\1.../' assets/env/.env
+
+      - name: flutter pub get
+        script: flutter pub get
+
+      # Dapat 15.5 ang target ng Runner at ng pods (ML Kit requirement) —
+      # parehong check sa GitHub Actions at scripts/ios_preflight.sh.
+      - name: pod install
+        script: |
+          set -e
+          cd ios
+          pod install
+          grep -q "IPHONEOS_DEPLOYMENT_TARGET = 15.5" Runner.xcodeproj/project.pbxproj
+
+      - name: iOS config guard tests
+        script: flutter test test/ios_platform_config_test.dart
+
+      - name: Build (no codesign)
+        script: flutter build ios --release --no-codesign
+    artifacts:
+      - build/ios/iphoneos/Runner.app
+      - /tmp/xcodebuild_logs/*.log
+
+  ios-testflight:
+    name: iOS TestFlight (paid Apple Developer Program)
+    max_build_duration: 90
+    instance_type: mac_mini_m2
+    integrations:
+      # Pangalan ng App Store Connect API key sa Codemagic
+      # (Team settings → Integrations → Developer Portal → Manage keys).
+      app_store_connect: jireta_appstore
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      vars:
+        BUNDLE_ID: com.example.jiretaLoans
+    scripts:
+      - name: Write assets/env/.env
+        script: |
+          set -e
+          mkdir -p assets/env
+          cat > assets/env/.env <<EOF
+          SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL is required for a TestFlight build}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-}
+          EDGE_FUNCTIONS_URL=${EDGE_FUNCTIONS_URL:-}
+          GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+          XENDIT_PUBLIC_KEY=${XENDIT_PUBLIC_KEY:-}
+          APP_ENV=${APP_ENV:-production}
+          EOF
+          echo "Wrote assets/env/.env (values masked):"
+          sed -E 's/=(.{0,6}).*/=\1.../' assets/env/.env
+
+      - name: flutter pub get
+        script: flutter pub get
+
+      - name: pod install
+        script: |
+          set -e
+          cd ios
+          pod install
+
+      - name: Set up keychain
+        script: keychain initialize
+
+      # Kinuha/nilikha ang App Store distribution certificate at provisioning
+      # profile mula sa Apple Developer Portal gamit ang API key. Kailangan ng
+      # CERTIFICATE_PRIVATE_KEY (secret env var) para makagawa ng bagong
+      # distribution certificate — tingnan ang docs/IOS_SETUP.md.
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Add certificates to keychain
+        script: keychain add-certificates
+
+      # Isusulat din nito ang $HOME/export_options.plist na gagamitin ng
+      # `flutter build ipa`.
+      - name: Set up code signing settings on Xcode project
+        script: xcode-project use-profiles
+
+      - name: Build IPA
+        script: |
+          flutter build ipa --release \
+            --build-number=${BUILD_NUMBER:-1} \
+            --export-options-plist=$HOME/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+      - flutter_drive.log
+    publishing:
+      app_store_connect:
+        auth: integration
+        # I-upload sa TestFlight. Kailangang may app record na sa App Store
+        # Connect para sa BUNDLE_ID bago ito gumana.
+        submit_to_testflight: true

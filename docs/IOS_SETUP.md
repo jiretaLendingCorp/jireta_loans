@@ -8,13 +8,66 @@ Para sa step-by-step na pag-test pagkatapos ng setup (build gate, push,
 maps, face verification, TestFlight), tingnan ang
 [`docs/IOS_TEST_CHECKLIST.md`](IOS_TEST_CHECKLIST.md).
 
-May dalawang automated na build check:
+May tatlong automated na build check:
 
 - **CI:** `.github/workflows/ios-build.yml` — macOS runner, `pod install` +
   `flutter build ios --no-codesign` sa bawat push na tumatama sa `ios/**`,
   `lib/**` o `pubspec.*`. Ito ang nagpapatunay na nagko-compile ang iOS build
   kahit walang Mac sa dev machine.
+- **Codemagic:** `codemagic.yaml` — `ios-compile` (parehong no-signing build)
+  at `ios-testflight` (signed IPA). Tingnan ang
+  [Codemagic](#codemagic-ios-build-mula-sa-windows) sa ibaba.
 - **Local:** `bash scripts/ios_preflight.sh` — parehong hakbang sa sariling Mac.
+
+### Codemagic (iOS build mula sa Windows)
+
+Nasa root ang `codemagic.yaml`. Kapag nakita ito ng Codemagic, **ito ang
+ginagamit at binabalewala ang "Default Workflow"** sa UI.
+
+| Workflow | Kailangan | Ginagawa |
+| --- | --- | --- |
+| `ios-compile` | wala — gumagana kahit free Apple ID | `flutter build ios --release --no-codesign`, `pod install`, config guard tests |
+| `ios-testflight` | **bayad na Apple Developer Program** (App Manager API key), App ID at app record sa App Store Connect | signed IPA + upload sa TestFlight |
+
+Ang error na
+`Building a deployable iOS app requires a selected Development Team with a
+Provisioning Profile` ay **hindi bug sa app**: humihingi lang ng signing ang
+device build (`flutter build ios` / `flutter build ipa`). Sa free Apple ID /
+personal team, walang distribution certificate o provisioning profile na
+maibibigay ang Apple sa CI — kaya `ios-compile` ang patakbuhin hanggang
+naka-enroll sa paid program. (Ang personal team ay para lang sa `flutter run`
+sa device mula sa Xcode, at 7 araw lang bago mag-expire ang cert.)
+
+Kapag naka-enroll na sa paid program, isang beses lang ang setup para sa
+`ios-testflight`:
+
+1. **App Store Connect** → Users and Access → Integrations → App Store Connect
+   API → gumawa ng key (App Manager), i-download ang `.p8`, itala ang Issuer ID
+   at Key ID.
+2. **Codemagic** → Team settings → Integrations → Developer Portal → **Add
+   key**, pangalang `jireta_appstore` (kailangang tugma sa
+   `integrations.app_store_connect` sa `codemagic.yaml`).
+3. **Apple Developer** → Identifiers → gumawa ng App ID para sa `BUNDLE_ID`
+   (may Push Notifications), pagkatapos ay gumawa ng app record sa App Store
+   Connect.
+4. **Codemagic** → app environment variables: `SUPABASE_URL`,
+   `SUPABASE_ANON_KEY`, `GOOGLE_MAPS_API_KEY`, `XENDIT_PUBLIC_KEY` (ito ang
+   isinusulat sa `assets/env/.env`; ang `ios-compile` ay may placeholder kapag
+   wala) at `CERTIFICATE_PRIVATE_KEY` (secret) para makagawa ng distribution
+   certificate. Kung wala pang certificate private key sa Mac, puwedeng
+   gumawa sa Git Bash at i-paste ang buong file:
+
+   ```bash
+   ssh-keygen -t rsa -b 2048 -m PEM -f ios_distribution_private_key -q -N ""
+   cat ios_distribution_private_key   # paste as CERTIFICATE_PRIVATE_KEY
+   ```
+
+5. Patakbuhin ang `ios-testflight`.
+
+Kung papalitan ang bundle id (hal. dahil taken na ang `com.example.*` sa Apple),
+baguhin ang `PRODUCT_BUNDLE_IDENTIFIER` sa Xcode at ang `BUNDLE_ID` sa
+`codemagic.yaml`, tapos i-update ang `iosBundleId` sa
+`lib/firebase_options.dart` at ang Firebase iOS app.
 
 ## Ano ang naka-commit na
 
@@ -82,7 +135,8 @@ May dalawang automated na build check:
 
 ## Mahalagang tala
 
-- **Hindi kayang mag-build ng iOS sa Windows.** Kailangan ng macOS + Xcode.
+- **Hindi kayang mag-build ng iOS sa Windows.** Kailangan ng macOS + Xcode —
+  sariling Mac, o macOS runner ng Codemagic/GitHub Actions (tingnan sa itaas).
   Ang mga test na `test/ios_platform_config_test.dart` ay static checks lang —
   binabantayan nito ang config drift, hindi kapalit ng tunay na build.
 - Huwag ibaba ang deployment target sa 15.0. Ang ML Kit face detection pod ay
