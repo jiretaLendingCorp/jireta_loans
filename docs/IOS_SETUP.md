@@ -14,8 +14,9 @@ May tatlong automated na build check:
   `flutter build ios --no-codesign` sa bawat push na tumatama sa `ios/**`,
   `lib/**` o `pubspec.*`. Ito ang nagpapatunay na nagko-compile ang iOS build
   kahit walang Mac sa dev machine.
-- **Codemagic:** `codemagic.yaml` — `ios-compile` (parehong no-signing build)
-  at `ios-testflight` (signed IPA). Tingnan ang
+- **Codemagic:** `codemagic.yaml` — `ios-compile` (parehong no-signing build),
+  `ios-sideload-ipa` (unsigned IPA para sa libreng install sa iPhone) at
+  `ios-testflight` (signed IPA). Tingnan ang
   [Codemagic](#codemagic-ios-build-mula-sa-windows) sa ibaba.
 - **Local:** `bash scripts/ios_preflight.sh` — parehong hakbang sa sariling Mac.
 
@@ -27,16 +28,56 @@ ginagamit at binabalewala ang "Default Workflow"** sa UI.
 | Workflow | Kailangan | Ginagawa |
 | --- | --- | --- |
 | `ios-compile` | wala — gumagana kahit free Apple ID | `flutter build ios --release --no-codesign`, `pod install`, config guard tests |
+| `ios-sideload-ipa` | free Apple ID + Windows laptop (Sideloadly) | unsigned IPA (`Payload/Runner.app`) na ipi-pirma at i-install sa iPhone |
 | `ios-testflight` | **bayad na Apple Developer Program** (App Manager API key), App ID at app record sa App Store Connect | signed IPA + upload sa TestFlight |
 
 Ang error na
 `Building a deployable iOS app requires a selected Development Team with a
 Provisioning Profile` ay **hindi bug sa app**: humihingi lang ng signing ang
-device build (`flutter build ios` / `flutter build ipa`). Sa free Apple ID /
-personal team, walang distribution certificate o provisioning profile na
-maibibigay ang Apple sa CI — kaya `ios-compile` ang patakbuhin hanggang
-naka-enroll sa paid program. (Ang personal team ay para lang sa `flutter run`
-sa device mula sa Xcode, at 7 araw lang bago mag-expire ang cert.)
+device build (`flutter build ios` / `flutter build ipa`).
+
+Sa free Apple ID, **hindi kayang mag-sign ang Codemagic** — ang automatic
+signing nito ay dumadaan sa App Store Connect API key, at wala iyon sa
+free/personal team (walang developer-portal access, walang distribution
+certificate). Wala ring "Apple ID login" ang Codemagic. Kaya hindi ito
+maayos sa CI; ang libreng daan ay `ios-sideload-ipa` + Sideloadly sa laptop
+(sa ibaba).
+
+### Libreng pag-install sa iPhone (free Apple ID + Sideloadly)
+
+Ito ang **development build sa sariling iPhone**, hindi TestFlight. 7 araw
+ang bisa ng cert ng free Apple ID, at hindi nito kayang magdala ng push
+notifications.
+
+1. **Codemagic** → App settings → Environment variables: `SUPABASE_URL`,
+   `SUPABASE_ANON_KEY`, `GOOGLE_MAPS_API_KEY`, `XENDIT_PUBLIC_KEY`. Ang
+   `ios-sideload-ipa` ay **hihinto** kapag kulang ang dalawang Supabase
+   values — sinasadya ito para hindi ka mag-install ng placeholder build.
+2. **Start new build** → piliin ang
+   `iOS unsigned IPA (free Apple ID, sideload sa iPhone)` → hintayin ang
+   `jireta-loans-unsigned.ipa` sa Artifacts.
+3. **Windows:** i-install ang **Apple Devices** (Microsoft Store) para sa
+   drivers — huwag ang iTunes mula sa Store, kulang ito sa Apple Mobile
+   Device Support. I-download din ang **Sideloadly** (sideloadly.io).
+4. Isaksak ang iPhone → **Trust This Computer** sa iPhone.
+5. Buksan ang Sideloadly → i-drag ang IPA → ilagay ang Apple ID mo →
+   **Start**. Unang beses lang hihingi ng 2FA code mula sa iPhone.
+6. Kapag sinabing taken ang bundle id, palitan ito sa Sideloadly (hal.
+   `com.kyl.jiretaLoans`). Tandaan: nakatali sa bundle id ang API key
+   restriction ng Firebase iOS app, kaya kailangang i-update din iyon sa
+   Firebase/Google Cloud kapag pinalitan.
+7. Sa iPhone: **Settings → General → VPN & Device Management** → tiwalaan
+   ang `Apple Development: <email mo>`.
+8. iOS 16 pataas: **Settings → Privacy & Security → Developer Mode → On**,
+   tapos i-restart. Kung wala ito, hindi bubukas ang sideloaded app.
+9. Buksan ang app. Pagkalipas ng 7 araw, i-run ulit ang Sideloadly (may
+   auto-refresh option) para ma-renew ang cert.
+
+Mga limitasyon ng free account: **3 sideloaded apps** lang sa isang device,
+10 App IDs kada 7 araw, at walang push notifications (`aps-environment` ay
+paid-only capability). Ang build na ito ay unsigned sa Codemagic — walang
+entitlements, kaya hindi sumasablay ang re-signing. Personal testing lang
+ito; hindi ito para sa distribution.
 
 Kapag naka-enroll na sa paid program, isang beses lang ang setup para sa
 `ios-testflight`:

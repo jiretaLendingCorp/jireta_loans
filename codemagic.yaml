@@ -2,7 +2,7 @@
 # ─────────────────────────────────────────────────────────────────────────────
 # Codemagic CI para sa iOS — para makapag-build kahit walang Mac sa dev machine.
 #
-# Dalawang workflow:
+# Tatlong workflow:
 #
 #   • ios-compile   — `flutter build ios --release --no-codesign`.
 #                     WALANG signing, kaya gumagana kahit free/personal Apple ID.
@@ -10,6 +10,12 @@
 #                     lang na nagko-compile ang Runner + mga pod (Swift, pod
 #                     install, iOS 15.5, ML Kit, Firebase), hindi nagpi-produce ng
 #                     mailalagay sa iPhone.
+#
+#   • ios-sideload-ipa — unsigned IPA (`Payload/Runner.app`) na naka-package na,
+#                     para ma-sign at ma-install sa SARILING iPhone gamit ang
+#                     free Apple ID sa Windows (Sideloadly/AltStore). Ang signing
+#                     ay nangyayari sa laptop, hindi sa Codemagic — tingnan ang
+#                     docs/IOS_SETUP.md. 7 araw ang bisa ng free cert.
 #
 #   • ios-testflight — signed IPA + upload sa TestFlight.
 #                     KAILANGAN ng BAYAD na Apple Developer Program membership.
@@ -24,7 +30,8 @@
 #   "Building a deployable iOS app requires a selected Development Team with a
 #    Provisioning Profile."
 # hindi ito bug sa app — humihingi lang ng signing ang device build. Sa free
-# Apple ID, `ios-compile` ang patakbuhin. Tingnan ang docs/IOS_SETUP.md.
+# Apple ID: `ios-compile` para sa compile check, o `ios-sideload-ipa` para sa
+# mailalagay sa iPhone. Tingnan ang docs/IOS_SETUP.md.
 # ─────────────────────────────────────────────────────────────────────────────
 
 workflows:
@@ -77,6 +84,86 @@ workflows:
       - name: Build (no codesign)
         script: flutter build ios --release --no-codesign
     artifacts:
+      - build/ios/iphoneos/Runner.app
+      - /tmp/xcodebuild_logs/*.log
+
+  # ───────────────────────────────────────────────────────────────────────
+  # Signed sa SARILING Windows laptop, HINDI sa Codemagic.
+  #
+  # BAKIT: ang signing ay nangangailangan ng Apple-issued development
+  # certificate + provisioning profile (at UDID ng iPhone). Ang Codemagic ay
+  # gumagawa lang niyan gamit ang App Store Connect API key, na hindi
+  # available sa free/personal Apple ID. Kaya: dito lang binubuo at
+  # pinapackage ang app bilang unsigned IPA; sa laptop naisasagawa ang
+  # free signing (Sideloadly/AltStore) gamit ang sariling Apple ID.
+  #
+  # HINDI ito ipinagpapalit sa TestFlight: development/testing lang ito sa
+  # sariling iPhone, 7 araw ang bisa ng free cert.
+  # ───────────────────────────────────────────────────────────────────────
+  ios-sideload-ipa:
+    name: iOS unsigned IPA (free Apple ID, sideload sa iPhone)
+    max_build_duration: 60
+    instance_type: mac_mini_m2
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+    scripts:
+      # Totoong values, hindi placeholder: ang IPA na ito ay ipapasok sa
+      # device, kaya kailangang gumana ang app. Hihinto agad kapag kulang.
+      - name: Write assets/env/.env (real values, required)
+        script: |
+          set -e
+          mkdir -p assets/env
+          cat > assets/env/.env <<EOF
+          SUPABASE_URL=${SUPABASE_URL:?SUPABASE_URL is required for a device-testing build}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:?SUPABASE_ANON_KEY is required for a device-testing build}
+          EDGE_FUNCTIONS_URL=${EDGE_FUNCTIONS_URL:-}
+          GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY:-}
+          XENDIT_PUBLIC_KEY=${XENDIT_PUBLIC_KEY:-}
+          APP_ENV=${APP_ENV:-production}
+          EOF
+          if [ -z "${GOOGLE_MAPS_API_KEY:-}" ]; then
+            echo "WARNING: walang GOOGLE_MAPS_API_KEY — blangko ang mapa sa device."
+          fi
+          echo "Wrote assets/env/.env (values masked):"
+          sed -E 's/=(.{0,6}).*/=\1.../' assets/env/.env
+
+      - name: flutter pub get
+        script: flutter pub get
+
+      - name: pod install
+        script: |
+          set -e
+          cd ios
+          pod install
+
+      - name: iOS config guard tests
+        script: flutter test test/ios_platform_config_test.dart
+
+      # Release (hindi debug): walang JIT sa device, at release lang ang
+      # tumatakbo kapag naka-sign ng free development profile.
+      - name: Build (release, no codesign)
+        script: flutter build ios --release --no-codesign
+
+      # Pakete bilang IPA: Payload/Runner.app ang hinahanap ng Sideloadly.
+      # `zip -y` para manatiling symlink ang Flutter.framework, at ang
+      # unsigned na .app ay walang entitlements — kaya hindi sumasablay sa
+      # aps-environment na hindi kayang ibigay ng free profile.
+      - name: Package unsigned IPA
+        script: |
+          set -e
+          APP="build/ios/iphoneos/Runner.app"
+          test -d "$APP"
+          rm -rf build/ios/ipa Payload jireta-loans-unsigned.ipa
+          mkdir -p build/ios/ipa Payload
+          cp -R "$APP" Payload/
+          zip -qry build/ios/ipa/jireta-loans-unsigned.ipa Payload
+          rm -rf Payload
+          plutil -p "$APP/Info.plist" | grep -E 'CFBundleIdentifier|CFBundleShortVersionString' || true
+          ls -lh build/ios/ipa/jireta-loans-unsigned.ipa
+    artifacts:
+      - build/ios/ipa/*.ipa
       - build/ios/iphoneos/Runner.app
       - /tmp/xcodebuild_logs/*.log
 
