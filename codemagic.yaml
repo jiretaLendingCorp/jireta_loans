@@ -43,6 +43,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      groups:
+        - jireta_env
     scripts:
       # assets/env/.env ay git-ignored (may keys) pero naka-declare sa
       # pubspec.yaml assets, kaya kailangan itong umiral bago mag-build.
@@ -108,6 +110,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      groups:
+        - jireta_env
     scripts:
       # Totoong values, hindi placeholder: ang IPA na ito ay ipapasok sa
       # device, kaya kailangang gumana ang app. Hihinto agad kapag kulang.
@@ -179,6 +183,8 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
+      groups:
+        - jireta_env
       vars:
         BUNDLE_ID: com.example.jiretaLoans
     scripts:
