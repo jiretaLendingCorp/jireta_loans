@@ -1629,6 +1629,35 @@ class _EmpLoanApplicationsScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _StatusInline(status: status),
+                // Bayad na ang dating overdue? Ipakita sa ilalim ng status para
+                // makita ng staff na nakabayad ang lender — at kailan.
+                if (loan.hasSettledOverdue) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Overdue paid · ${DateFormat('MMM dd, yyyy').format(loan.overduePaidAt!)}',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.success),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 // Delivery rider assigned → show the rider's name
                 // right below the status so staff see who is
                 // delivering the cash.

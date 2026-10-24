@@ -4,8 +4,8 @@
 //
 // ANO ANG TINITIGNAN NITO
 //   • Ang Ongoing Loan tab ay para lang sa mga loan na TALAGANG ongoing —
-//     `active` (at `approved` na hindi pa na-release). HINDI kasama ang
-//     `overdue` at `completed`.
+//     `active` lang. HINDI kasama ang `approved` (hindi pa na-release),
+//     `overdue`, at `completed`.
 //   • Unang bukas ng `/ongoing` (refresh / deep link / bookmark): 'all' ang
 //     default ng provider, kaya kailangang i-sync ang tab mula sa URL. Dati,
 //     hindi ito nangyayari — lahat ng loan (overdue at completed kasama) ang
@@ -52,7 +52,7 @@ String _readNormalized(String path) => File(path)
     .replaceAll('\r', '\n');
 
 void main() {
-  group('Ongoing Loan tab: active/approved lang ang hinihingi', () {
+  group('Ongoing Loan tab: active lang ang hinihingi', () {
     test('unang bukas sa /ongoing — i-sync ang tab mula sa URL', () async {
       final ds = _FakeLoanDs();
       final notifier = HmLoanNotifier(ds);
@@ -63,7 +63,19 @@ void main() {
       notifier.syncTab('active');
       await _flush();
 
-      expect(ds.statuses.last, 'active,approved');
+      expect(ds.statuses.last, 'active');
+      notifier.dispose();
+    });
+
+    test('hindi kasama ang approved, overdue, at completed', () async {
+      final ds = _FakeLoanDs();
+      final notifier = HmLoanNotifier(ds);
+
+      notifier.syncTab('active');
+      await _flush();
+
+      expect(ds.statuses.last, 'active',
+          reason: 'Hindi pa ongoing ang approved (wala pang release)');
       notifier.dispose();
     });
 

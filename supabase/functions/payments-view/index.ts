@@ -17,7 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { searchScheduleIds, NO_MATCH_ID } from '../_shared/search.ts';
 import { validatePagination } from '../_shared/validators.ts';
 import { embedAsObject } from '../_shared/types.ts';
-import { getLoanFinancialsBatch } from '../_shared/loan_financials.ts';
+import { getLoanFinancialsBatch, isLatePaymentDate } from '../_shared/loan_financials.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'get-list';
@@ -62,7 +62,7 @@ async function handleGetList(req: Request) {
   const db = getAdminClient();
   let query = db.from('payments')
     .select(`id, loan_schedule_id, payment_method, amount, status, xendit_payment_id, xendit_reference, idempotency_key, recorded_by, collection_assignment_id, receipt_path, notes, paid_at, created_at,
-      loan_schedules!inner(id, loan_id, loans!inner(id, loan_number, status, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name)))),
+      loan_schedules!inner(id, loan_id, due_date, loans!inner(id, loan_number, status, lender_id, lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name)))),
       recorded_by_user:users!payments_recorded_by_fkey(id, first_name, last_name, roles!users_role_id_fkey(name)),
       reversal:payment_reversals(id, reason, reversed_by, reversed_at, reversed_by_user:users!payment_reversals_reversed_by_fkey(id, first_name, last_name))`, { count: 'exact' });
   if (user.role === ROLES.LENDER) query = query.eq('loan_schedules.loans.lender_id', user.id);
@@ -137,6 +137,11 @@ async function handleGetList(req: Request) {
       collection_assignment_id: p.collection_assignment_id,
       created_at: p.created_at,
       paid_at: p.paid_at,
+      // Bayad ang installment pagkalampas ng due date → "Overdue paid" sa
+      // Payments list (HM/Employee). Verified lang — ang pending ay hindi pa
+      // bayad. Manila date ang paghahambing ng `paid_at` at `due_date`.
+      paid_overdue: p.status === 'verified' &&
+        isLatePaymentDate(p.paid_at ?? p.created_at, schedule?.due_date),
       loan: loanEmbed
         ? {
             ...loanEmbed,

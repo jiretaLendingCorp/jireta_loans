@@ -22,6 +22,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID, sanitizeString } from '../_shared/validators.ts';
 import { MANILA_TZ, nowManilaISO, normalizeManilaInput } from '../_shared/timezone.ts';
+import { validateCiEvidenceSize } from '../_shared/ci_docs.ts';
 
 // Bucket kung saan nakaimbak ang CI evidence photos (pareho ng ci-submit).
 const BUCKET = 'ci-documents';
@@ -467,9 +468,15 @@ async function handleCiReplaceDocument(req: Request) {
   const safeExt = ['jpg', 'jpeg', 'png', 'webp'].includes(ext) ? ext : 'jpg';
   const objectPath = `ci/${ci_id}/${crypto.randomUUID()}.${safeExt}`;
 
+  // 5MB kada evidence photo — pareho ng limit sa ci-submit upload at sa
+  // rider app (client guard). Dito nakabatay sa na-decode na laki.
+  const bytes = base64ToBytes(content_base64);
+  const sizeError = validateCiEvidenceSize(file_name, bytes.length);
+  if (sizeError) return errorResponse(sizeError, 413, 'PAYLOAD_TOO_LARGE');
+
   const { error: uploadErr } = await db.storage
     .from(BUCKET)
-    .upload(objectPath, base64ToBytes(content_base64), {
+    .upload(objectPath, bytes, {
       contentType: mime_type ?? mimeFromExt(safeExt),
       upsert: false,
     });

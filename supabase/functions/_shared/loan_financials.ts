@@ -6,6 +6,7 @@
 // All of these are now computed from loans + penalty_logs + payments.
 
 import type { DbClient } from './types.ts';
+import { nowManila, manilaDateISO } from './timezone.ts';
 
 export interface LoanFinancials {
   total_payable: number;
@@ -515,6 +516,162 @@ export async function getLoanDisbursementsBatch(db: DbClient, loanIds: string[])
     .order('created_at', { ascending: false });
   for (const d of data ?? []) {
     if (!map[d.loan_id]) map[d.loan_id] = d;
+  }
+  return map;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOAN STATUS PAGKATAPOS NG BAYAD
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * True kapag may installment pang lampas na ang due date at may natitira pang
+ * babayaran (`amount_due - amount_paid > 0`).
+ *
+ * Base ito sa AKTWAL na verified payments, hindi sa `loans.status` — kaya
+ * pagkatapos bayaran ang overdue, false na agad kahit `overdue` pa ang
+ * nakasulat sa loan row.
+ */
+export interface ScheduleOverdueInput {
+  amount_due: number | string | null;
+  amount_paid: number | string | null;
+  due_date: string | null;
+}
+
+/** Petsa ngayon sa Manila (YYYY-MM-DD). */
+export function manilaTodayISO(): string {
+  const now = nowManila();
+  const pad = (v: number) => String(v).padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+/**
+ * Overdue ba ang isang installment? Lumabas na ang due date (Manila calendar
+ * date) at may natitira pang babayaran base sa AKTWAL na verified payments.
+ *
+ * Pure function — walang DB at walang orasan, kaya natetest nang tiyak.
+ */
+export function isOverdueInstallment(
+  schedule: ScheduleOverdueInput,
+  todayManilaISO: string,
+): boolean {
+  const amountDue = Number(schedule.amount_due ?? 0);
+  const amountPaid = Number(schedule.amount_paid ?? 0);
+  if (amountPaid >= amountDue) return false;
+  const dueDate = schedule.due_date ? String(schedule.due_date).slice(0, 10) : '';
+  if (!dueDate) return false;
+  return dueDate < todayManilaISO;
+}
+
+export async function hasOverdueInstallments(db: DbClient, loanId: string): Promise<boolean> {
+  const { data } = await db
+    .from('v_loan_schedules')
+    .select('amount_due, amount_paid, due_date')
+    .eq('loan_id', loanId);
+  const today = manilaTodayISO();
+  return (data ?? []).some((s) => isOverdueInstallment(s as ScheduleOverdueInput, today));
+}
+
+export interface LoanStatusAfterPaymentInput {
+  currentStatus: string;
+  /** Natitirang balanse PAGKATAPOS ng bayad. */
+  outstanding: number;
+  /** May overdue pang installment pagkatapos ng bayad? */
+  hasOverdue: boolean;
+}
+
+/**
+ * Desisyon lang (walang DB) kung ano ang dapat na loan status pagkatapos ng
+ * verified payment:
+ *   • `completed` kapag 0 na ang outstanding
+ *   • `overdue`   kapag may overdue pang installment
+ *   • `active`    kapag bayad na ang overdue pero may future installments pa
+ *
+ * Null kapag hindi dapat galawin ang status (pending, approved, completed —
+ * ang pag-reopen ng completed loan ay sa payment reversal lang).
+ */
+export function statusAfterPayment(input: LoanStatusAfterPaymentInput): string | null {
+  const current = String(input.currentStatus ?? '').trim().toLowerCase();
+  if (current !== 'active' && current !== 'overdue') return null;
+  if (input.outstanding <= 0) return 'completed';
+  return input.hasOverdue ? 'overdue' : 'active';
+}
+
+/**
+ * Ina-apply ang [statusAfterPayment] sa loan pagkatapos ma-record ang bayad.
+ *
+ * DATI: `overdue` ang nananatili kahit bayad na ang lumampas nang installment
+ * (ang tanging ginagalaw ay `completed` kapag fully paid) — kaya nakikita pa
+ * rin ng Head Manager/Employee na "Overdue" ang loan kahit nakabayad na ang
+ * lender. Ngayon, bumabalik ito sa `active` kapag wala nang overdue, at
+ * `completed` kapag ubos na ang balanse.
+ */
+export async function syncLoanStatusAfterPayment(db: DbClient, loanId: string): Promise<string | null> {
+  if (!loanId) return null;
+  const { data: loan } = await db
+    .from('loans')
+    .select('id, status')
+    .eq('id', loanId)
+    .maybeSingle();
+  if (!loan) return null;
+
+  const current = String(loan.status ?? '');
+  const normalized = current.trim().toLowerCase();
+  if (normalized !== 'active' && normalized !== 'overdue') return current || null;
+
+  const [financials, hasOverdue] = await Promise.all([
+    getLoanFinancials(db, loanId),
+    hasOverdueInstallments(db, loanId),
+  ]);
+  const next = statusAfterPayment({
+    currentStatus: current,
+    outstanding: Math.max(0, Number(financials?.outstanding_balance ?? 0)),
+    hasOverdue,
+  });
+  if (!next) return current || null;
+  if (next !== normalized) {
+    await db.from('loans').update({ status: next }).eq('id', loanId);
+  }
+  return next;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LATE (OVERDUE) PAYMENTS NA BAYAD NA
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface PaidScheduleRow {
+  loan_id: string;
+  due_date: string | null;
+  paid_at: string | null;
+}
+
+/**
+ * Pinakahuling bayad na ginawa PAGKALAMPAS ng due date, kada loan.
+ *
+ * Ito ang batayan ng "Overdue paid" tag sa Loan Records ng Head Manager at
+ * Employee: kahit bumalik na sa `active`/`completed` ang loan (bayad na kasi),
+ * makikita pa rin ng staff na may dating overdue na nabayaran — at kailan.
+ *
+ * Pure function para natetest nang tiyak; Manila date ang gamit sa paghahambing
+ * ng `paid_at` (TIMESTAMPTZ) sa `due_date` (DATE).
+ */
+export function isLatePaymentDate(paidAt: unknown, dueDate: unknown): boolean {
+  const paid = paidAt ? String(paidAt) : '';
+  const due = dueDate ? String(dueDate).slice(0, 10) : '';
+  if (!paid || !due) return false;
+  const paidDate = manilaDateISO(paid);
+  if (!paidDate) return false;
+  return paidDate > due;
+}
+
+export function latestLatePaymentByLoan(rows: PaidScheduleRow[]): Record<string, string> {
+  const map: Record<string, string> = {};
+  for (const row of rows ?? []) {
+    const loanId = row?.loan_id ? String(row.loan_id) : '';
+    const paidAt = row?.paid_at ? String(row.paid_at) : '';
+    if (!loanId || !paidAt) continue;
+    if (!isLatePaymentDate(paidAt, row?.due_date)) continue;
+    if (!map[loanId] || paidAt > map[loanId]) map[loanId] = paidAt;
   }
   return map;
 }

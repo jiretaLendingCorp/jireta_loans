@@ -18,6 +18,9 @@ class LoanModel extends LoanEntity {
   final double totalPaid;
   /// Petsa ng pinakahuling verified na bayad — `null` kapag wala pang bayad.
   final DateTime? lastPaymentAt;
+  /// Petsa ng huling bayad na ginawa PAGKALAMPAS ng due date (`overdue_paid_at`
+  /// ng `loans-view?fn=get-list`) — `null` kapag wala pang late payment.
+  final DateTime? overduePaidAt;
   /// 0..1 — porsyento ng total payable na nabayaran na (Loan History tab).
   final double progress;
   /// `completed` (tapos nang bayaran) o `for_completion` (pa-tapos pa lang).
@@ -58,6 +61,7 @@ class LoanModel extends LoanEntity {
     this.riderDeliveryAssigned = false,
     this.totalPaid = 0,
     this.lastPaymentAt,
+    this.overduePaidAt,
     this.progress = 0,
     this.completionState,
     double installmentAmount = 0,
@@ -130,6 +134,9 @@ class LoanModel extends LoanEntity {
       lastPaymentAt: json['last_payment_at'] != null
           ? parseManila(json['last_payment_at'])
           : null,
+      overduePaidAt: json['overdue_paid_at'] != null
+          ? parseManila(json['overdue_paid_at'])
+          : null,
       progress: ((json['progress'] as num?)?.toDouble() ?? 0).clamp(0, 1).toDouble(),
       completionState: json['completion_state'] as String?,
       installmentAmount: _toDouble(json['installment_amount']),
@@ -198,6 +205,11 @@ class LoanModel extends LoanEntity {
   /// Label ng Loan History table: 'Completed' kapag tapos na, 'For Completion'
   /// kapag isang installment na lang (o wala nang natitira pero 'active' pa).
   String get completionLabel => isFullyPaid ? 'Completed' : 'For Completion';
+
+  /// Bayad na ang dating overdue? May late payment ang loan (binayaran
+  /// pagkalampas ng due date) at wala nang overdue ngayon — ito ang batayan ng
+  /// "Overdue paid" tag sa Loan Records ng Head Manager/Employee.
+  bool get hasSettledOverdue => overduePaidAt != null && status != 'overdue';
 
   String get termUnit {
     switch (frequency) {

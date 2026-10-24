@@ -411,12 +411,9 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          reportPanel(
-            padding: const EdgeInsets.all(16),
-            child: _buildFilterCard(),
-          ),
-          const SizedBox(height: 16),
-          // LOAN SUMMARY sa TAAS — ang mga summary card.
+          // LOAN SUMMARY sa PINAKA-TAAS — mas mabilis makita ang kabuuan
+          // (loans, total amount, kita, at nakolekta) bago pa mag-filter o
+          // mag-scroll sa table.
           const Padding(
             padding: EdgeInsets.only(left: 4, bottom: 10),
             child: Text('Loan Summary',
@@ -426,6 +423,13 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
                     color: AppColors.textPrimary)),
           ),
           _buildSummaryCards(reportTotals, filtered.length),
+          const SizedBox(height: 16),
+          // Filter card (search / Status / Lender / date / Export) — sa ilalim
+          // ng summary, para hindi muna ito ang unang nakikita.
+          reportPanel(
+            padding: const EdgeInsets.all(16),
+            child: _buildFilterCard(),
+          ),
           const SizedBox(height: 28),
           // LOAN RECORDS sa GITNA — ang table ng mga loan.
           const Padding(
@@ -954,6 +958,9 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
     final status = _text(r, _statusKeys);
     if (status.isEmpty) return _muted('—');
     final color = statusColor(status);
+    // `active` = ongoing pa ang loan (na-release at may natitirang balanse) →
+    // "Ongoing" ang label, kapareho ng Loan Records page. Hindi "Active".
+    final label = status == 'active' ? 'Ongoing' : statusLabel(status);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -964,7 +971,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
         ),
         const SizedBox(width: 8),
         Flexible(
-          child: Text(statusLabel(status),
+          child: Text(label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(

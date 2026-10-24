@@ -16,7 +16,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validatePagination, validateFrequency } from '../_shared/validators.ts';
-import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLastPaymentDatesBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied } from '../_shared/loan_financials.ts';
+import { getLoanFinancialsBatch, getLoanDisbursementsBatch, getLastPaymentDatesBatch, getLenderAddressBatch, getLoanDisbursementPrefsBatch, getLoanFinancials, getLoanDisbursement, hasPenaltyApplied, latestLatePaymentByLoan } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
 import { computeSchedule, maxPeriodsFor, termDaysFor, DEFAULT_INTEREST_RATE_PCT } from '../_shared/schedule.ts';
 import { getInterestRatePct, getLoanLimits } from '../_shared/system_config.ts';
@@ -151,7 +151,7 @@ async function handleGetList(req: Request) {
     const releasedLoanIds = (data ?? [])
       .filter((r) => ['active', 'overdue', 'completed'].includes(String(r.status ?? '').toLowerCase()))
       .map((r) => r.id);
-    const [financials, disbursements, lenderAddresses, disbPrefs, upcomingSchedules] = await Promise.all([
+    const [financials, disbursements, lenderAddresses, disbPrefs, upcomingSchedules, paidSchedules] = await Promise.all([
       getLoanFinancialsBatch(db, loanIds),
       getLoanDisbursementsBatch(db, loanIds),
       getLenderAddressBatch(db, lenderIds),
@@ -165,7 +165,21 @@ async function handleGetList(req: Request) {
             .in('status', ['pending', 'partial', 'overdue'])
             .order('due_date', { ascending: true })
         : Promise.resolve({ data: null }),
+      // Bayad na ang dating overdue? (paid_at > due_date) — para sa "Overdue
+      // paid" tag sa Loan Records row, makikita ng HM/Employee kahit bumalik
+      // na sa active/completed ang loan.
+      releasedLoanIds.length > 0
+        ? db.from('v_loan_schedules')
+            .select('loan_id, due_date, paid_at')
+            .in('loan_id', releasedLoanIds)
+            .eq('status', 'paid')
+            .not('paid_at', 'is', null)
+        : Promise.resolve({ data: null }),
     ]);
+
+    const overduePaidByLoan = latestLatePaymentByLoan(
+      ((paidSchedules as { data: Array<{ loan_id: string; due_date: string | null; paid_at: string | null }> | null }).data ?? []),
+    );
 
     const nextDueByLoan: Record<string, string | null> = {};
     for (const s of (upcomingSchedules as { data: Array<{ loan_id: string; due_date: string | null }> | null }).data ?? []) {
@@ -243,6 +257,9 @@ async function handleGetList(req: Request) {
           ? `${ciRider.first_name} ${ciRider.last_name}`.trim()
           : null,
         rider_delivery_assigned: disb?.method === 'rider_delivery',
+        // Petsa ng huling bayad na nag-settle ng dating overdue na installment
+        // (null kapag wala pang late payment ang loan).
+        overdue_paid_at: overduePaidByLoan[r.id] ?? null,
         delivery_rider_name: deliveryRider
           ? `${deliveryRider.first_name} ${deliveryRider.last_name}`.trim()
           : null,

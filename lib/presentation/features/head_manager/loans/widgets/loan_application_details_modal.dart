@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
+import '../../../../../core/utils/schedule_status.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
@@ -954,7 +955,6 @@ class _LoanApplicationDetailsModalState
                                   color: AppColors.textSecondary))))
                     .toList()),
               ...schedules.map((s) {
-                final st = s['status'] as String? ?? '-';
                 return TableRow(
                   children: [
                     _tableCell(
@@ -965,7 +965,7 @@ class _LoanApplicationDetailsModalState
                     _tableCell(_formatDate(s['due_date'])),
                     _tableCell('₱${fmt.format(s['amount_due'] ?? 0)}',
                         bold: true),
-                    _scheduleStatusCell(st),
+                    _scheduleStatusCell(s),
                   ]);
               }),
             ],
@@ -987,7 +987,8 @@ class _LoanApplicationDetailsModalState
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
                 color: AppColors.textPrimary)));
 
-  Widget _scheduleStatusCell(String status) {
+  Widget _scheduleStatusCell(Map<String, dynamic> schedule) {
+    final status = schedule['status'] as String? ?? '';
     final s = status.toLowerCase();
     final Color c;
     switch (s) {
@@ -1002,8 +1003,10 @@ class _LoanApplicationDetailsModalState
     }
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
+      // Late paid (binayaran pagkalampas ng due date) → "Overdue paid", para
+      // makita ng staff na bayad na ang dating overdue.
       child: Text(
-        status.isEmpty ? '-' : _capitalize(status),
+        scheduleStatusLabel(schedule),
         style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
+import '../../../../../core/utils/schedule_status.dart';
 
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -665,8 +666,9 @@ class _EmpLoanDetailsScreenState extends ConsumerState<EmpLoanDetailsScreen> {
                     style: const TextStyle(fontWeight: FontWeight.w700))),
                 DataCell(Text('₱${fmt.format(s['amount_paid'] ?? 0)}')),
                 DataCell(
-                  // Plain text lang — hindi button.
-                  Text(_capitalize(sStatus),
+                  // Plain text lang — hindi button. Late paid ang dating overdue
+                  // na installment → "Overdue paid", hindi lang "Paid".
+                  Text(scheduleStatusLabel(s),
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,

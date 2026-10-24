@@ -183,6 +183,10 @@ void main() {
       final tableY = tester.getTopLeft(find.text('BEGINNING DATE')).dy;
       expect(summaryY, lessThan(recordsY));
       expect(recordsY, lessThan(tableY));
+      // Nasa PINAKA-TAAS ang Loan Summary — bago pa ang filter/search card.
+      final filterY = tester.getTopLeft(find.byType(TextField)).dy;
+      expect(summaryY, lessThan(filterY),
+          reason: 'Dapat nasa itaas ng search/filter card ang Loan Summary');
       for (final h in [
         'BEGINNING DATE',
         'ENDING DATE',
@@ -216,9 +220,11 @@ void main() {
       expect(find.text('₱10,000.00'), findsNWidgets(3));
       expect(find.text('₱2,000.00'), findsNWidgets(3));
       expect(find.text('₱12,000.00'), findsNWidgets(3));
-      // Status: dot + label (Completed kada 3rd row, Active ang iba).
+      // Status: dot + label (Completed kada 3rd row; `active` ay "Ongoing",
+      // hindi "Active").
       expect(find.text('Completed'), findsOneWidget);
-      expect(find.text('Active'), findsNWidgets(2));
+      expect(find.text('Ongoing'), findsNWidgets(2));
+      expect(find.text('Active'), findsNothing);
     });
 
     testWidgets('hindi nag-overflow sa makitid na viewport', (tester) async {

@@ -314,6 +314,18 @@ async function handleApplyPenalty(req: Request) {
 
     await db.from('penalty_logs').insert({ loan_id, applied_by: user.id, penalty_rate: PENALTY_RATE_PCT, penalty_basis: penaltyBasis, penalty_amount: penaltyAmount, reason: reason ?? 'Overdue penalty applied' });
 
+    // ISAMA SA BABAYARAN: idagdag ang penalty sa huling unpaid installment
+    // para ang kabuuan ng payment schedule ay tumugma sa outstanding balance
+    // (total_payable + penalties). Kung hindi, hindi ito mababayaran via
+    // GCash/rider/office — `amount_due` lang kasi ang siningil doon.
+    // Non-fatal: naitala na ang penalty, at ang DB sweep ang mag-sysync.
+    try {
+      const { error: syncErr } = await db.rpc('sync_loan_schedule_penalties', { p_loan_id: loan_id });
+      if (syncErr) console.error('sync_loan_schedule_penalties failed (non-fatal):', syncErr.message);
+    } catch (e) {
+      console.error('sync_loan_schedule_penalties failed (non-fatal):', e);
+    }
+
     await writeAuditLog({ performedBy: user.id, action: 'apply_penalty', tableName: 'penalty_logs', recordId: loan_id, oldValues: { outstanding_balance: penaltyBasis }, newValues: { outstanding_balance: newBalance, penalty_basis: penaltyBasis, penalty_amount: penaltyAmount }, ipAddress: ip });
     await sendPushNotification({ sentBy: user.id, userId: loan.lender_id, title: `Active Loan Increased by ${PENALTY_RATE_PCT}%`, body: `A ${PENALTY_RATE_PCT}% penalty of ₱${penaltyAmount.toLocaleString()} was added on top of your current active loan balance of ₱${penaltyBasis.toLocaleString()}. Your new outstanding balance is ₱${newBalance.toLocaleString()}.`, type: 'penalty_applied', referenceId: loan_id });
 

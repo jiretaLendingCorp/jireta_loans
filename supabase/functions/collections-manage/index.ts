@@ -41,6 +41,7 @@ import {
   scheduleStatus,
   getLoanFinancials,
   allocatePayment,
+  syncLoanStatusAfterPayment,
 } from '../_shared/loan_financials.ts';
 
 // ── [moved from collections-upload-proof] ───────────────────────────────────
@@ -952,10 +953,10 @@ async function recordRiderCollectionPayment(opts: {
     })
     .eq('id', assignmentId);
 
-  // Fully paid na ang loan → `completed` na rin ito (dating sa `fn=approve`).
-  if (newBalance <= 0) {
-    await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
-  }
+  // Fully paid → `completed`; bayad na ang overdue pero may natitira pang
+  // installment → `active` (dati, nananatiling `overdue` ang loan kaya
+  // nakikita pa rin itong Overdue ng HM/Employee kahit nakabayad na).
+  await syncLoanStatusAfterPayment(db, loanId);
 
   await writeAuditLog({
     performedBy: riderUserId,
@@ -1300,11 +1301,11 @@ async function handleCollectionApprove(req: Request) {
   }).eq('id', assignment_id);
 
   // Balance ay derived mula sa verified payments — pagkatapos ng update sa
-  // itaas, ito na ang aktwal na natitira.
+  // itaas, ito na ang aktwal na natitira. Kapag `completed` na (fully paid) o
+  // bayad na ang overdue, i-sync ang status para tama ang nakikita ng
+  // HM/Employee sa Loan Records.
   const financials = loanId ? await getLoanFinancials(db, loanId) : null;
-  if (loanId && financials && financials.outstanding_balance <= 0) {
-    await db.from('loans').update({ status: 'completed' }).eq('id', loanId);
-  }
+  if (loanId) await syncLoanStatusAfterPayment(db, loanId);
 
   await writeAuditLog({
     performedBy: user.id,

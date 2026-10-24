@@ -17,7 +17,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
-import { getPaymentLoanId, getLoanFinancials, allocatePayment } from '../_shared/loan_financials.ts';
+import { getPaymentLoanId, getLoanFinancials, allocatePayment, syncLoanStatusAfterPayment } from '../_shared/loan_financials.ts';
 import { ensureLoanSchedulesIfMissing } from '../_shared/loan_schedules.ts';
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
@@ -245,11 +245,11 @@ async function handleRecordOffice(req: Request) {
   }
 
   const newBalance = Math.max(0, Math.round((financials.outstanding_balance - Number(amount)) * 100) / 100);
-  const loanStatus = newBalance <= 0 ? 'completed' : loan.status;
 
-  await db.from('loans').update({
-    status: loanStatus,
-  }).eq('id', loan_id);
+  // Bayad na ang overdue installment → `active` (hindi na Overdue sa HM/Employee);
+  // 0 na ang balanse → `completed`. `syncLoanStatusAfterPayment` ang nag-uupdate
+  // ng `loans.status`, kaya walang hiwalay na update dito.
+  const loanStatus = (await syncLoanStatusAfterPayment(db, loan_id)) ?? loan.status;
 
   await writeAuditLog({
     performedBy: authResult.id,

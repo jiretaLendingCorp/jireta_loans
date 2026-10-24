@@ -4,7 +4,7 @@
 //
 // Ang listahan ng mga lender na TAPOS nang magbayad (`completed`) at ng mga
 // MALAPIT nang matapos (isang installment na lang ang natitira). Hiwalay ito sa
-// `hmLoanProvider`: ang huli ay naka-status bucket (`active,approved`, etc.) at
+// `hmLoanProvider`: ang huli ay naka-status bucket (`active`, `pending`, etc.) at
 // walang progress/total-paid na datos, samantalang ang filter ng history ay
 // naka-base sa DERIVED na outstanding balance — kaya `loans-view?fn=get-history`
 // ang tinatanggap nito, hindi `?fn=get-list`.

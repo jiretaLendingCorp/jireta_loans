@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
+import '../../../../../core/utils/schedule_status.dart';
 
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
@@ -1056,7 +1057,6 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                                   color: AppColors.textSecondary))))
                     .toList()),
               ...schedules.map((s) {
-                final st = s['status'] as String? ?? '-';
                 return TableRow(
                   children: [
                     _tableCell(
@@ -1067,7 +1067,7 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                     _tableCell(_formatDate(s['due_date'])),
                     _tableCell('₱${fmt.format(s['amount_due'] ?? 0)}',
                         bold: true),
-                    _scheduleStatusCell(st),
+                    _scheduleStatusCell(s),
                   ]);
               }),
             ],
@@ -1089,8 +1089,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 fontWeight: bold ? FontWeight.w700 : FontWeight.w500,
                 color: AppColors.textPrimary)));
 
-  Widget _scheduleStatusCell(String status) {
-    final s = status.toLowerCase();
+  Widget _scheduleStatusCell(Map<String, dynamic> schedule) {
+    final s = (schedule['status'] as String? ?? '').toLowerCase();
     final Color c;
     switch (s) {
       case 'paid':
@@ -1105,7 +1105,9 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       child: Text(
-        status.isEmpty ? '-' : _capitalize(status),
+        // Late paid ang dating overdue na installment → "Overdue paid", hindi
+        // lang "Paid" — makikita ng Employee na nakabayad ang lender.
+        scheduleStatusLabel(schedule),
         style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.w700,

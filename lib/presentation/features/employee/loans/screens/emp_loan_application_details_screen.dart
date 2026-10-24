@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
+import '../../../../../core/utils/schedule_status.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
@@ -896,7 +897,8 @@ class _EmpLoanApplicationDetailsScreenState
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 8),
-                        child: _ScheduleStatusPill(status: st)),
+                        child: _ScheduleStatusPill(
+                            status: st, latePaid: isLatePaidSchedule(s))),
                       // Walk-in payment — bumababa ang balance at naka-record
                       // bilang "Paid in Office" para sa lender.
                       Padding(
@@ -1092,7 +1094,11 @@ class _KVRow extends StatelessWidget {
 
 class _ScheduleStatusPill extends StatelessWidget {
   final String status;
-  const _ScheduleStatusPill({required this.status});
+
+  /// Bayad PAGKALAMPAS ng due date → "Overdue paid" ang label (hindi "Paid"),
+  /// para makita ng Employee na may dating overdue na nabayaran ang lender.
+  final bool latePaid;
+  const _ScheduleStatusPill({required this.status, this.latePaid = false});
 
   @override
   Widget build(BuildContext context) {
@@ -1108,9 +1114,12 @@ class _ScheduleStatusPill extends StatelessWidget {
       default:
         c = AppColors.warning;
     }
-    // Plain text lang — hindi button.
+    // Plain text lang — hindi button. Bayad pa rin ang late paid, kaya berde.
+    final label = latePaid
+        ? 'Overdue paid'
+        : (s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}');
     return Text(
-      s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}',
+      label,
       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c));
   }
 }

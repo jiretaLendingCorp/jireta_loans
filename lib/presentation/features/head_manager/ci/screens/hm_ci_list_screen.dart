@@ -361,10 +361,15 @@ class _HmActionCell extends ConsumerWidget {
     final status = (ci.status ?? '').toString().toLowerCase();
     final loanId = (ci.loanId ?? '').toString();
     final hasRider = ci.riderName?.toString().isNotEmpty == true;
-    // Bawat CI na hindi pa superseded audit history ay pwedeng bigyan ng rider
-    // dito mismo sa Actions: "Assign Rider" kapag wala pa, "Reassign Rider"
-    // kapag may naka-assign nang rider.
-    final canAssign = isLatest && loanId.isNotEmpty;
+    // REASSIGN lang kapag may failure na: failed (missed deadline), expired, o
+    // declined ng rider. Habang aktibo pa (assigned/in_progress / pending
+    // approval / approved / rejected) ay wala pang failure, kaya walang
+    // Reassign sa Actions menu — View lang (at Approve/Reject kung pending).
+    final isReassignable =
+        status == 'failed' || status == 'expired' || status == 'declined';
+    // Assign Rider lang kapag wala pang naka-assign na rider (legacy rows).
+    final canAssign =
+        isLatest && loanId.isNotEmpty && (!hasRider || isReassignable);
     final assignLabel = hasRider ? 'Reassign Rider' : 'Assign Rider';
 
     /// Assign/Reassign Rider — parehong flow ng dating Reassign button.
@@ -503,7 +508,8 @@ class _HmActionCell extends ConsumerWidget {
                 child: const Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.visibility_outlined, size: 14, color: AppColors.deepNavy), SizedBox(width: 4), Text('View', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.deepNavy))]),
               ),
             ),
-            // Assign/Reassign Rider — available din sa mga aktibong CI.
+            // Assign/Reassign Rider — para sa CIs na wala pang rider o
+            // na-fail/expired/declined na (hindi sa aktibong CI).
             if (canAssign) ...[
               const SizedBox(width: 6),
               actionsMenu(),

@@ -6,8 +6,9 @@ import '../../../../features/head_manager/loans/providers/hm_loan_provider.dart'
 
 /// Active-loans list for the employee portal. Reuses the generic
 /// [HmLoanNotifier] (role-agnostic: it only talks to LoanRemoteDataSource)
-/// seeded on the 'active' tab, which surfaces both `active` and just-approved
-/// (`approved`) loans so the employee sees the same book as the head manager.
+/// seeded on the 'active' tab, which surfaces TALAGANG ongoing (`active`) loans
+/// lang — ang `approved` (hindi pa na-release) ay wala rito, pareho ng head
+/// manager.
 final empActiveLoanProvider =
     AutoDisposeStateNotifierProvider<HmLoanNotifier, HmLoanState>((ref) {
   return HmLoanNotifier(sl<LoanRemoteDataSource>(), initialFilter: 'active');

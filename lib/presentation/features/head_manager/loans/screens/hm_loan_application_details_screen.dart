@@ -8,6 +8,7 @@ import 'package:intl/intl.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
 import '../../../../../core/utils/loan_frequency.dart';
+import '../../../../../core/utils/schedule_status.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
@@ -586,9 +587,14 @@ class _HmLoanApplicationDetailsScreenState
               Icon(Icons.info_outline_rounded,
                   size: 18, color: AppColors.textTertiary),
               SizedBox(width: 8),
-              Text('No co-maker on file for this application.',
-                  style: TextStyle(
-                      fontSize: 13, color: AppColors.textSecondary)),
+              // `Expanded` — kung wala ito, lumalabis ng ~95px ang text sa
+              // makitid na card (RenderFlex overflow) at napuputol ang
+              // "No co-maker on file for this application."
+              Expanded(
+                child: Text('No co-maker on file for this application.',
+                    style: TextStyle(
+                        fontSize: 13, color: AppColors.textSecondary)),
+              ),
             ])));
     }
     final cm = coMakers.first;
@@ -879,7 +885,6 @@ class _HmLoanApplicationDetailsScreenState
                                     letterSpacing: 0.4))))
                       .toList()),
                 ...schedules.map((s) {
-                  final st = s['status'] as String? ?? '-';
                   return TableRow(
                     decoration: const BoxDecoration(
                       border: Border(
@@ -896,7 +901,7 @@ class _HmLoanApplicationDetailsScreenState
                       Padding(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 8),
-                        child: _ScheduleStatusPill(status: st)),
+                        child: _ScheduleStatusPill(schedule: s)),
                       // Walk-in payment — bumababa ang balance at naka-record
                       // bilang "Paid in Office" para sa lender.
                       Padding(
@@ -1091,12 +1096,12 @@ class _KVRow extends StatelessWidget {
 }
 
 class _ScheduleStatusPill extends StatelessWidget {
-  final String status;
-  const _ScheduleStatusPill({required this.status});
+  final Map<String, dynamic> schedule;
+  const _ScheduleStatusPill({required this.schedule});
 
   @override
   Widget build(BuildContext context) {
-    final s = status.toLowerCase();
+    final s = (schedule['status'] as String? ?? '').toLowerCase();
     final Color c;
     switch (s) {
       case 'paid':
@@ -1108,9 +1113,10 @@ class _ScheduleStatusPill extends StatelessWidget {
       default:
         c = AppColors.warning;
     }
-    // Plain text lang — hindi button.
+    // Plain text lang — hindi button. Late paid (binayaran pagkalampas ng due
+    // date) ay may sariling label para makita ng staff na bayad na ang overdue.
     return Text(
-      s.isEmpty ? '-' : '${s[0].toUpperCase()}${s.substring(1)}',
+      scheduleStatusLabel(schedule),
       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c));
   }
 }

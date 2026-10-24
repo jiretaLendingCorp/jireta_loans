@@ -647,20 +647,79 @@ async function buildFinancialRows(
   });
 }
 
-/** Interest per loan on the books in the selected window. */
+/**
+ * Interest per loan na may ACTIBIDAD sa selected window.
+ *
+ * DATI: `loans.created_at` lang ang basehan — kaya ang ongoing loan na
+ * na-apply noong September at may bayad noong October ay HINDI lumalabas sa
+ * Oct 01–Oct 24 na report (0 loans ang summary). Ngayon, kasama ang loan kung
+ * alinman sa mga ito ay totoo:
+ *   1. ginawa (application) sa loob ng period,
+ *   2. `active`/`overdue` pa at existing na bago matapos ang period — nasa books
+ *      pa ito, kaya bahagi ng period,
+ *   3. may verified payment sa loob ng period, o
+ *   4. na-release (disbursed) sa loob ng period.
+ */
 async function buildInterestReport(
   db: Db,
   params: Record<string, string>,
 ): Promise<Record<string, unknown>[]> {
   const { from, to } = bounds(params);
-  const { data, error } = await db.from('loans').select(
-    `id, loan_number, principal_amount, interest_rate, status,
+  const loanColumns = `id, loan_number, principal_amount, interest_rate, status, created_at,
      lender:lender_profiles!loans_lender_id_fkey(
        users!lender_profiles_id_fkey(first_name, last_name)
-     )`,
-  ).gte('created_at', from).lte('created_at', to);
-  if (error) throw new Error('interest_report query failed');
-  const rows = (data ?? []) as unknown as Array<Record<string, any>>;
+     )`;
+
+  const [createdRes, openRes, paidRes, disbRes] = await Promise.all([
+    // (1) In-apply sa period.
+    db.from('loans').select(loanColumns).gte('created_at', from).lte('created_at', to),
+    // (2) Ongoing/overdue pa at existing na bago matapos ang period.
+    db.from('loans').select(loanColumns).in('status', ['active', 'overdue']).lte('created_at', to),
+    // (3) May verified payment sa period (naka-link sa schedule ng loan).
+    db.from('payments')
+      .select('loan_schedules!inner(loan_id)')
+      .eq('status', 'verified')
+      .gte('created_at', from)
+      .lte('created_at', to),
+    // (4) Na-release sa period.
+    db.from('disbursements').select('loan_id').gte('disbursed_at', from).lte('disbursed_at', to),
+  ]);
+  const queryError =
+    createdRes.error ?? openRes.error ?? paidRes.error ?? disbRes.error;
+  if (queryError) {
+    console.error('interest_report query failed:', queryError.message);
+    throw new Error('interest_report query failed');
+  }
+
+  const byId = new Map<string, Record<string, any>>();
+  for (const row of [
+    ...((createdRes.data ?? []) as Record<string, any>[]),
+    ...((openRes.data ?? []) as Record<string, any>[]),
+  ]) {
+    byId.set(String(row.id), row);
+  }
+
+  // Ang mga loan na hindi na-cover ng (1)/(2) pero may bayad o release sa
+  // period — kunin ang buong row nila para pareho ang columns.
+  const extraIds = new Set<string>();
+  for (const p of (paidRes.data ?? []) as Array<Record<string, any>>) {
+    const schedule = embedAsObject<{ loan_id?: string }>(p.loan_schedules as never);
+    if (schedule?.loan_id) extraIds.add(String(schedule.loan_id));
+  }
+  for (const d of (disbRes.data ?? []) as Array<Record<string, any>>) {
+    if (d?.loan_id) extraIds.add(String(d.loan_id));
+  }
+  const missing = [...extraIds].filter((id) => !byId.has(id));
+  if (missing.length > 0) {
+    const { data: extraRows } = await db.from('loans').select(loanColumns).in('id', missing);
+    for (const row of (extraRows ?? []) as Record<string, any>[]) {
+      byId.set(String(row.id), row);
+    }
+  }
+
+  const rows = [...byId.values()].sort((a, b) =>
+    String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''))
+  );
   const finMap = await getLoanFinancialsBatch(db, rows.map((r) => String(r.id)));
 
   return rows.map((r) => {

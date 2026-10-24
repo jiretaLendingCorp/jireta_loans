@@ -75,9 +75,10 @@ class HmLoanNotifier extends StateNotifier<HmLoanState>
 
   static String _apiStatus(String tab) {
     if (tab == 'all') return 'all';
-    // The Active tab also surfaces loans that were just approved but not yet
-    // released; they are treated as active loans of the lender.
-    if (tab == 'active') return 'active,approved';
+    // Ongoing Loan = TALAGANG ongoing (`active`) lang. Ang `approved` ay hindi
+    // pa na-release, kaya hindi ito kasama sa Ongoing tab — lumalabas ito sa
+    // pipeline (All) hanggang ma-disburse at maging `active`.
+    if (tab == 'active') return 'active';
     return tab;
   }
 

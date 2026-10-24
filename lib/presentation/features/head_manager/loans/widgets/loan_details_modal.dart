@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/utils/timezone.dart';
+import '../../../../../core/utils/schedule_status.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/status_badge.dart';
@@ -553,7 +554,9 @@ class _LoanDetailsModalState extends ConsumerState<LoanDetailsModal> {
                       color: c.withValues(alpha: 0.10),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(color: c.withValues(alpha: 0.18))),
-                  child: Text(_capitalize(sStatus),
+                  // Late paid (binayaran pagkalampas ng due date) →
+                  // "Overdue paid", hindi lang basta "Paid".
+                  child: Text(scheduleStatusLabel(s),
                       style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.w700,

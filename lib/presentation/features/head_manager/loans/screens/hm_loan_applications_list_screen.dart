@@ -1629,6 +1629,35 @@ class _HmLoanApplicationsListScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _StatusInline(status: status),
+                // Bayad na ang dating overdue? Ipakita sa ilalim ng status para
+                // makita ng staff na nakabayad ang lender — at kailan.
+                if (loan.hasSettledOverdue) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          'Overdue paid · ${DateFormat('MMM dd, yyyy').format(loan.overduePaidAt!)}',
+                          style: const TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.success),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
                 // Delivery rider assigned → show the rider's name
                 // right below the status so staff see who is
                 // delivering the cash.
@@ -1778,6 +1807,86 @@ class _HmLoanApplicationsListScreenState
     // Silent refresh — hindi na naglo-load nang buo ang data table pagkatapos
     // ng approve / reject / cancel / assign rider.
     ref.read(hmLoanProvider.notifier).fetchLoans(silent: true);
+  }
+
+  /// Ongoing loan (status `active`) — compact na balanse lang ang kailangan
+  /// ng staff, hindi ang buong details page. Nasa row na ang outstanding
+  /// balance mula sa list payload, kaya walang dagdag na request.
+  Future<void> _showRemainingBalance(LoanModel loan) async {
+    final outstanding = loan.outstandingBalance;
+    final paid = loan.totalPayable - outstanding;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        // X sa itaas (kanan) ang pangsara — wala nang "Close" button sa ibaba.
+        title: Row(
+          children: [
+            const Expanded(
+              child: Text('Remaining Balance',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            ),
+            IconButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              tooltip: 'Close',
+              icon: const Icon(Icons.close_rounded,
+                  size: 20, color: AppColors.textSecondary),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // LENDER NAME muna, tapos ang loan number sa ilalim.
+            Text(
+                (loan.lenderName ?? '').trim().isEmpty
+                    ? '—'
+                    : loan.lenderName!.trim(),
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.textPrimary)),
+            const SizedBox(height: 2),
+            Text(loan.loanNumber,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textSecondary)),
+            const SizedBox(height: 10),
+            Text(
+              outstanding.toCurrency,
+              style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w800,
+                  color: outstanding > 0
+                      ? AppColors.deepNavy
+                      : AppColors.success),
+            ),
+            const SizedBox(height: 2),
+            Text(
+                outstanding > 0
+                    ? 'Remaining balance on this ongoing loan'
+                    : 'This loan is fully paid',
+                style: const TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                    child: _BalanceStat(
+                        label: 'Total Payable',
+                        value: loan.totalPayable.toCurrency)),
+                const SizedBox(width: 12),
+                Expanded(
+                    child: _BalanceStat(
+                        label: 'Paid', value: paid.toCurrency)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   // ───────────────────────── Loading / Empty / Pagination ─────────────────────────
@@ -2212,6 +2321,9 @@ class _RowActions extends StatelessWidget {
     final parent =
         context.findAncestorStateOfType<_HmLoanApplicationsListScreenState>();
     final status = loan.status;
+    // Ongoing na ang loan — hindi na kailangan i-open ang buong details para
+    // sa balanse: "View Remaining Balance" lang ang nasa actions.
+    final isOngoing = status.toLowerCase().trim() == 'active';
     // Overdue CI (latest CI failed/expired): allow reassignment even though
     // the loan is still 'ci_assigned'. Lender side stays "in progress".
     final ciFailed = loan.ciStatus == 'failed' ||
@@ -2285,6 +2397,10 @@ class _RowActions extends StatelessWidget {
             PopupMenuButton<String>(
               tooltip: 'Actions',
               offset: const Offset(0, 36),
+              // Sapat ang lapad para sa "View Remaining Balance" — kung default
+              // (≈256px) lang, nag-o-overflow ang mahabang item.
+              constraints:
+                  const BoxConstraints(minWidth: 200, maxWidth: 380),
               shape:
                   RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               itemBuilder: (_) => [
@@ -2333,14 +2449,24 @@ class _RowActions extends StatelessWidget {
                         SizedBox(width: 8),
                         Text('Reject')
                       ])),
-                const PopupMenuItem(
-                    value: 'view',
-                    child: Row(children: [
-                      Icon(Icons.open_in_new_rounded,
-                          size: 16, color: AppColors.textSecondary),
-                      SizedBox(width: 8),
-                      Text('Open details')
-                    ])),
+                if (isOngoing)
+                  const PopupMenuItem(
+                      value: 'remaining_balance',
+                      child: Row(children: [
+                        Icon(Icons.account_balance_wallet_outlined,
+                            size: 16, color: AppColors.deepNavy),
+                        SizedBox(width: 8),
+                        Text('View Remaining Balance')
+                      ]))
+                else
+                  const PopupMenuItem(
+                      value: 'view',
+                      child: Row(children: [
+                        Icon(Icons.open_in_new_rounded,
+                            size: 16, color: AppColors.textSecondary),
+                        SizedBox(width: 8),
+                        Text('Open details')
+                      ])),
               ],
               onSelected: (v) {
                 switch (v) {
@@ -2358,6 +2484,9 @@ class _RowActions extends StatelessWidget {
                     break;
                   case 'disburse_office':
                     parent?._showDisburseOffice(loan);
+                    break;
+                  case 'remaining_balance':
+                    parent?._showRemainingBalance(loan);
                     break;
                   case 'view':
                     parent?._openDetails(context, loan.id);
@@ -2393,6 +2522,42 @@ class _RowActions extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Maliit na stat box sa "View Remaining Balance" dialog (Total Payable /
+/// Paid).
+class _BalanceStat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _BalanceStat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.2,
+                  color: AppColors.textSecondary)),
+          const SizedBox(height: 2),
+          Text(value,
+              style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.textPrimary)),
+        ],
+      ),
     );
   }
 }

@@ -15,12 +15,17 @@ import 'package:jireta_loans/core/extensions/date_extensions.dart';
 
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/validation/ci_evidence_rules.dart';
+import '../../../../../core/constants/app_constants.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../data/models/credit_investigation_model.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/image/xfile_preview.dart';
+// Isang breakpoint lang ang buong app para sa desktop layout.
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint, WebScaffold;
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/rider_ci_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
@@ -48,6 +53,11 @@ const _steps = [
   _StepMeta('Review', 'Submit', Icons.verified_outlined),
 ];
 
+/// Lapad ng buong CI wizard sa desktop: isang column lang ito — pipeline,
+/// cards, at action bar — para pantay ang mga gilid at hindi nakaunat sa
+/// 1366px na viewport.
+const double _kDesktopWizardWidth = 900;
+
 class RiderCiDetailsScreen extends ConsumerStatefulWidget {
   final String ciId;
 
@@ -74,6 +84,12 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   /// mag-render ng preview — walang muling network download (black/loading
   /// tile) kahit naka-upload na ang photo sa Step 2.
   final Map<String, XFile> _localPreviews = {};
+  /// Laki (bytes) ng bawat piniling photo — ipinapakita sa thumbnail para
+  /// makita agad ng rider kung gaano kalapit sa 5MB limit.
+  final Map<String, int> _pickedSizes = {};
+  /// Huling validation error sa pagpili ng photo — inline sa Upload Evidence
+  /// card (hindi lang transient na snackbar).
+  String? _pickError;
   /// True habang tumatakbo ang upload + submit — ang Submit button mismo sa
   /// footer ang nagpapakita ng spinner (walang confirm modal).
   bool _isSubmitting = false;
@@ -116,7 +132,13 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   }
 
   int get _uploadedDocsCount => _ci?.documents?.length ?? 0;
-  int get _pendingCount => _pickedImages.length;
+  /// Mga piniling photo na lumampas sa limit — NAKIKITA pa rin sa grid (para
+  /// alam ng rider kung alin), pero hindi binibilang sa submit.
+  int get _oversizedPendingCount => _pickedImages
+      .where((f) => !CiEvidenceRules.isWithinLimit(_pickedSizes[f.path] ?? 0))
+      .length;
+  /// Valid lang na pending ang binibilang para sa Next/Submit gating.
+  int get _pendingCount => _pickedImages.length - _oversizedPendingCount;
   // Effective docs = server docs + pending staged docs (deferred upload until Review→Submit)
   int get _effectiveDocsCount => _uploadedDocsCount + _pendingCount;
   bool get _hasReport => true;
@@ -126,7 +148,10 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
   // ang _performSubmit() ang nagpapadala ng "-" fallback dahil hindi
   // tinatanggap ng backend ang empty na report_summary.
   bool get _canSubmit =>
-      _isAccepted && _effectiveDocsCount > 0 && !_isCompleted;
+      _isAccepted &&
+      _effectiveDocsCount > 0 &&
+      _oversizedPendingCount == 0 &&
+      !_isCompleted;
 
   // Step gating — must accept before proceeding past step 0
   bool _canGoToStep(int idx) {
@@ -201,20 +226,76 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
     // but here we use multiImage for speed
     final picked =
         await _imagePicker.pickMultiImage(imageQuality: 80, maxWidth: 1920);
-    if (picked.isNotEmpty) setState(() => _pickedImages.addAll(picked));
+    await _addPicked(picked);
   }
 
   Future<void> _pickFromCamera() async {
     final picked = await _imagePicker.pickImage(
         source: ImageSource.camera, imageQuality: 80, maxWidth: 1920);
-    if (picked != null) setState(() => _pickedImages.add(picked));
+    if (picked != null) await _addPicked([picked]);
+  }
+
+  /// Idinadagdag ang LAHAT ng piniling photo — kahit lumampas sa limit, para
+  /// makita ng rider kung alin ang problema. Ang lumampas ay naka-flag sa grid
+  /// (red border + red size chip) at hindi pinapayagang mag-Next/Submit
+  /// hangga't hindi nare-remove o napalitan.
+  Future<void> _addPicked(List<XFile> picked) async {
+    if (picked.isEmpty) return;
+    final sizes = <String, int>{};
+    for (final file in picked) {
+      sizes[file.path] = await file.length();
+    }
+    if (!mounted) return;
+    setState(() {
+      _pickedImages.addAll(picked);
+      _pickedSizes.addAll(sizes);
+      _refreshPickError();
+    });
+  }
+
+  /// Isang mensahe para sa LAHAT ng oversized na nasa listahan (hindi lang sa
+  /// huling batch) — nananatili hangga't may naka-flag pang photo.
+  void _refreshPickError() {
+    final oversized = _pickedImages
+        .where((f) => !CiEvidenceRules.isWithinLimit(_pickedSizes[f.path] ?? 0))
+        .toList();
+    if (oversized.isEmpty) {
+      _pickError = null;
+      return;
+    }
+    var largest = 0;
+    for (final f in oversized) {
+      final bytes = _pickedSizes[f.path] ?? 0;
+      if (bytes > largest) largest = bytes;
+    }
+    _pickError = CiEvidenceRules.rejectedMessage(oversized.length,
+        largestBytes: largest);
+  }
+
+  void _removePicked(int index) {
+    setState(() {
+      final file = _pickedImages.removeAt(index);
+      _pickedSizes.remove(file.path);
+      _refreshPickError();
+    });
+  }
+
+  void _clearPicked() {
+    setState(() {
+      _pickedImages.clear();
+      _pickedSizes.clear();
+      _pickError = null;
+    });
   }
 
   Future<void> _submitFinal() async {
     if (_isSubmitting) return;
     if (!_canSubmit) {
       String msg = 'Complete all steps first.';
-      if (_effectiveDocsCount == 0) {
+      if (_oversizedPendingCount > 0) {
+        msg =
+            'Remove the photo(s) over ${CiEvidenceRules.maxLabel} before submitting.';
+      } else if (_effectiveDocsCount == 0) {
         msg = 'Upload at least 1 evidence photo in Step 2 before submitting.';
       } else if (_isAssigned) {
         msg = 'You must accept the assignment first.';
@@ -341,6 +422,12 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
         return;
       }
       if (_currentStep == 1) {
+        if (_oversizedPendingCount > 0) {
+          context.showSnackBarAsToast(const SnackBar(
+              content: Text(
+                  'Remove the photo(s) over ${CiEvidenceRules.maxLabel} to continue')));
+          return;
+        }
         if (_effectiveDocsCount == 0) {
           context.showSnackBarAsToast(const SnackBar(
               content: Text('Upload at least 1 photo is required')));
@@ -369,9 +456,13 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
     final state = ref.watch(riderCiProvider);
     final ci = state.selectedCi;
 
+    // Desktop (≥ [kDesktopBreakpoint]) — desktop shell (sidebar + top bar) ang
+    // ginagamit para hindi mawala ang side nav bar pagpasok sa wizard.
+    final isDesktop =
+        MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     // Phone layout: the step actions are pinned to a fixed bottom bar instead
     // of scrolling with the content. Wide screens keep them inline.
-    final isNarrow = MediaQuery.sizeOf(context).width < 900;
+    final isNarrow = !isDesktop;
 
     // prefill report once when ci loads
     if (ci != null && !_didPrefillReport) {
@@ -386,62 +477,41 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
       });
     }
 
-    return Scaffold(        backgroundColor: context.cPageBg,
-      appBar: AppBar(
-        backgroundColor: context.headerColor(AppColors.riderGreen),
-        foregroundColor: Colors.white,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        title: Text('CI Investigation',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-        centerTitle: false,
-        actions: [
-          if (ci != null)
-            Padding(
-              padding: EdgeInsets.only(right: 14),
-              child: Center(
-                  child: StatusBadge(
-                      status: ci.status == 'accepted' ? 'in_progress' : ci.status,
-                      small: false,
-                      // Green AppBar: semantic status colors would be
-                      // unreadable here (e.g. "ASSIGNED" fell back to gray).
-                      onDark: true)),
-            ),
-        ],
-      ),
-      body: ci == null
-          ? ((_isInitialLoading || state.isLoading)
-              ? const _CiDetailsSkeleton()
-              : Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.search_off_rounded,
-                          size: 48, color: context.cTextTertiary),
-                      SizedBox(height: 12),
-                      Text('CI assignment not found',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: context.cTextSecondary)),
-                      SizedBox(height: 12),
-                      OutlinedButton(
-                          onPressed: () async {
-                            setState(() => _isInitialLoading = true);
-                            await ref
-                                .read(riderCiProvider.notifier)
-                                .loadDetails(widget.ciId);
-                            if (context.mounted) {
-                              setState(() => _isInitialLoading = false);
-                            }
-                          },
-                          child: Text('Retry'))
-                    ],
-                  ),
-                ))
-              : _isCompleted
-                  ? _CompletedView(ci: ci)
-                  : Column(
+    // ISANG body lang ito para sa mobile at desktop — ang shell lang ang
+    // pinag-iba (tingnan sa ibaba).
+    final Widget pageBody = ci == null
+        ? ((_isInitialLoading || state.isLoading)
+            ? const _CiDetailsSkeleton()
+            : Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
+                    Icon(Icons.search_off_rounded,
+                        size: 48, color: context.cTextTertiary),
+                    SizedBox(height: 12),
+                    Text('CI assignment not found',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: context.cTextSecondary)),
+                    SizedBox(height: 12),
+                    OutlinedButton(
+                        onPressed: () async {
+                          setState(() => _isInitialLoading = true);
+                          await ref
+                              .read(riderCiProvider.notifier)
+                              .loadDetails(widget.ciId);
+                          if (context.mounted) {
+                            setState(() => _isInitialLoading = false);
+                          }
+                        },
+                        child: Text('Retry'))
+                  ],
+                ),
+              ))
+        : _isCompleted
+            ? _CompletedView(ci: ci)
+            : Column(
+                children: [
                     _WizardHeader(
                       current: _currentStep,
                       isAssigned: _isAssigned,
@@ -516,7 +586,78 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
                         onSubmit: _submitFinal,
                       ),
                   ],
-                ),
+                );
+
+    // DESKTOP: huwag mawala ang SIDE NAV BAR habang nasa CI wizard. Ang
+    // `WebScaffold` ang nagbibigay ng rider sidebar + top bar; dati, ang custom
+    // na `Scaffold` sa ibaba ang laging ginagamit kaya punong-puno ang page at
+    // walang paraan para lumipat ng pahina maliban sa back button.
+    if (isDesktop) {
+      return WebScaffold(
+        title: 'CI Investigation',
+        roleOverride: AppConstants.roleRider,
+        leading: IconButton(
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded,
+              color: AppColors.textSecondary, size: 20),
+          onPressed: () {
+            if (Navigator.of(context).canPop()) {
+              Navigator.of(context).pop();
+            } else {
+              context.go(RouteConstants.riderCi);
+            }
+          },
+        ),
+        actions: [
+          if (ci != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 12),
+              child: StatusBadge(status: _displayStatus),
+            ),
+        ],
+        body: _desktopWizardCap(pageBody),
+      );
+    }
+
+    return Scaffold(
+      backgroundColor: context.cPageBg,
+      appBar: AppBar(
+        backgroundColor: context.headerColor(AppColors.riderGreen),
+        foregroundColor: Colors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        title: Text('CI Investigation',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+        centerTitle: false,
+        actions: [
+          if (ci != null)
+            Padding(
+              padding: EdgeInsets.only(right: 14),
+              child: Center(
+                  child: StatusBadge(
+                      status: ci.status == 'accepted' ? 'in_progress' : ci.status,
+                      small: false,
+                      // Green AppBar: semantic status colors would be
+                      // unreadable here (e.g. "ASSIGNED" fell back to gray).
+                      onDark: true)),
+            ),
+        ],
+      ),
+      body: pageBody,
+    );
+  }
+
+  /// Desktop: nakasentro at may cap ([_kDesktopWizardWidth]) ang buong wizard
+  /// — pipeline, cards, at action bar — para pantay ang left/right edges.
+  /// Kung ang pipeline lang ang i-cap, lumulutang ito sa gitna habang
+  /// nakaunat sa buong viewport ang cards at ang Continue button.
+  Widget _desktopWizardCap(Widget child) {
+    if (MediaQuery.sizeOf(context).width < kDesktopBreakpoint) return child;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: _kDesktopWizardWidth),
+        child: child,
+      ),
     );
   }
 
@@ -539,11 +680,13 @@ class _RiderCiDetailsScreenState extends ConsumerState<RiderCiDetailsScreen> {
           ci: ci,
           pickedImages: _pickedImages,
           localPreviews: _localPreviews,
+          pickedSizes: _pickedSizes,
+          pickError: _pickError,
           controller: _reportCtrl,
           onPickMulti: _pickImages,
           onPickCamera: _pickFromCamera,
-          onRemovePicked: (i) => setState(() => _pickedImages.removeAt(i)),
-          onClearPicked: () => setState(() => _pickedImages.clear()),
+          onRemovePicked: _removePicked,
+          onClearPicked: _clearPicked,
         );
       case 2:
         return _ReviewStep(
@@ -729,15 +872,12 @@ class _WizardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      color: context.cSurface,
-      // No bottom padding: the step content is flush with the pipeline header
-      // (walang gap sa unang card).
-      padding: EdgeInsets.fromLTRB(12, 12, 12, 0),
-      child: Column(
-        children: [
-          Row(
-            children: List.generate(_steps.length, (i) {
+    // Walang hiwalay na cap dito: ang buong wizard ang may cap sa desktop
+    // (tingnan ang `_desktopWizardCap`), kaya sumasabay ang 1 → 2 → 3 pipeline
+    // sa lapad ng cards at ng action bar — pantay ang left/right edges at
+    // magkadikit pa rin ang mga connector sa mga step circle.
+    final stepsRow = Row(
+        children: List.generate(_steps.length, (i) {
               final isActive = i == current;
               final isDone = () {
                 if (isCompleted) return true;
@@ -853,8 +993,15 @@ class _WizardHeader extends StatelessWidget {
                 ),
               );
             }),
-          ),
-        ],
+          );
+    return Container(
+      color: context.cSurface,
+      // No bottom padding: the step content is flush with the pipeline header
+      // (walang gap sa unang card). Pantay ang 16px horizontal padding sa
+      // cards para magkapantay ang gilid ng pipeline at ng mga card.
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: Column(
+        children: [stepsRow],
       ),
     );
   }
@@ -1305,6 +1452,10 @@ class _UploadReportStep extends StatelessWidget {
   final CreditInvestigationModel ci;
   final List<XFile> pickedImages;
   final Map<String, XFile> localPreviews;
+  /// Laki (bytes) ng bawat pending photo, keyed by path.
+  final Map<String, int> pickedSizes;
+  /// Inline validation error kapag may piniling photo na lumampas sa limit.
+  final String? pickError;
   final TextEditingController controller;
   final VoidCallback onPickMulti;
   final VoidCallback onPickCamera;
@@ -1316,6 +1467,8 @@ class _UploadReportStep extends StatelessWidget {
     required this.ci,
     required this.pickedImages,
     this.localPreviews = const {},
+    this.pickedSizes = const {},
+    this.pickError,
     required this.controller,
     required this.onPickMulti,
     required this.onPickCamera,
@@ -1389,46 +1542,123 @@ class _UploadReportStep extends StatelessWidget {
                           crossAxisSpacing: 8,
                           mainAxisSpacing: 8),
                   itemCount: pickedImages.length,
-                  itemBuilder: (ctx, i) => Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      ClipRRect(
-                          borderRadius: BorderRadius.circular(10),
-                          child: XFilePreview(file: pickedImages[i])),
-                      Positioned(
-                        top: 4,
-                        right: 4,
-                        child: GestureDetector(
-                          onTap: () => onRemovePicked(i),
-                          child: Container(
-                              width: 24,
-                              height: 24,
+                  itemBuilder: (ctx, i) {
+                    final file = pickedImages[i];
+                    final bytes = pickedSizes[file.path] ?? 0;
+                    // Nakikita pa rin ang photo kahit lumampas sa limit —
+                    // naka-flag lang (red border + red size chip) para alam
+                    // ng rider kung alin ang aalisin.
+                    final isOversize =
+                        bytes > 0 && !CiEvidenceRules.isWithinLimit(bytes);
+                    return Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: XFilePreview(file: file)),
+                        if (isOversize)
+                          IgnorePointer(
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(10),
+                                color:
+                                    AppColors.error.withValues(alpha: 0.14),
+                                border: Border.all(
+                                    color: AppColors.error, width: 2),
+                              ),
+                            ),
+                          ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () => onRemovePicked(i),
+                            child: Container(
+                                width: 24,
+                                height: 24,
+                                decoration: BoxDecoration(
+                                    color: AppColors.error,
+                                    shape: BoxShape.circle),
+                                child: Icon(Icons.close,
+                                    size: 14, color: Colors.white)),
+                          ),
+                        ),
+                        if (isOversize)
+                          Positioned(
+                            top: 4,
+                            left: 4,
+                            child: Container(
+                              padding: EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                   color: AppColors.error,
                                   shape: BoxShape.circle),
-                              child: Icon(Icons.close,
-                                  size: 14, color: Colors.white)),
+                              child: Icon(Icons.warning_amber_rounded,
+                                  size: 12, color: Colors.white),
+                            ),
+                          ),
+                        Positioned(
+                          bottom: 4,
+                          left: 4,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: Colors.black54,
+                                borderRadius: BorderRadius.circular(6)),
+                            child: Text('NEW',
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800)),
+                          ),
                         ),
-                      ),
-                      Positioned(
-                        bottom: 4,
-                        left: 4,
-                        child: Container(
-                          padding: EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                              color: Colors.black54,
-                              borderRadius: BorderRadius.circular(6)),
-                          child: Text('NEW',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 9,
-                                  fontWeight: FontWeight.w800)),
-                        ),
-                      ),
-                    ],
-                  ),
+                        // Size ng photo — nakikita agad kung malapit na sa limit,
+                        // at pula kapag lumampas sa limit.
+                        if (bytes > 0)
+                          Positioned(
+                            bottom: 4,
+                            right: 4,
+                            child: Container(
+                              padding: EdgeInsets.symmetric(
+                                  horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                  color: isOversize
+                                      ? AppColors.error
+                                      : Colors.black54,
+                                  borderRadius: BorderRadius.circular(6)),
+                              child: Text(CiEvidenceRules.sizeLabel(bytes),
+                                  style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700)),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
+                // Validation caption — plain text lang na dikit sa ibaba ng
+                // image (walang box/border para hindi magmukhang button).
+                if (pickError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            size: 14, color: AppColors.error),
+                        SizedBox(width: 5),
+                        Expanded(
+                          child: Text(pickError!,
+                              style: TextStyle(
+                                  fontSize: 11.5,
+                                  fontWeight: FontWeight.w600,
+                                  height: 1.35,
+                                  color: AppColors.error)),
+                        ),
+                      ],
+                    ),
+                  ),
               ],
               // Small text-only Upload button (no big tap-to-upload box) na
               // dikit sa ilalim ng photos. Kapag may pending, naka-right align
@@ -1466,9 +1696,17 @@ class _UploadReportStep extends StatelessWidget {
               ),
               if (uploaded.isEmpty && !hasPending) ...[
                 SizedBox(height: 8),
-                Text('Tap Upload to add evidence photos.',
+                Text(
+                    'Tap Upload to add evidence photos (max ${CiEvidenceRules.maxLabel} each).',
                     style: TextStyle(
                         fontSize: 12, color: context.cTextTertiary)),
+              ] else if (!isCompleted) ...[
+                // Kapag may photos na, ipakita pa rin ang limit para alam ng
+                // rider bago magdagdag muli.
+                SizedBox(height: 6),
+                Text('Max ${CiEvidenceRules.maxLabel} per photo.',
+                    style: TextStyle(
+                        fontSize: 11, color: context.cTextTertiary)),
               ],
             ],
           ),

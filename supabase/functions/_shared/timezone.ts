@@ -19,6 +19,20 @@ export function nowManilaISO(): string {
   return new Date().toISOString();
 }
 
+/**
+ * Manila calendar date (YYYY-MM-DD) ng isang UTC instant.
+ *
+ * Ginagamit sa paghahambing ng `paid_at` (TIMESTAMPTZ) sa `due_date` (DATE):
+ * kung UTC ang gagamitin, ang bayad na 7:00 AM Manila ay nagiging nakaraang
+ * araw sa UTC at mali ang "late" na hatol.
+ */
+export function manilaDateISO(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  // en-CA ang nagbibigay ng YYYY-MM-DD.
+  return d.toLocaleDateString('en-CA', { timeZone: MANILA_TZ });
+}
+
 /** Convert a UTC ISO string to Manila time as Date */
 export function toManila(utcISO: string): Date {
   return new Date(new Date(utcISO).toLocaleString('en-US', { timeZone: MANILA_TZ }));

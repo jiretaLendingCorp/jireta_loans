@@ -111,6 +111,26 @@ async function insertScheduleRows(
   console.log(
     `[loan_schedules] generated ${rows.length} installments for loan ${loan.id} starting ${sched.dueDates[0]}`,
   );
+
+  // Kung may 20% penalty na (hal. na-regenerate ang schedule ng loan na
+  // overdue na), isama agad ito sa huling unpaid installment. Kung hindi,
+  // babalik sa total_payable ang kabuuan ng schedule at mawawala sa
+  // babayaran ng lender ang penalty. Non-fatal: 0 naman ito kapag wala pang
+  // penalty.
+  try {
+    const { error: syncErr } = await db.rpc('sync_loan_schedule_penalties', { p_loan_id: loan.id });
+    if (syncErr) {
+      console.error('[loan_schedules] penalty sync failed', {
+        loanId: loan.id,
+        error: syncErr.message,
+      });
+    }
+  } catch (e) {
+    console.error('[loan_schedules] penalty sync failed', {
+      loanId: loan.id,
+      error: (e as Error)?.message ?? e,
+    });
+  }
 }
 
 /**

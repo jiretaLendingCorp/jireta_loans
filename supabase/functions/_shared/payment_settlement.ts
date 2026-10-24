@@ -22,6 +22,7 @@ import {
   getLoanFinancials,
   getPaymentLoanId,
   round2,
+  syncLoanStatusAfterPayment,
 } from './loan_financials.ts';
 
 type DbClient = ReturnType<typeof getAdminClient>;
@@ -121,10 +122,9 @@ export async function settlePaidXenditPayment(
       .single();
     const financials = await getLoanFinancials(db, loanId);
     newBalance = Math.max(0, financials?.outstanding_balance ?? 0);
-    await db
-      .from('loans')
-      .update({ ...(newBalance <= 0 ? { status: 'completed' } : {}) })
-      .eq('id', loanId);
+    // Fully paid → `completed`; bayad na ang overdue pero may natitira pang
+    // future installments → bumalik sa `active` (hindi na Overdue sa HM/Employee).
+    await syncLoanStatusAfterPayment(db, loanId);
     if (loan?.lender_id) {
       await writeAuditLog(
         {

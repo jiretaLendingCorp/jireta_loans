@@ -18,6 +18,7 @@ import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { notifyStaff } from '../_shared/notifications.ts';
 import { nowManilaISO } from '../_shared/timezone.ts';
+import { validateCiEvidenceSize } from '../_shared/ci_docs.ts';
 
 // ── [moved from ci-upload-documents] ────────────────────────────────────────
 const BUCKET = 'ci-documents';
@@ -159,9 +160,14 @@ async function handleCiUploadDocuments(req: Request) {
     // upload to storage and keep the object path, never the raw base64.
     let storedPath = d.file_url ?? null;
     if (d.content_base64) {
+      // 5MB kada photo — ang na-decode na laki ang sinusukat (hindi ang
+      // base64), para tugma ito sa aktwal na ise-save sa storage.
+      const bytes = base64ToBytes(d.content_base64);
+      const sizeError = validateCiEvidenceSize(d.file_name, bytes.length);
+      if (sizeError) return errorResponse(sizeError, 413, 'PAYLOAD_TOO_LARGE');
       const { error: uploadErr } = await db.storage
         .from(BUCKET)
-        .upload(objectPath, base64ToBytes(d.content_base64), {
+        .upload(objectPath, bytes, {
           contentType: d.mime_type ?? mimeFromExt(safeExt),
           upsert: false,
         });

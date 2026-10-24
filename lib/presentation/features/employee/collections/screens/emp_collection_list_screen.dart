@@ -700,6 +700,13 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
           if (d == null) return '-';
           try { return dateFmt.format(toManila(DateTime.parse(d.toString()))); } catch (_) { return d.toString(); }
         }();
+        // Petsa AT ORAS ng bayad na nag-settle ng dating overdue (`paid_at`,
+        // fallback sa `created_at`) — ito ang kasama sa "Overdue paid" tag.
+        final overduePaidStr = () {
+          final d = p['paid_at'] ?? p['created_at'];
+          if (d == null) return '';
+          try { return dateFmt.format(toManila(DateTime.parse(d.toString()))); } catch (_) { return ''; }
+        }();
         return ResponsiveRow(
           cells: [
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -710,11 +717,28 @@ class _EmpCollectionListScreenState extends ConsumerState<EmpCollectionListScree
             Text('₱${fmt.format(amt)}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
             _PaymentMethodInline(method: method),
             Text(dateStr, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(width: 7, height: 7, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
-              const SizedBox(width: 6),
-              Flexible(child: Text(paymentStatusLabel(status), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
-            ]),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Container(width: 7, height: 7, decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle)),
+                  const SizedBox(width: 6),
+                  Flexible(child: Text(paymentStatusLabel(status), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: statusColor), overflow: TextOverflow.ellipsis)),
+                ]),
+                // Bayad ang isang lampas nang installment? Ipakita sa ilalim ng
+                // status para makita ng staff na overdue payment ito — galing
+                // sa `paid_overdue` ng `payments-view?fn=get-list`.
+                if (p['paid_overdue'] == true) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                      overduePaidStr.isEmpty ? 'Overdue paid' : 'Overdue paid · $overduePaidStr',
+                      maxLines: 2,
+                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.success),
+                      overflow: TextOverflow.ellipsis),
+                ],
+              ],
+            ),
           ],
           actions: status == 'verified'
               ? InkWell(

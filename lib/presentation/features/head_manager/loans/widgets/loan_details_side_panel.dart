@@ -10,6 +10,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/timezone.dart';
+import '../../../../../core/utils/schedule_status.dart';
 import '../../../../../data/datasources/remote/loan_remote_datasource.dart';
 import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/utils/file_downloader.dart';
@@ -713,7 +714,8 @@ class _LoanDetailsSidePanelState extends State<LoanDetailsSidePanel> {
           ...schedules.asMap().entries.map((entry) {
             final s = entry.value;
             final status = (s['status'] as String?)?.toLowerCase() ?? 'pending';
-            final (label, color, background) = _scheduleStatusStyle(status);
+            final (label, color, background) =
+                _scheduleStatusStyle(status, latePaid: isLatePaidSchedule(s));
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 6),
               decoration: BoxDecoration(
@@ -1265,10 +1267,17 @@ class _LoanDetailsSidePanelState extends State<LoanDetailsSidePanel> {
     }
   }
 
-  (String, Color, Color) _scheduleStatusStyle(String status) {
+  // Late paid (binayaran pagkalampas ng due date) → "Overdue paid", para
+  // makita ng staff na bayad na ang dating overdue.
+  (String, Color, Color) _scheduleStatusStyle(String status,
+      {bool latePaid = false}) {
     switch (status) {
       case 'paid':
-        return ('Paid', AppColors.success, AppColors.successLight);
+        return (
+          latePaid ? 'Overdue paid' : 'Paid',
+          AppColors.success,
+          AppColors.successLight
+        );
       case 'overdue':
         return ('Overdue', AppColors.error, AppColors.errorLight);
       case 'partial':
