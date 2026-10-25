@@ -44,7 +44,7 @@ class _LoanRecordCol {
   final int flex;
 
   /// `keys` na walang laman = pinagsamang cell (loan number + lender name) na
-  /// tulad ng "Lender & Loan" column ng Loan Records page.
+  /// tulad ng "Lendee & Loan" column ng Loan Records page.
   const _LoanRecordCol(this.label, this.keys, this.icon,
       {this.money = false, this.total = false, this.flex = 2});
 }
@@ -68,7 +68,7 @@ const List<_LoanRecordCol> _exportCols = [
 /// number (bold) at lender name (grey) ay nasa ISANG column, tapos ang mga
 /// halaga. Status column ang idinadagdag kapag may status data ang rows.
 const List<_LoanRecordCol> _tableCols = [
-  _LoanRecordCol('Lender & Loan', [], Icons.tag_outlined, flex: 3),
+  _LoanRecordCol('Lendee & Loan', [], Icons.tag_outlined, flex: 3),
   _LoanRecordCol(
       'Amount', ['principalAmount', 'amount'], Icons.payments_outlined,
       money: true),
@@ -846,7 +846,7 @@ class _LoanRecordsPreviewState extends State<LoanRecordsPreview> {
   /// loan number (bold) + lender name (grey) sa unang column, ₱ na bold ang
   /// mga halaga, at text ang iba.
   Widget _previewCell(Map<String, dynamic> r, _LoanRecordCol c) {
-    // Pinagsamang "Lender & Loan" cell — walang keys ang column na ito.
+    // Pinagsamang "Lendee & Loan" cell — walang keys ang column na ito.
     if (c.keys.isEmpty) {
       final loanNo = reportColumnValue(r, _loanKeys)?.toString().trim() ?? '';
       final name = reportColumnValue(r, _lenderKeys)?.toString().trim() ?? '';

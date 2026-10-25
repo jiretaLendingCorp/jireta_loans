@@ -140,7 +140,7 @@ class _PendingPaymentsTableState extends State<PendingPaymentsTable> {
     return ResponsiveListCard(
       minTableWidth: 940,
       columns: const [
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
         ResponsiveCol('Amount Due',
             icon: Icons.payments_outlined, flex: 2),
         ResponsiveCol('Type', icon: Icons.account_balance_wallet_outlined, flex: 2),

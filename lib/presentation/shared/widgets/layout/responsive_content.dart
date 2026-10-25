@@ -524,7 +524,7 @@ class ResponsiveListCard extends StatelessWidget {
 
   Widget _mobileLabel(ResponsiveCol col) {
     // softWrap: false guarantees the label NEVER breaks onto a second line
-    // (e.g. "LENDER" / "& LOAN:"). The column is sized to the longest
+    // (e.g. "LENDEE" / "& LOAN:"). The column is sized to the longest
     // label + buffer, so the full text also never gets cut off.
     return Text(
       '${col.label.toUpperCase()}:',

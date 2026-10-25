@@ -181,7 +181,7 @@ class _EmpLoanListScreenState extends ConsumerState<EmpLoanListScreen> {
     return ResponsiveListCard(
       minTableWidth: 900,
       columns: const [
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
         ResponsiveCol('Principal', icon: Icons.payments_outlined, flex: 2),
         ResponsiveCol('Outstanding & Progress', icon: Icons.trending_up_rounded, flex: 3),
         ResponsiveCol('Due Date', icon: Icons.event_outlined, flex: 2),

@@ -14,7 +14,7 @@ import '../../../../shared/widgets/document_viewer.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_in_office_provider.dart';
 
-/// Mga dokumentong REQUIRED sa Lender Account Upgrade (walk-in) wizard.
+/// Mga dokumentong REQUIRED sa Lendee Account Upgrade (walk-in) wizard.
 ///
 /// Valid ID (front + back) lang ang kailangan — OPSYONAL na ang Selfie with ID
 /// at Business Permit (pwede pa ring i-upload, pero hindi hinaharang ang
@@ -387,8 +387,8 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                     // lender ang mag-a-apply ng loan sa app), kaya 'Lender
                     // Account Upgrade' ang titulo.
                     _isViewOnly
-                        ? 'View Lender Account Upgrade'
-                        : 'Lender Account Upgrade',
+                        ? 'View Lendee Account Upgrade'
+                        : 'Lendee Account Upgrade',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(

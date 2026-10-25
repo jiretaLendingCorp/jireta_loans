@@ -2044,7 +2044,7 @@ class _RiderCollectionDetailsScreenState
       );
     }
 
-    // DESKTOP: DALAWANG column — Lender & Loan info sa KALIWA, ang collection
+    // DESKTOP: DALAWANG column — Lendee & Loan info sa KALIWA, ang collection
     // amounts / proof checks sa KANAN — at naka-cap (1080) at nakasentro ang
     // buong hakbang. Dati, isang card lang na nakaunat sa buong lapad: blangko
     // ang kanang kalahati ng bawat row at mahirap sundan ang label → value.
@@ -2062,7 +2062,7 @@ class _RiderCollectionDetailsScreenState
                   Expanded(
                     child: _reviewCard(
                       icon: Icons.person_outline,
-                      title: 'Lender & Loan',
+                      title: 'Lendee & Loan',
                       rows: _reviewLenderRows(col),
                     ),
                   ),

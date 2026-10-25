@@ -1,6 +1,7 @@
 // lib/presentation/features/employee/profile/providers/emp_profile_provider.dart
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/errors/error_handler.dart';
 import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
@@ -30,13 +31,20 @@ class EmpProfileNotifier extends StateNotifier<AsyncValue<UserModel?>>
     }
   }
 
-  Future<bool> updateProfile(Map<String, dynamic> data) async {
+  /// `null` = tagumpay. Kung may error, ibinabalik ang AKTWAL na mensahe ng
+  /// server (hal. "Email already registered", "Phone already used") para iyon
+  /// ang ipakita sa user — hindi generic na "Failed to save changes" na walang
+  /// sinasabi kung ano ang mali.
+  Future<String?> updateProfile(Map<String, dynamic> data) async {
     try {
       await _ds.updateProfile(data);
       await loadProfile();
-      return true;
+      return null;
     } catch (e) {
-      return false;
+      final message = ErrorHandler.handle(e).message.trim();
+      return message.isEmpty
+          ? 'Could not save your changes. Please try again.'
+          : message;
     }
   }
 }

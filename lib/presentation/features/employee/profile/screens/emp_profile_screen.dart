@@ -333,7 +333,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
             ModernSheetSection(
               title: 'How do I handle lender verifications?',
               body:
-                  'Open Lender Account Upgrade to review submitted IDs and documents, then verify or request resubmission.',
+                  'Open Lendee Account Upgrade to review submitted IDs and documents, then verify or request resubmission.',
             ),
             ModernSheetSection(
               title: 'How do I record office payments?',
@@ -455,13 +455,14 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
   }
 
   Future<void> _updatePhoto(String url) async {
-    final ok = await ref
+    final error = await ref
         .read(empProfileProvider.notifier)
         .updateProfile({'profile_photo_url': url});
-    if (mounted && ok) {
+    if (!mounted) return;
+    if (error == null) {
       context.showSuccessToast('Profile picture updated');
-    } else if (mounted) {
-      context.showErrorToast('Failed to update photo');
+    } else {
+      context.showErrorToast(error);
     }
   }
 
@@ -870,10 +871,17 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                           _validateName(v, 'Last name', isRequired: true),
                     ),
                     const SizedBox(height: 12),
+                    // Editable na — ang dating `readOnly` ay pinipigilan ang
+                    // staff na baguhin ang sariling email kahit sinusuportahan
+                    // na ng backend (`users-manage?fn=update-profile`: format
+                    // check, case-insensitive uniqueness, at GoTrue credential
+                    // sync).
                     TextFormField(
                       controller: email,
-                      readOnly: true,
+                      keyboardType: TextInputType.emailAddress,
+                      autofillHints: const [AutofillHints.email],
                       decoration: _dialogDeco('Email'),
+                      validator: AppValidators.email,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -948,8 +956,11 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
             ),
           ),
           actions: [
+            // `null` (hindi `false`) ang ipinopop ng Cancel — kung hindi,
+            // itinuturing itong "bigong save" at nagre-reklamong
+            // "Failed to save changes" ang screen kahit wala namang binago.
             TextButton(
-                onPressed: saving ? null : () => Navigator.pop(ctx, false),
+                onPressed: saving ? null : () => Navigator.pop(ctx),
                 child: const Text('Cancel')),
             ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -975,7 +986,7 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                       // loob ng collection-if (hindi na-promote ang `var`).
                       final chosenGender = gender;
                       final chosenCivilStatus = civilStatus;
-                      final ok = await ref
+                      final error = await ref
                           .read(empProfileProvider.notifier)
                           .updateProfile({
                         'first_name': first.text.trim(),
@@ -983,6 +994,12 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                             ? null
                             : middle.text.trim(),
                         'last_name': last.text.trim(),
+                        // Ipinapadala lang kapag may aktwal na pagbabago —
+                        // bawat pagbabago ay nagtritrigger ng GoTrue credential
+                        // sync sa backend, kaya huwag itong gawin sa bawat save.
+                        if (AppValidators.normalizeEmail(email.text) !=
+                            AppValidators.normalizeEmail(user.email))
+                          'email': AppValidators.normalizeEmail(email.text),
                         'phone_number': phone.text.trim().isEmpty
                             ? null
                             : phone.text.trim(),
@@ -1005,7 +1022,16 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                           'province': addr.province ?? '',
                         },
                       });
-                      if (ctx.mounted) Navigator.pop(ctx, ok);
+                      if (!ctx.mounted) return;
+                      if (error != null) {
+                        // Buksan pa rin ang dialog — nandoon pa ang tinype ng
+                        // user — at ang TOTOONG dahilan ang ipakita (hal. email
+                        // na gamit na ng ibang account).
+                        setDlg(() => saving = false);
+                        ctx.showErrorToast(error);
+                        return;
+                      }
+                      Navigator.pop(ctx, true);
                     },
               child: saving
                   ? const SizedBox(
@@ -1026,11 +1052,10 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     email.dispose();
     phone.dispose();
     if (!mounted) return;
-    if (saved == true) {
-      context.showSuccessToast('Profile updated');
-    } else if (saved == false) {
-      context.showErrorToast('Failed to save changes');
-    }
+    // Ang mga error ay may sariling toast sa loob ng dialog (aktwal na
+    // mensahe ng server). Dito, tagumpay lang ang may toast — ang Cancel ay
+    // `null` at wala nang "Failed to save changes".
+    if (saved == true) context.showSuccessToast('Profile updated');
   }
 
   void _showSheet({

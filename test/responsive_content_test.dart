@@ -28,7 +28,7 @@ Widget buildSampleTable() {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           color: const Color(0xFFF8F9FB),
           child: const Row(children: [
-            Expanded(flex: 3, child: Text('LENDER & LOAN')),
+            Expanded(flex: 3, child: Text('LENDEE & LOAN')),
             Expanded(flex: 2, child: Text('RIDER')),
             Expanded(flex: 2, child: Text('DEADLINE')),
             Expanded(flex: 3, child: Text('STATUS')),
@@ -106,7 +106,7 @@ void main() {
       return ResponsiveListCard(
         minTableWidth: 760,
         columns: const [
-          ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+          ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
           ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
           ResponsiveCol('Deadline', icon: Icons.event_outlined, flex: 2),
           ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
@@ -150,7 +150,7 @@ void main() {
           (tester) async {
         await pumpList(tester, width);
         expect(tester.takeException(), isNull);
-        expect(find.text('LENDER & LOAN'), findsOneWidget);
+        expect(find.text('LENDEE & LOAN'), findsOneWidget);
         expect(find.text('STATUS'), findsOneWidget);
         expect(find.text('LN-2026-64321'), findsOneWidget);
         expect(find.text('Jamvis D'), findsOneWidget);
@@ -165,7 +165,7 @@ void main() {
         expect(tester.takeException(), isNull,
             reason: 'Layout error rendered at width $width');
         // Field labels are shown on the cards (with the colon).
-        expect(find.text('LENDER & LOAN:'), findsNWidgets(2));
+        expect(find.text('LENDEE & LOAN:'), findsNWidgets(2));
         expect(find.text('STATUS:'), findsNWidgets(2));
         // Values are visible without any horizontal scrolling.
         for (final text in ['LN-2026-64321', 'Shem M', 'Sep 09, 2026', 'Approved']) {
@@ -180,7 +180,7 @@ void main() {
         (tester) async {
       await pumpList(tester, 360);
       expect(tester.takeException(), isNull);
-      for (final label in ['LENDER & LOAN:', 'RIDER:', 'DEADLINE:', 'STATUS:']) {
+      for (final label in ['LENDEE & LOAN:', 'RIDER:', 'DEADLINE:', 'STATUS:']) {
         final text = tester.widget<Text>(find.text(label).first);
         expect(text.maxLines, isNull,
             reason: 'Label "$label" is restricted to maxLines (can get cut off)');
@@ -193,7 +193,7 @@ void main() {
             reason: 'Label "$label" text is missing');
       }
       // All labels sit on a single rendered line (height of one text line).
-      final labelHeight = tester.getSize(find.text('LENDER & LOAN:').first).height;
+      final labelHeight = tester.getSize(find.text('LENDEE & LOAN:').first).height;
       for (final label in ['RIDER:', 'DEADLINE:', 'STATUS:']) {
         final h = tester.getSize(find.text(label).first).height;
         expect((labelHeight - h).abs(), lessThan(2),
@@ -205,7 +205,7 @@ void main() {
         (tester) async {
       await pumpList(tester, 360);
       expect(tester.takeException(), isNull);
-      final labelTopLeft = tester.getTopLeft(find.text('LENDER & LOAN:').first);
+      final labelTopLeft = tester.getTopLeft(find.text('LENDEE & LOAN:').first);
       final valueTopLeft = tester.getTopLeft(find.text('LN-2026-64321'));
       // Same row, top-aligned (plain row — no avatar, label stays at top).
       expect((labelTopLeft.dy - valueTopLeft.dy).abs(), lessThan(6));
@@ -215,7 +215,7 @@ void main() {
       // Value sits to the RIGHT of the label...
       expect(valueTopLeft.dx, greaterThan(labelTopLeft.dx + 30));
       // ...and only a small gap from the colon of the longest label.
-      final colonRight = tester.getTopRight(find.text('LENDER & LOAN:').first).dx;
+      final colonRight = tester.getTopRight(find.text('LENDEE & LOAN:').first).dx;
       expect(valueTopLeft.dx - colonRight, lessThan(45),
           reason: 'Value is too far from the colon');
       // EVERY value starts at the exact same x (aligned pantay-pantay).
@@ -233,7 +233,7 @@ void main() {
       expect(tester.takeException(), isNull);
       // The label's right edge (the ":") sits just a little to the left of
       // the value.
-      final colonRight = tester.getTopRight(find.text('LENDER & LOAN:').first).dx;
+      final colonRight = tester.getTopRight(find.text('LENDEE & LOAN:').first).dx;
       final valueLeft = tester.getTopLeft(find.text('LN-2026-64321')).dx;
       expect(valueLeft - colonRight, greaterThan(8),
           reason: 'Value is too close to the colon (gap ${valueLeft - colonRight}px)');
@@ -269,7 +269,7 @@ void main() {
             reason: 'Layout error rendered at width $width');
         // Every column value must still be present (nothing clipped away).
         for (final text in [
-          'LENDER & LOAN',
+          'LENDEE & LOAN',
           'RIDER',
           'DEADLINE',
           'STATUS',

@@ -1538,7 +1538,7 @@ class _HmLoanApplicationsListScreenState
         // flex 2 (dating 3) — sapat pa rin sa loan # + pangalan, at naiuusog
         // pakaliwa ang AMOUNT (dating masyadong malawak ang puwang pagkatapos
         // ng lender name).
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 2),
+        ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 2),
         ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
         // Maikling header — ang "Outstanding Balance" ay napuputol sa column
         // na ito (maxLines: 1 + ellipsis), kaya "Outstanding" ang label.
@@ -1573,7 +1573,7 @@ class _HmLoanApplicationsListScreenState
         return ResponsiveRow(
           onTap: () => _openDetails(context, loan.id),
           cells: [
-            // Lender & Loan — LN as plain text (no pill), lender name below
+            // Lendee & Loan — LN as plain text (no pill), lender name below
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

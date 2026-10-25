@@ -24,15 +24,16 @@ class AccountUpgradeChecklistItem {
 }
 
 /// Ang buong checklist ng Account Upgrade, sa parehong order na ipinapakita
-/// sa lender (`lender_account_upgrade_submit_screen.dart`); ang may `*` doon
-/// ang required. Ang `lender_signature` ay auto-captured sa Residence step.
-/// Ang Selfie with ID at Face Recognition ay optional supporting documents.
+/// sa lender (`lender_account_upgrade_submit_screen.dart`). LAHAT ng
+/// dokumento ay required ngayon — pareho sa lender side, kung saan walang
+/// optional na dokumento (`_docOptional` ay walang laman). Ang
+/// `lender_signature` ay auto-captured sa Residence step.
 const List<AccountUpgradeChecklistItem> kAccountUpgradeDocs = [
   AccountUpgradeChecklistItem(type: 'valid_id', required: true),
-  AccountUpgradeChecklistItem(type: 'selfie', required: false),
+  AccountUpgradeChecklistItem(type: 'selfie', required: true),
   AccountUpgradeChecklistItem(type: 'mayors_permit', required: true),
-  AccountUpgradeChecklistItem(type: 'lender_signature', required: false),
-  AccountUpgradeChecklistItem(type: 'face_recognition', required: false),
+  AccountUpgradeChecklistItem(type: 'lender_signature', required: true),
+  AccountUpgradeChecklistItem(type: 'face_recognition', required: true),
 ];
 
 /// Pinagsasama ang checklist sa aktwal na `documents[]` ng `kyc-view`.

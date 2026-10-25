@@ -5,7 +5,7 @@
 // totalPayable, outstandingBalance, status).
 //
 // Sinusuri dito:
-//   * naka-table ang rows tulad ng Loan Records page (Lender & Loan,
+//   * naka-table ang rows tulad ng Loan Records page (Lendee & Loan,
 //     Amount, Interest, Total, Status),
 //   * ang na-e-export ay **Loan Record, Loan Name, Amount, Interest, Total**,
 //   * ₱ ang halaga at `N/A` ang walang datos,
@@ -208,7 +208,7 @@ void main() {
         (tester) async {
       await pumpPreview(tester, apiRows(3));
 
-      for (final h in ['LENDER & LOAN', 'AMOUNT', 'INTEREST', 'STATUS']) {
+      for (final h in ['LENDEE & LOAN', 'AMOUNT', 'INTEREST', 'STATUS']) {
         expect(find.text(h), findsOneWidget, reason: 'header $h');
       }
       // 'TOTAL' = table header + Loan Summary TOTAL row + table TOTAL row.
@@ -250,7 +250,7 @@ void main() {
       await pumpPreview(tester, rows);
 
       expect(find.text('STATUS'), findsNothing);
-      expect(find.text('LENDER & LOAN'), findsOneWidget);
+      expect(find.text('LENDEE & LOAN'), findsOneWidget);
       // Table header + Loan Summary TOTAL row + table TOTAL row.
       expect(find.text('TOTAL'), findsWidgets);
     });

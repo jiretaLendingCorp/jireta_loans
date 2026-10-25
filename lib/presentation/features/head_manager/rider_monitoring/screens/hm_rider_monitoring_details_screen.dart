@@ -80,18 +80,7 @@ class _HmRiderMonitoringDetailsScreenState
       body: Container(
         color: context.cPageBg,
         child: state.isLoading && detail == null
-            ? const Padding(
-                padding: EdgeInsets.all(24),
-                child: Column(
-                  children: [
-                    ShimmerLoader(height: 130, borderRadius: 16),
-                    SizedBox(height: 16),
-                    ShimmerLoader(height: 120, borderRadius: 12),
-                    SizedBox(height: 16),
-                    ShimmerLoader(height: 260, borderRadius: 16),
-                  ],
-                ),
-              )
+            ? const RiderMonitoringDetailSkeleton()
             : state.error != null && detail == null
                 ? ErrorStateWidget(
                     message: state.error!,
@@ -112,6 +101,32 @@ class _HmRiderMonitoringDetailsScreenState
                         dateFrom: _dateFrom,
                         dateTo: _dateTo,
                       ),
+      ),
+    );
+  }
+}
+
+/// Loading skeleton ng rider details page.
+///
+/// SCROLLABLE ito (tulad ng totoong body sa ibaba) — dati ay hubad na
+/// `Column` na may fixed-height shimmer, kaya sa mababang viewport (hal.
+/// 1366x690 desktop) "BOTTOM OVERFLOWED BY N PIXELS" ang lumalabas habang
+/// naglo-load pa lang. Public para direktang ma-test ang layout.
+class RiderMonitoringDetailSkeleton extends StatelessWidget {
+  const RiderMonitoringDetailSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SingleChildScrollView(
+      padding: EdgeInsets.all(24),
+      child: Column(
+        children: [
+          ShimmerLoader(height: 130, borderRadius: 16),
+          SizedBox(height: 16),
+          ShimmerLoader(height: 120, borderRadius: 12),
+          SizedBox(height: 16),
+          ShimmerLoader(height: 260, borderRadius: 16),
+        ],
       ),
     );
   }

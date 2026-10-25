@@ -13,6 +13,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/realtime_refresh_mixin.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
+import '../../../../shared/utils/collection_status_label.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
@@ -589,7 +590,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           ResponsiveListCard(
             minTableWidth: 820,
             columns: const [
-              ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+              ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
               ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
               ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
               ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
@@ -633,7 +634,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
         Row(mainAxisSize: MainAxisSize.min, children: [
           Container(width: 7, height: 7, decoration: BoxDecoration(color: accent, shape: BoxShape.circle)),
           const SizedBox(width: 6),
-          Flexible(child: Text(status.split('_').map((w) => w.isNotEmpty ? w[0].toUpperCase() + w.substring(1) : '').join(' '), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text(collectionStatusLabel(status), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: accent), overflow: TextOverflow.ellipsis)),
         ]),
       ],
       actions: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -681,7 +682,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     return ResponsiveListCard(
       minTableWidth: 900,
       columns: const [
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
         ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
         ResponsiveCol('Method', icon: Icons.account_balance_wallet_outlined, flex: 2),
         ResponsiveCol('Date', icon: Icons.event_outlined, flex: 2),

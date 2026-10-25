@@ -203,7 +203,7 @@ class _EmpDashboardScreenState extends ConsumerState<EmpDashboardScreen> {
     // Single Wrap so cards flow as 4 on desktop, no isolated card
     return _buildGridRow([
       _KpiCard(
-          label: 'Lenders Managed',
+          label: 'Lendees Managed',
           value: kpi.totalLendersManaged.toDouble(),
           icon: Icons.people_outline,
           color: AppColors.lenderBlue),

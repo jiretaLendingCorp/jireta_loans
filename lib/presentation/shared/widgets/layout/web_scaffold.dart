@@ -791,7 +791,7 @@ List<_NavItem> _hmItems() => [
                 Icons.archive_outlined, 'Archived', RouteConstants.hmArchived),
           ],
         ),
-        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
+        const _NavItem(Icons.verified_user_outlined, 'Lendee Account Upgrade',
             RouteConstants.hmAccountUpgrade),
         const _NavItem(
           Icons.description_outlined,
@@ -840,7 +840,7 @@ List<_NavItem> _empItems() => [
                 RouteConstants.empRiders),
           ],
         ),
-        const _NavItem(Icons.verified_user_outlined, 'Lender Account Upgrade',
+        const _NavItem(Icons.verified_user_outlined, 'Lendee Account Upgrade',
             RouteConstants.empAccountUpgrade),
         const _NavItem(
           Icons.description_outlined,

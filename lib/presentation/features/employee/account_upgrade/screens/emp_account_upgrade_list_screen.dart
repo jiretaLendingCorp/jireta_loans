@@ -58,7 +58,7 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
     final effectiveTab = state.statusFilter;
 
     return WebScaffold(
-      title: 'Lender Account Upgrade',
+      title: 'Lendee Account Upgrade',
       body: Container(
         color: const Color(0xFFF0F2F5),
         child: SingleChildScrollView(

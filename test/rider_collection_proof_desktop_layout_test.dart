@@ -4,7 +4,7 @@
 //
 //   * Step 2 desktop: DALAWANG column — Payment Proof sa kaliwa, Lender
 //     Signature sa kanan — at naka-cap (1080) at nakasentro ang buong hakbang.
-//   * Step 3 desktop: DALAWANG column — Lender & Loan sa kaliwa, Collection
+//   * Step 3 desktop: DALAWANG column — Lendee & Loan sa kaliwa, Collection
 //     Details sa kanan — naka-cap (1080), at naka-align sa kanan ang
 //     Back + Submit.
 //   * Mobile: isang column pa rin (hindi binago).
@@ -175,12 +175,12 @@ void main() {
       await goToStep(tester, 2);
 
       expect(tester.takeException(), isNull);
-      expect(find.text('Lender & Loan'), findsOneWidget);
+      expect(find.text('Lendee & Loan'), findsOneWidget);
       expect(find.text('Collection Details'), findsOneWidget);
       // Hindi na isang mahabang card ang buong review sa desktop.
       expect(find.text('Review Details'), findsNothing);
 
-      final lenderCard = tester.getRect(find.text('Lender & Loan'));
+      final lenderCard = tester.getRect(find.text('Lendee & Loan'));
       final collectionCard = tester.getRect(find.text('Collection Details'));
 
       expect((collectionCard.top - lenderCard.top).abs(), lessThan(2));
@@ -206,7 +206,7 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(find.text('Review Details'), findsOneWidget);
-      expect(find.text('Lender & Loan'), findsNothing);
+      expect(find.text('Lendee & Loan'), findsNothing);
       expect(find.text('Collection Details'), findsNothing);
     });
   });

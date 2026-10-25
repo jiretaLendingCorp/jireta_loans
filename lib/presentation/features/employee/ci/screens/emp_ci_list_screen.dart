@@ -145,7 +145,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
     return ResponsiveListCard(
       minTableWidth: 760,
       columns: const [
-        ResponsiveCol('Lender & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
         ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
         ResponsiveCol('Deadline', icon: Icons.event_outlined, flex: 2),
         ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
