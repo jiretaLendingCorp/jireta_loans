@@ -217,9 +217,12 @@ Deno.test({
       device: Deno.env.get("TEXTBEE_DEVICE_ID"),
       mock: Deno.env.get("USE_MOCK_SMS"),
       semaphore: Deno.env.get("SEMAPHORE_API_KEY"),
+      statusCheck: Deno.env.get("TEXTBEE_STATUS_CHECK_MS"),
     };
     Deno.env.set("TEXTBEE_API_KEY", "tb-test-key");
     Deno.env.set("TEXTBEE_DEVICE_ID", "device-1");
+    // Status probe off: sinusukat lang dito ang send request mismo.
+    Deno.env.set("TEXTBEE_STATUS_CHECK_MS", "0");
     Deno.env.delete("SMS_PROVIDER");
     Deno.env.delete("USE_MOCK_SMS");
     Deno.env.delete("SEMAPHORE_API_KEY");
@@ -273,6 +276,216 @@ Deno.test({
         ["TEXTBEE_DEVICE_ID", previous.device],
         ["USE_MOCK_SMS", previous.mock],
         ["SEMAPHORE_API_KEY", previous.semaphore],
+        ["TEXTBEE_STATUS_CHECK_MS", previous.statusCheck],
+      ] as const) {
+        if (value === undefined) Deno.env.delete(name);
+        else Deno.env.set(name, value);
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: "a device-level TextBee failure is reported as failed, not 'sent'",
+  permissions: { env: true },
+  fn: async () => {
+    const previous = {
+      textbee: Deno.env.get("TEXTBEE_API_KEY"),
+      provider: Deno.env.get("SMS_PROVIDER"),
+      device: Deno.env.get("TEXTBEE_DEVICE_ID"),
+      mock: Deno.env.get("USE_MOCK_SMS"),
+      semaphore: Deno.env.get("SEMAPHORE_API_KEY"),
+      statusCheck: Deno.env.get("TEXTBEE_STATUS_CHECK_MS"),
+    };
+    Deno.env.set("TEXTBEE_API_KEY", "tb-test-key");
+    Deno.env.set("TEXTBEE_STATUS_CHECK_MS", "1500");
+    Deno.env.delete("TEXTBEE_DEVICE_ID");
+    Deno.env.delete("SMS_PROVIDER");
+    Deno.env.delete("USE_MOCK_SMS");
+    Deno.env.delete("SEMAPHORE_API_KEY");
+
+    const calls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      calls.push(url);
+      if (url.includes("/gateway/messages")) {
+        // Ang sagot ng device: failed sa SIM/carrier, hindi naipadala.
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: [{
+                status: "failed",
+                recipient: "+639281234567",
+                errorCode: "1",
+                errorMessage:
+                  "SMS failed on device. Common causes: no SMS credit on SIM, weak signal, or carrier blocked.",
+              }],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: { success: true, smsBatchId: "batch-9", recipientCount: 1 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await sendSms({
+        to: "09281234567",
+        message: "Your Jireta Loans OTP is: {otp}. Valid for 5 minutes.",
+        otpCode: "654321",
+        logMessage: "Your Jireta Loans OTP was sent.",
+      });
+
+      assertEquals(result.accepted, false);
+      assertEquals(result.status, "failed");
+      assertEquals(result.errorCode, "TEXTBEE_SEND_FAILED");
+      assertEquals(result.gatewayReference, "batch-9");
+      assert(result.providerDetail?.includes("device_error_code=1") ?? false);
+      // Walang OTP at walang buong numero sa detail/provider log.
+      assertEquals(result.providerDetail?.includes("654321"), false);
+      assertEquals(result.providerDetail?.includes("9281234567"), false);
+      assert(calls.some((url) => url.includes("/gateway/messages")));
+    } finally {
+      globalThis.fetch = originalFetch;
+      for (const [name, value] of [
+        ["TEXTBEE_API_KEY", previous.textbee],
+        ["SMS_PROVIDER", previous.provider],
+        ["TEXTBEE_DEVICE_ID", previous.device],
+        ["USE_MOCK_SMS", previous.mock],
+        ["SEMAPHORE_API_KEY", previous.semaphore],
+        ["TEXTBEE_STATUS_CHECK_MS", previous.statusCheck],
+      ] as const) {
+        if (value === undefined) Deno.env.delete(name);
+        else Deno.env.set(name, value);
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: "a batch the carrier accepted is recorded as sent (not just pending)",
+  permissions: { env: true },
+  fn: async () => {
+    const previous = {
+      textbee: Deno.env.get("TEXTBEE_API_KEY"),
+      device: Deno.env.get("TEXTBEE_DEVICE_ID"),
+      statusCheck: Deno.env.get("TEXTBEE_STATUS_CHECK_MS"),
+    };
+    Deno.env.set("TEXTBEE_API_KEY", "tb-test-key");
+    Deno.env.set("TEXTBEE_STATUS_CHECK_MS", "1500");
+    Deno.env.delete("TEXTBEE_DEVICE_ID");
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/gateway/messages")) {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: [{ status: "sent", recipient: "+639281234567" }],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: { success: true, smsBatchId: "batch-10", recipientCount: 1 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await sendSms({
+        to: "09281234567",
+        message: "Your Jireta Loans OTP is: {otp}.",
+        otpCode: "654321",
+        logMessage: "Your Jireta Loans OTP was sent.",
+      });
+
+      assertEquals(result.accepted, true);
+      assertEquals(result.status, "sent");
+      assertEquals(result.gatewayReference, "batch-10");
+    } finally {
+      globalThis.fetch = originalFetch;
+      for (const [name, value] of [
+        ["TEXTBEE_API_KEY", previous.textbee],
+        ["TEXTBEE_DEVICE_ID", previous.device],
+        ["TEXTBEE_STATUS_CHECK_MS", previous.statusCheck],
+      ] as const) {
+        if (value === undefined) Deno.env.delete(name);
+        else Deno.env.set(name, value);
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: "a batch still sitting on the gateway phone stays pending, never 'sent'",
+  permissions: { env: true },
+  fn: async () => {
+    const previous = {
+      textbee: Deno.env.get("TEXTBEE_API_KEY"),
+      device: Deno.env.get("TEXTBEE_DEVICE_ID"),
+      statusCheck: Deno.env.get("TEXTBEE_STATUS_CHECK_MS"),
+    };
+    Deno.env.set("TEXTBEE_API_KEY", "tb-test-key");
+    Deno.env.set("TEXTBEE_STATUS_CHECK_MS", "400");
+    Deno.env.delete("TEXTBEE_DEVICE_ID");
+
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/gateway/messages")) {
+        // Tulog/offline ang gateway phone: natanggap ng API, hindi pa naipadala.
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              data: [{ status: "pending", recipient: "+639171234567" }],
+            }),
+            { status: 200, headers: { "content-type": "application/json" } },
+          ),
+        );
+      }
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: { success: true, smsBatchId: "batch-11", recipientCount: 1 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await sendSms({
+        to: "09171234567",
+        message: "Your Jireta Loans OTP is: {otp}.",
+        otpCode: "654321",
+        logMessage: "Your Jireta Loans OTP was sent.",
+      });
+
+      // Tinanggap ng API pero naka-queue — hindi ito "sent".
+      assertEquals(result.accepted, true);
+      assertEquals(result.status, "pending");
+      assertEquals(result.gatewayReference, "batch-11");
+    } finally {
+      globalThis.fetch = originalFetch;
+      for (const [name, value] of [
+        ["TEXTBEE_API_KEY", previous.textbee],
+        ["TEXTBEE_DEVICE_ID", previous.device],
+        ["TEXTBEE_STATUS_CHECK_MS", previous.statusCheck],
       ] as const) {
         if (value === undefined) Deno.env.delete(name);
         else Deno.env.set(name, value);

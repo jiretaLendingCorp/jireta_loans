@@ -58,7 +58,7 @@ void main() {
     await pumpLogin(tester, 1280);
 
     expect(find.text('Login'), findsOneWidget);
-    expect(find.text('Mobile Number'), findsOneWidget);
+    expect(find.text('Mobile Number or Email'), findsOneWidget);
     expect(find.text('Send OTP'), findsOneWidget);
 
     final fieldWidth = tester.getSize(find.byType(TextFormField)).width;
@@ -87,6 +87,42 @@ void main() {
     // Buong lapad (may 20px padding sa gilid) — hindi naka-cap sa 480px.
     expect(fieldWidth, greaterThan(600));
     expect(fieldCenter.dx, closeTo(360, 3));
+
+    await disposeTree(tester);
+  });
+
+  // Ang isang field ay tumatanggap ng mobile number O email (Gmail): ang numero
+  // ay naka-format pa rin, at ang email ay nakaka-enable ng Send OTP para doon
+  // ipadala ng server ang code.
+  testWidgets('email (Gmail) sa login field: naka-enable ang Send OTP',
+      (tester) async {
+    await pumpLogin(tester, 720);
+
+    await tester.enterText(
+        find.byType(TextFormField), '  Juan@Gmail.com ');
+    await tester.pump();
+
+    // Email mode: mail icon sa field (hindi ang +63 flag) at naka-enable ang CTA.
+    expect(find.byIcon(Icons.mail_outline_rounded), findsWidgets);
+    final cta = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Send OTP'));
+    expect(cta.onPressed, isNotNull,
+        reason: 'Hindi naka-enable ang Send OTP para sa email');
+
+    await disposeTree(tester);
+  });
+
+  testWidgets('mobile number sa parehong field: naka-format at naka-enable',
+      (tester) async {
+    await pumpLogin(tester, 720);
+
+    await tester.enterText(find.byType(TextFormField), '9171234567');
+    await tester.pump();
+
+    expect(find.text('917 123 4567'), findsOneWidget);
+    final cta = tester.widget<ElevatedButton>(
+        find.widgetWithText(ElevatedButton, 'Send OTP'));
+    expect(cta.onPressed, isNotNull);
 
     await disposeTree(tester);
   });

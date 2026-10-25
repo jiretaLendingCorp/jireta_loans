@@ -12,6 +12,8 @@
 // plain text at hindi kailanman nilo-log.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { normalizePhMobile } from './validators.ts';
+
 export type OtpPurpose = 'login' | 'reset_mpin';
 
 export const OTP_PURPOSES: readonly OtpPurpose[] = ['login', 'reset_mpin'];
@@ -36,6 +38,27 @@ export function normalizeOtpPurpose(value: unknown): OtpPurpose | null {
   const raw = value.trim().toLowerCase();
   if (raw === '') return 'login';
   return isOtpPurpose(raw) ? raw : null;
+}
+
+/**
+ * Hinihiwalay ang identifier ng OTP sa phone O email.
+ *
+ * Isang field lang ang pinapakita ng app ("Mobile Number or Email"), kaya ang
+ * `@` lang ang pagkakakilanlan ng channel. Ang numero ay nino-normalize sa
+ * `09XXXXXXXXX` (parehong hugis na hinahanap sa `users.phone_number`); ang email
+ * sa `lower(trim(...))` (parehong hugis na iniimbak ng
+ * `trg_users_normalize_email`).
+ *
+ * `phone` / `email` ay `''` kapag hindi iyon ang channel — kaya ang validation
+ * sa caller (`validatePhone` / `validateEmail`) ang huling salaan.
+ */
+export function parseOtpIdentifier(raw: string | null | undefined): {
+  phone: string;
+  email: string;
+} {
+  const clean = (raw ?? '').trim();
+  if (clean.includes('@')) return { phone: '', email: clean.toLowerCase() };
+  return { phone: normalizePhMobile(clean), email: '' };
 }
 
 /**

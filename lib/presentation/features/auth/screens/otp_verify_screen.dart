@@ -227,7 +227,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     ref.read(otpSuccessHandoffProvider.notifier).state = true;
     try {
       final ok = await ref.read(authProvider.notifier).verifyOtp(
-            phone: _phone,
+            identifier: _phone,
             otp: otp,
             purpose: widget.resetMpin
                 ? AppConstants.otpPurposeResetMpin
@@ -290,7 +290,9 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           await _showSuccessAndGo(
             RouteConstants.mpinSetup,
             title: 'OTP Verified',
-            message: 'Your mobile number is verified. Create your new MPIN now.',
+            message: _phone.contains('@')
+                ? 'Your email address is verified. Create your new MPIN now.'
+                : 'Your mobile number is verified. Create your new MPIN now.',
             // Dito muna sa Verify OTP screen: 2 segundo ang dialog, tapos
             // deretso sa "Create Your MPIN".
             dialogDuration: const Duration(seconds: 2),
@@ -304,8 +306,12 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         // app, kaya iisa ang takbo ng dalawang pagkakataon — iisang pinagmulan
         // na lang (`resolvePostAuthDestination`) dahil ginagamit din ito ng MFA
         // screen.
+        // Ang MPIN screen ay may numero (hindi email) — iyon ang nakaimbak na
+        // `phone_number` ng account, at iyon din ang ginagamit ng MPIN setup.
+        final accountPhone =
+            ref.read(authStateProvider).user?.phoneNumber ?? _phone;
         final destination =
-            await resolvePostAuthDestination(ref, phone: _phone);
+            await resolvePostAuthDestination(ref, phone: accountPhone);
         if (!mounted) return;
         await _showSuccessAndGo(
           destination.location,
@@ -383,7 +389,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   Future<void> _resend() async {
     if (_secondsLeft > 0 || _lockSecondsLeft > 0) return;
     final ok = await ref.read(authProvider.notifier).sendOtp(
-          phone: _phone,
+          identifier: _phone,
           purpose: widget.resetMpin
               ? AppConstants.otpPurposeResetMpin
               : AppConstants.otpPurposeLogin,
@@ -400,14 +406,25 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         _attemptsUsed = 0;
       });
       _focusNodes[0].requestFocus();
-      context.showSnackBarAsToast(
-        const SnackBar(
-          content: Text(
-              'Code resent to your Gmail and SMS. Please check your inbox.'),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      // `pending` = nasa queue pa sa gateway phone. Huwag sabihing "resent" na
+      // parang naipadala na — maghihintay ang user ng code na wala pa.
+      if (ref.read(authProvider.notifier).lastOtpQueued) {
+        context.showToast(
+          'New code queued. It may take a moment to arrive.',
+        );
+      } else {
+        context.showSnackBarAsToast(
+          SnackBar(
+            content: Text(
+              _phone.contains('@')
+                  ? 'Code resent to your email address. Please check your inbox.'
+                  : 'Code resent to your mobile number by SMS.',
+            ),
+            backgroundColor: AppColors.success,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } else {
       final err = ref.read(authProvider).error;
       final lockSecs =
@@ -445,7 +462,12 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         body: Center(child: CircularProgressIndicator()),
       );
     }
-    final maskedPhone = _phone.length == 11
+    // Email (Gmail) ang identifier? Hindi ito minamask gaya ng numero — mas
+    // malinaw sa user kung saang email ipinadala ang code.
+    final isEmail = _phone.contains('@');
+    final maskedPhone = isEmail
+        ? _phone
+        : _phone.length == 11
         ? '${_phone.substring(0, 4)} \u2022\u2022\u2022\u2022 ${_phone.substring(7)}'
         : _phone;
     final canVerify = _otp.length == 6 && !_loading && _lockSecondsLeft == 0;
@@ -542,8 +564,12 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                                 // Phone info (no box)
                                                 Row(
                                                   children: [
-                                                    const Icon(
-                                                        Icons.phone_rounded,
+                                                    Icon(
+                                                        isEmail
+                                                            ? Icons
+                                                                .mail_outline_rounded
+                                                            : Icons
+                                                                .phone_rounded,
                                                         size: 14,
                                                         color:
                                                             AppColors.deepNavy),
@@ -1013,6 +1039,9 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                                     widget.resetMpin
                                         ? 'We sent a 6-digit code to reset '
                                             'your MPIN.'
+                                        : _phone.contains('@')
+                                        ? 'We sent a 6-digit code to your '
+                                            'email.'
                                         : 'We sent a 6-digit code to your '
                                             'phone.',
                                     textAlign: TextAlign.center,

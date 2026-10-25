@@ -44,6 +44,15 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   String? _mpinResetToken;
   String? get mpinResetToken => _mpinResetToken;
 
+  /// Totoong kalagayan ng huling OTP send ayon sa server:
+  /// `pending` = tinanggap ng SMS gateway pero nasa queue pa sa gateway phone
+  /// (hindi pa naipadala), `sent` = tinanggap na ng carrier, `null` = wala pang
+  /// send sa session na ito. Ito ang pinagbabatayan ng UI para hindi sabihing
+  /// "resent/sent" kung naka-queue pa lang ang code.
+  String? _lastOtpStatus;
+  String? get lastOtpStatus => _lastOtpStatus;
+  bool get lastOtpQueued => _lastOtpStatus == 'pending';
+
   /// True kapag dapat dumaan muna sa authenticator (TOTP) challenge ang
   /// bagong login.
   ///
@@ -206,13 +215,17 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// [identifier] ay PH mobile number (`09XXXXXXXXX`) O email (Gmail). Ang
+  /// server ang pumipili ng channel (SMS o email) at nagpapadala ng code.
   Future<bool> sendOtp({
-    required String phone,
+    required String identifier,
     String purpose = AppConstants.otpPurposeLogin,
   }) async {
     state = const AsyncLoading();
     try {
-      await _ds.sendOtp(phone: phone, purpose: purpose);
+      final res = await _ds.sendOtp(identifier: identifier, purpose: purpose);
+      final status = (res['sms_status'] as String?)?.trim().toLowerCase();
+      _lastOtpStatus = (status == null || status.isEmpty) ? null : status;
       state = const AsyncData(null);
       return true;
     } catch (e, s) {
@@ -349,7 +362,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   }
 
   Future<bool> verifyOtp({
-    required String phone,
+    required String identifier,
     required String otp,
     String purpose = AppConstants.otpPurposeLogin,
   }) async {
@@ -361,7 +374,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       // Claim this device's STABLE session id server-side (survives refresh).
       final sessionId = await _ensureSessionId();
       final res = await _ds.verifyOtp(
-        phone: phone,
+        identifier: identifier,
         otp: otp,
         sessionId: sessionId,
         purpose: purpose,
@@ -385,8 +398,12 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       // Tandaan ang numerong ito: sa susunod na pagbukas ng app, ito na ang
       // ipapakita sa itaas ng MPIN screen (hindi na kailangan ng OTP).
       await SecureStorage.saveLoginPhone(
-        (userData['phone_number'] as String?) ?? phone,
+        (userData['phone_number'] as String?) ?? identifier,
       );
+      // Ang identifier na inilagay (numero O email) — ito ang padadalhan ng
+      // "Reset MPIN" na OTP, kaya email pa rin ang gagamitin ng user na
+      // nag-login gamit ang Gmail.
+      await SecureStorage.saveLoginIdentifier(identifier);
       // Itinala rin kung KANINONG account ang naka-lock sa device na ito, para
       // kahit mawala ang session (expire / revoke / clearAll) ay hindi mawawala
       // ang MPIN screen na may numero para sa rider / lender.

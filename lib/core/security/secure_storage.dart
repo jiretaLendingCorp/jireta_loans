@@ -287,6 +287,38 @@ class SecureStorage {
     } catch (_) {}
   }
 
+  // ── MPIN login: ang identifier na inilagay sa login ───────────────────────
+  // Mobile number O email (Gmail) — ito ang pinadadalhan ng "Reset MPIN" na
+  // OTP. Kapareho ng [_loginPhoneKey], HINDI ito kasama sa [_allKeys]: kailangang
+  // manatili ito kahit mag-`clearAll` (idle lock / forced logout) para ang
+  // susunod na "Reset MPIN" ay sa parehong channel pa rin.
+  static const _loginIdentifierKey = 'login_identifier';
+
+  static Future<void> saveLoginIdentifier(String identifier) =>
+      _withQueue(() async {
+        final clean = identifier.trim();
+        if (clean.isEmpty) return;
+        try {
+          await _storage.write(key: _loginIdentifierKey, value: clean);
+        } catch (_) {}
+      });
+
+  static Future<String?> getLoginIdentifier() async {
+    try {
+      final raw = await _storage.read(key: _loginIdentifierKey);
+      if (raw == null || raw.trim().isEmpty) return null;
+      return raw.trim();
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<void> clearLoginIdentifier() async {
+    try {
+      await _storage.delete(key: _loginIdentifierKey);
+    } catch (_) {}
+  }
+
   // ── MPIN lock: sino ang huling naka-log in sa device na ito ───────────────
   // Kasama rin sa mga HINDI binubura ng [clearAll]. Ang MPIN ay lock ng device
   // para sa huling rider / lender account — hindi ito dapat mawala dahil lang

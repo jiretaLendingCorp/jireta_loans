@@ -68,19 +68,21 @@ class AuthRemoteDataSource {
     );
   }
 
+  /// [identifier] ay PH mobile number (`09XXXXXXXXX`) O email (Gmail). Ang
+  /// `auth-otp` ang nagpapasya kung SMS o email ang padadalhan ng code.
   Future<Map<String, dynamic>> sendOtp({
-    required String phone,
+    required String identifier,
     String purpose = AppConstants.otpPurposeLogin,
   }) async {
     final res = await _client.post(
       ApiEndpoints.authSendOtp,
-      data: {'phone_number': phone, 'purpose': purpose},
+      data: {'identifier': identifier, 'purpose': purpose},
     );
     return res.data as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> verifyOtp({
-    required String phone,
+    required String identifier,
     required String otp,
     String? sessionId,
     String purpose = AppConstants.otpPurposeLogin,
@@ -88,7 +90,7 @@ class AuthRemoteDataSource {
     final res = await _client.post(
       ApiEndpoints.authVerifyOtp,
       data: {
-        'phone_number': phone,
+        'identifier': identifier,
         'otp': otp,
         'purpose': purpose,
         if (sessionId != null && sessionId.isNotEmpty) 'session_id': sessionId,

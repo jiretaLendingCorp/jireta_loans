@@ -15,14 +15,17 @@ import { getAdminClient, getAnonClient } from '../_shared/db.ts';
 import {
   normalizePhMobile,
   sanitizeString,
+  validateEmail,
   validatePhone,
 } from '../_shared/validators.ts';
 import { sendSms, isMockSmsEnabled } from '../_shared/sms.ts';
+import { sendLoginOtpEmail, sendMpinResetOtpEmail } from '../_shared/email.ts';
 import {
   generateOtpCode,
   hashOtpCode,
   normalizeOtpPurpose,
   otpRejectionReason,
+  parseOtpIdentifier,
   resendCooldownRemaining,
   type OtpPurpose,
 } from '../_shared/otp.ts';
@@ -239,12 +242,26 @@ serve(async (req) => {
 // ── [moved from functions/auth-send-otp/index.ts] ───────────────────────────
 async function handleSendOtp(req: Request) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  // Normalize muna (09 / +63 / 63 / 9...) bago i-validate at i-compare sa DB.
-  const phone = normalizePhMobile(sanitizeString(String(body['phone_number'] ?? '')));
+  // Maaaring PH mobile number O email (hal. Gmail) ang identifier.
+  // `identifier` ang bagong field; `phone_number` / `email` ay para sa lumang
+  // client na hindi pa updated.
+  // Isang field lang sa app ("Mobile Number or Email") — dito hinihiwalay base
+  // sa `@`; ang numero ay nino-normalize sa `09XXXXXXXXX`.
+  const identifier = parseOtpIdentifier(
+    sanitizeString(
+      String(body['identifier'] ?? body['phone_number'] ?? body['email'] ?? ''),
+    ),
+  );
+  const emailInput = identifier.email;
+  let phone = identifier.phone;
   const purpose: OtpPurpose | null = normalizeOtpPurpose(body['purpose']);
   const ip = clientIp(req);
 
-  if (!validatePhone(phone)) {
+  if (emailInput !== '') {
+    if (!validateEmail(emailInput)) {
+      return errorResponse('Enter a valid email address', 400, 'VALIDATION_ERROR');
+    }
+  } else if (!validatePhone(phone)) {
     return errorResponse(
       'Invalid Philippine phone number (09XXXXXXXXX)',
       400,
@@ -254,15 +271,35 @@ async function handleSendOtp(req: Request) {
   if (!purpose) return errorResponse('Invalid OTP purpose', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
+  const viaEmail = emailInput !== '';
 
   // Generic na sagot para sa reset flow: hindi nito sinasabi kung may account
   // ba ang numero (enumeration protection). Kung walang account, walang SMS na
   // ipapadala, at ang verify ay bibigo rin nang generic.
-  const sentResponse = () =>
+  // Iniulat ang TUNAY na kalagayan ng send, hindi lang "tinanggap ng API".
+  // `pending` = nasa queue pa sa TextBee gateway phone — hindi pa naipadala at
+  // maaaring maantala (offline/asleep ang phone). Dating laging "OTP sent
+  // successfully" kahit `pending`, kaya naghihintay ang user ng code na wala
+  // pang lumalabas sa gateway phone.
+  //
+  // Ang `sms_status` ay ISINASAMA lang sa login flow. Sa reset flow, hayag dapat
+  // na magkapareho ang sagot para sa may account at walang account, kaya hindi
+  // ito idinadagdag doon.
+  const sentResponse = (smsStatus?: 'sent' | 'pending') =>
     jsonResponse({
       message: purpose === MPIN_RESET_PURPOSE
-        ? 'If this mobile number is registered, we sent a verification code.'
+        ? `If this ${viaEmail ? 'email address' : 'mobile number'} is registered, we sent a verification code.`
+        : viaEmail
+        ? 'We sent a verification code to your email address.'
+        : smsStatus === 'pending'
+        ? 'Your code is on its way. It may take a moment to arrive.'
         : 'OTP sent successfully',
+      ...(purpose !== MPIN_RESET_PURPOSE && smsStatus
+        ? { sms_status: smsStatus }
+        : {}),
+      // Ang app ay nagpapakita ng "check your Gmail" na kopya kapag email ang
+      // channel — hindi ito ang SMS queue (`sms_status`).
+      ...(viaEmail ? { channel: 'email' } : {}),
       expires_in: OTP_EXPIRY_MINUTES * 60,
       resend_in: OTP_RESEND_COOLDOWN_SECONDS,
     });
@@ -291,12 +328,41 @@ async function handleSendOtp(req: Request) {
     );
   }
 
+  // ── Email identifier → account phone ────────────────────────────────────
+  // Ang OTP ay naka-key pa rin sa numero ng account (`otp_codes.phone_number`
+  // at ang hash salt), kaya ang email ay binabago lang sa numerong iyon — ang
+  // VERIFY sa ibaba ay gumagawa rin ng parehong resolution.
+  //
+  // Sadyang HINDI ito nagbibigay-daan sa self-registration: kailangan pa ring
+  // may existing na account na may ganitong email (ang numero ang nagpapatunay
+  // ng account sa unang login).
+  if (viaEmail) {
+    const { data: emailAccount } = await db
+      .from('users')
+      .select('phone_number')
+      .eq('email', emailInput)
+      .maybeSingle();
+    const accountPhone = normalizePhMobile(emailAccount?.phone_number ?? '');
+    if (!emailAccount || accountPhone === '') {
+      // Generic pa rin sa reset flow (enumeration protection), pero malinaw sa
+      // login: kung hindi sasabihin, maghihintay ang user ng code na wala namang
+      // ipapadala.
+      if (purpose === MPIN_RESET_PURPOSE) return sentResponse();
+      return errorResponse(
+        'No Jireta Loans account uses this email address.',
+        404,
+        'ACCOUNT_NOT_FOUND',
+      );
+    }
+    phone = accountPhone;
+  }
+
   // Lenders may self-register via OTP: an unregistered phone is allowed to
   // request an OTP. Riders must be registered by the head manager first, so
   // once a phone IS registered we only allow OTP for rider/lender roles.
   const { data: userRow } = await db
     .from('users')
-    .select('id, account_status, roles!users_role_id_fkey(name)')
+    .select('id, account_status, first_name, last_name, email, roles!users_role_id_fkey(name)')
     .eq('phone_number', phone)
     .maybeSingle();
   const user = singleWithObjectEmbeds(userRow);
@@ -414,6 +480,62 @@ async function handleSendOtp(req: Request) {
     );
   }
 
+  // ── Email delivery (kapag email ang identifier) ────────────────────────
+  // Resend ang nagpapadala ng code sa Gmail/email. Kapag pumalya (kulang ang
+  // RESEND_API_KEY, unverified sender domain, rate limit), BINUBURA ang code
+  // para hindi ito maiwang valid — at para makapag-retry agad ang user.
+  if (viaEmail) {
+    const recipientName = `${user?.first_name ?? ''} ${user?.last_name ?? ''}`
+      .trim();
+    const mailResult = purpose === MPIN_RESET_PURPOSE
+      ? await sendMpinResetOtpEmail({
+        to: emailInput,
+        otp: code,
+        recipientName: recipientName === '' ? undefined : recipientName,
+      })
+      : await sendLoginOtpEmail({
+        to: emailInput,
+        otp: code,
+        recipientName: recipientName === '' ? undefined : recipientName,
+      });
+
+    if (!mailResult.ok) {
+      await db
+        .from('otp_codes')
+        .delete()
+        .eq('phone_number', phone)
+        .eq('purpose', purpose)
+        .eq('used', false);
+      await recordSecurityEvent({
+        eventType: 'otp_email_failed',
+        key: `otp:phone:${phone}`,
+        userId,
+        ipAddress: ip,
+        detail: {
+          kind: mailResult.kind ?? null,
+          provider_status: mailResult.status ?? null,
+        },
+      });
+      const rateLimited = mailResult.kind === 'rate_limited';
+      return errorResponse(
+        rateLimited
+          ? 'The email service is temporarily rate limited. Please try again in a few minutes.'
+          : 'We could not send the verification code to that email address. Please try again.',
+        rateLimited ? 429 : 502,
+        rateLimited ? 'EMAIL_RATE_LIMITED' : 'EMAIL_FAILED',
+      );
+    }
+
+    if (userId) {
+      await db.from('auth_logs').insert({
+        user_id: userId,
+        event_type: 'otp_sent',
+        ip_address: ip,
+      });
+    }
+    return sentResponse();
+  }
+
   // Semaphore's dedicated OTP route: ang API ang naglalagay ng code sa
   // `{otp}` placeholder. Sa TextBee, ang `_shared/sms.ts` ang nagpapalit ng
   // placeholder bago ipadala. Ang buong message (may code) ay HINDI nilo-log
@@ -473,23 +595,61 @@ async function handleSendOtp(req: Request) {
     });
   }
 
-  return sentResponse();
+  // `sent` lang kapag tinanggap na ng carrier (galing sa status check); kapag
+  // naka-queue pa rin, `pending` ang iniuulat para hindi magkunwari ang app na
+  // naipadala na ang code.
+  return sentResponse(smsResult.status === 'sent' ? 'sent' : 'pending');
 }
 
 // ── [moved from functions/auth-verify-otp/index.ts] ─────────────────────────
 async function handleVerifyOtp(req: Request) {
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
-  const phone = normalizePhMobile(sanitizeString(String(body['phone_number'] ?? '')));
+  // Kapareho ng send-otp: mobile number O email (hal. Gmail) ang identifier.
+  const rawIdentifier = sanitizeString(
+    String(body['identifier'] ?? body['phone_number'] ?? body['email'] ?? ''),
+  );
+  let phone = normalizePhMobile(rawIdentifier);
+  const emailInput = rawIdentifier.includes('@')
+    ? rawIdentifier.trim().toLowerCase()
+    : '';
   const otpCode = sanitizeString(String(body['otp'] ?? body['code'] ?? ''));
   const bodySessionId = body['session_id'];
   const purpose: OtpPurpose | null = normalizeOtpPurpose(body['purpose']);
   const ip = clientIp(req);
 
-  if (!validatePhone(phone)) return errorResponse('Invalid phone number', 400, 'VALIDATION_ERROR');
+  if (emailInput !== '') {
+    if (!validateEmail(emailInput)) {
+      return errorResponse('Enter a valid email address', 400, 'VALIDATION_ERROR');
+    }
+  } else if (!validatePhone(phone)) {
+    return errorResponse('Invalid phone number', 400, 'VALIDATION_ERROR');
+  }
   if (!/^\d{6}$/.test(otpCode)) return errorResponse('OTP must be 6 digits', 400, 'VALIDATION_ERROR');
   if (!purpose) return errorResponse('Invalid OTP purpose', 400, 'VALIDATION_ERROR');
 
   const db = getAdminClient();
+
+  // ── Email identifier → account phone ────────────────────────────────────
+  // Ang OTP row at ang lockout ay naka-key sa NUMERO ng account (gayon din ang
+  // hash salt sa send-otp), kaya dito lang ito iko-convert. Kapag walang
+  // account ang email, generic na sagot — walang dapat ibigay na clue kung
+  // registered ang address o hindi.
+  if (emailInput !== '') {
+    const { data: emailAccount } = await db
+      .from('users')
+      .select('phone_number')
+      .eq('email', emailInput)
+      .maybeSingle();
+    const accountPhone = normalizePhMobile(emailAccount?.phone_number ?? '');
+    if (!emailAccount || accountPhone === '') {
+      return errorResponse(
+        'Invalid or expired code. Please request a new one.',
+        401,
+        'INVALID_OTP',
+      );
+    }
+    phone = accountPhone;
+  }
 
   // ── Persistent lockout check ────────────────────────────────────────────
   // Server-side, survives app restarts / fresh OTP requests. On a wrong code

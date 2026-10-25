@@ -533,6 +533,21 @@ deno_version = 2
 #                          the SMS (GET /api/v1/gateway/devices). Kapag wala, ang
 #                          default device (o ang enabled device na pinakahuling
 #                          may heartbeat) ang gagamitin ng TextBee.
+#                          HINDI ito ang numero ng recipient — ang recipients ay
+#                          ang aktwal na numero na inilagay ng lender/rider, at
+#                          hindi kailangan i-register bilang device ang mga iyon.
+#   TEXTBEE_STATUS_CHECK_MS — optional (default 1200, `0` = off). Gaano katagal
+#                          titingnan ang GET /api/v1/gateway/messages?smsBatchId=...
+#                          pagkatapos ng send, HARD DEADLINE (kasama ang sleep at
+#                          fetch timeout, kaya hindi na lumalampas sa budget).
+#                          Kailangan ito dahil `200` ay "queued" lang: kapag
+#                          `failed` sa gateway phone (walang load ang SIM, radio
+#                          off, device/carrier limit, walang SMS permission) dito
+#                          lang lumalabas ang `errorCode` — at 502 SMS_FAILED ang
+#                          sagot. Kapag `pending` pa rin pagkatapos ng budget,
+#                          `sms_status: "pending"` at "Your code is on its way" ang
+#                          sagot (hindi "OTP sent successfully"), dahil ang phone
+#                          pa lang ang may hawak ng mensahe.
 #   SMS_PROVIDER         — optional. `semaphore` forces the legacy Semaphore
 #                          sender; default picks TextBee when TEXTBEE_API_KEY is
 #                          set, otherwise Semaphore.

@@ -14,14 +14,15 @@ class AuthRepositoryImpl implements IAuthRepository {
       _ds.login(email: email, password: password);
 
   @override
-  Future<void> sendOtp({required String phone}) => _ds.sendOtp(phone: phone);
+  Future<void> sendOtp({required String identifier}) =>
+      _ds.sendOtp(identifier: identifier);
 
   @override
   Future<Map<String, dynamic>> verifyOtp({
-    required String phone,
+    required String identifier,
     required String otp,
   }) =>
-      _ds.verifyOtp(phone: phone, otp: otp);
+      _ds.verifyOtp(identifier: identifier, otp: otp);
 
   @override
   Future<void> forceChangePassword({

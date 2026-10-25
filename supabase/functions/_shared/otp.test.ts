@@ -14,6 +14,7 @@ import {
   isOtpPurpose,
   normalizeOtpPurpose,
   otpRejectionReason,
+  parseOtpIdentifier,
   resendCooldownRemaining,
 } from "./otp.ts";
 
@@ -40,6 +41,31 @@ Deno.test("normalizeOtpPurpose defaults to login and rejects unknown values", ()
   assert(isOtpPurpose("login"));
   assert(isOtpPurpose("reset_mpin"));
   assert(!isOtpPurpose("register"));
+});
+
+Deno.test("parseOtpIdentifier splits phone and email identifiers", () => {
+  assertEquals(parseOtpIdentifier("09171234567"), {
+    phone: "09171234567",
+    email: "",
+  });
+  assertEquals(parseOtpIdentifier("+639171234567"), {
+    phone: "09171234567",
+    email: "",
+  });
+  assertEquals(parseOtpIdentifier("9171234567"), {
+    phone: "09171234567",
+    email: "",
+  });
+  // Email: trimmed at lowercased — pareho ng DB trigger ng users.email.
+  assertEquals(parseOtpIdentifier("  Juan@Gmail.com "), {
+    phone: "",
+    email: "juan@gmail.com",
+  });
+  // Walang `@` at hindi mobile number ang hugis → walang channel (caller ang
+  // magsasabi ng validation error).
+  assertEquals(parseOtpIdentifier("juan"), { phone: "", email: "" });
+  assertEquals(parseOtpIdentifier(""), { phone: "", email: "" });
+  assertEquals(parseOtpIdentifier(null), { phone: "", email: "" });
 });
 
 Deno.test("generateOtpCode produces 6-digit codes from a secure RNG", () => {

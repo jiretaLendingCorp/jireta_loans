@@ -29,7 +29,7 @@
 //     redacted na `logMessage` para sa `sms_logs`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { getAdminClient } from './db.ts';
-import { sendTextBeeSms } from './textbee.ts';
+import { sendTextBeeSms, waitForTextBeeBatchOutcome } from './textbee.ts';
 
 const SEMAPHORE_MESSAGES_URL = 'https://api.semaphore.co/api/v4/messages';
 const SEMAPHORE_OTP_URL = 'https://api.semaphore.co/api/v4/otp';
@@ -61,6 +61,27 @@ export type SmsSendResult = {
 
 export function isMockSmsEnabled(): boolean {
   return Deno.env.get('USE_MOCK_SMS') === 'true';
+}
+
+/**
+ * Gaano katagal titingnan ang TUNAY na status ng batch pagkatapos ng send.
+ *
+ * Mahalaga ito dahil `200` ng TextBee ay "queued" lang: ang Android gateway
+ * phone pa ang nagpapadala, at kapag ang SIM/device/carrier ang pumalya, dito
+ * lang lumalabas ang `failed` + `errorCode`.
+ *
+ * Maikli ito (default 1200ms, hard deadline) dahil ang sagot ay
+ * hindi na kailangang hintayin ang `sent` ng carrier: kapag `pending` pa rin,
+ * ang caller ay nag-uulat ng "on the way" — hindi "sent" — at hindi na
+ * pinaghihintay ang user ng ilang segundo para sa parehong sagot.
+ *
+ * `0` = patayin ang pagtingin (bumalik sa dating behavior).
+ */
+function textBeeStatusCheckMs(): number {
+  const raw = (Deno.env.get('TEXTBEE_STATUS_CHECK_MS') ?? '').trim();
+  const parsed = parseInt(raw, 10);
+  if (raw === '') return 1200;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1200;
 }
 
 /**
@@ -294,12 +315,61 @@ export async function sendSms(params: {
       ? params.message.replace('{otp}', params.otpCode)
       : params.message;
 
-    const result = await sendTextBeeSms({
+    const accepted = await sendTextBeeSms({
       apiKey: textBeeApiKey,
       to: params.to,
       message,
       deviceId: Deno.env.get('TEXTBEE_DEVICE_ID'),
     });
+
+    // ── Tunay na status ng batch ─────────────────────────────────────────
+    // Tinanggap ng API ≠ naipadala ng phone. Kapag `failed` ang mensahe sa
+    // device (walang load ang SIM, sarado ang radio, naabot ang carrier/device
+    // limit, kulang ang SMS permission), HINDI ito ipapasa bilang "sent" —
+    // failure ito para ma-retry ng user at makita sa logs ang errorCode.
+    let result = accepted;
+    if (accepted.accepted && accepted.gatewayReference) {
+      const report = await waitForTextBeeBatchOutcome({
+        apiKey: textBeeApiKey,
+        smsBatchId: accepted.gatewayReference,
+        timeoutMs: textBeeStatusCheckMs(),
+      });
+      if (report && report.total > 0) {
+        const failure = report.messages.find((m) => m.status === 'failed');
+        if (report.anyFailed && report.sentCount === 0) {
+          const detail = [
+            failure?.errorCode ? `device_error_code=${failure.errorCode}` : '',
+            failure?.errorMessage ?? '',
+          ].filter((part) => part !== '').join(', ');
+          console.error(
+            `[sms] TextBee batch ${accepted.gatewayReference} failed on the gateway phone (${
+              detail || 'no detail'
+            })`,
+          );
+          result = {
+            accepted: false,
+            status: 'failed',
+            gatewayReference: accepted.gatewayReference,
+            errorCode: 'TEXTBEE_SEND_FAILED',
+            providerDetail: redactSensitiveDigits(
+              detail || 'message failed on the gateway phone',
+            ),
+          };
+        } else if (report.allSent) {
+          // Carrier accepted it — mas matibay na katotohanan kaysa `pending`.
+          result = { ...accepted, status: 'sent' };
+        } else if (report.pendingCount > 0) {
+          // Nasa queue pa lang: hindi pa naipadala ng gateway phone (offline,
+          // tulog, o naantala ang push). HINDI natin ito sasabihing "sent" —
+          // `pending` ang ibabalik, at ito ang ebidensya sa logs kung gaano
+          // katagal nang naka-queue ang OTP.
+          console.info(
+            `[sms] TextBee batch ${accepted.gatewayReference} still pending (${
+              report.pendingCount}/${report.total}) — queued on the gateway phone`,
+          );
+        }
+      }
+    }
 
     await recordSmsLog({
       ...params,

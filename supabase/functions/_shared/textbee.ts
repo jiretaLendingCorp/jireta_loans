@@ -25,7 +25,19 @@ import type { SmsSendResult } from './sms.ts';
 export const TEXTBEE_SEND_URL =
   'https://api.textbee.dev/api/v1/gateway/send-sms';
 
+/**
+ * Message history — ang TANGING paraan para malaman kung ano talaga ang
+ * nangyari sa isang batch. `200` sa send ay "queued" lang; dito lumalabas ang
+ * `sent` / `delivered` / `failed` at ang `errorCode` ng Android device.
+ * Docs: “Delivery status and message states”.
+ */
+export const TEXTBEE_MESSAGES_URL =
+  'https://api.textbee.dev/api/v1/gateway/messages';
+
 const TEXTBEE_TIMEOUT_MS = 10_000;
+const TEXTBEE_STATUS_TIMEOUT_MS = 5_000;
+/** Agwat ng bounded na pagtingin sa status pagkatapos ng send (ms). */
+const TEXTBEE_STATUS_POLL_INTERVAL_MS = 500;
 
 /**
  * Inihahanda ang numero sa international format na kailangan ng TextBee.
@@ -64,6 +76,17 @@ export function buildTextBeePayload(params: {
   const deviceId = (params.deviceId ?? '').trim();
   if (deviceId !== '') payload.deviceId = deviceId;
   return payload;
+}
+
+/**
+ * `+639171234567` → `+6391*****567`. Ginagamit sa logs/status report para may
+ * matukoy kung aling numero ang pumalya nang hindi nagsusulat ng buong numero.
+ */
+export function maskTextBeeNumber(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  if (digits.length < 8) return null;
+  return `+${digits.slice(0, 4)}*****${digits.slice(-3)}`;
 }
 
 /** Tugma sa `redactSensitiveDigits` ng sms.ts; lokal para walang import cycle. */
@@ -200,6 +223,169 @@ export function parseTextBeeSendResponse(
   };
 }
 
+export type TextBeeMessageState = {
+  status: string;
+  errorCode: string | null;
+  errorMessage: string | null;
+  /** Naka-mask — hindi buong numero sa logs. */
+  recipient: string | null;
+  simSubscriptionId: string | null;
+};
+
+/** Kalagayan ng isang batch, galing sa `GET /gateway/messages`. */
+export type TextBeeBatchOutcome = {
+  total: number;
+  /** `sent` + `delivered` — tinanggap ng carrier. */
+  sentCount: number;
+  failedCount: number;
+  pendingCount: number;
+  /** Lahat ng mensahe ay `sent`/`delivered`. */
+  allSent: boolean;
+  /** May kahit isang `failed` — hindi ito delivery failure ng app, failure ito
+   * ng device/carrier, at ito ang mahalagang ebidensya. */
+  anyFailed: boolean;
+  messages: TextBeeMessageState[];
+};
+
+/**
+ * Isinasalin ang `GET /gateway/messages?smsBatchId=...` na sagot sa kalagayan
+ * ng batch. Pure function: walang network, at naka-mask ang mga numero.
+ * `null` kapag hindi kilala ang hugis ng sagot.
+ */
+export function parseTextBeeMessageReport(
+  body: unknown,
+): TextBeeBatchOutcome | null {
+  if (body === null || typeof body !== 'object' || Array.isArray(body)) {
+    return null;
+  }
+  const data = (body as Record<string, unknown>).data;
+  if (!Array.isArray(data)) return null;
+
+  const messages: TextBeeMessageState[] = [];
+  for (const item of data) {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+      return null;
+    }
+    const record = item as Record<string, unknown>;
+    const status = firstString(record.status).toLowerCase();
+    const errorMessage = firstString(record.errorMessage);
+    messages.push({
+      status: status === '' ? 'unknown' : status,
+      errorCode: firstString(record.errorCode) || null,
+      errorMessage: errorMessage === '' ? null : redactDigits(errorMessage),
+      recipient: maskTextBeeNumber(record.recipient),
+      simSubscriptionId: record.simSubscriptionId === undefined ||
+          record.simSubscriptionId === null
+        ? null
+        : String(record.simSubscriptionId),
+    });
+  }
+
+  const count = (wanted: string[]) =>
+    messages.filter((m) => wanted.includes(m.status)).length;
+  const sentCount = count(['sent', 'delivered']);
+  const failedCount = count(['failed']);
+  const pendingCount = count(['pending', 'dispatched']);
+
+  return {
+    total: messages.length,
+    sentCount,
+    failedCount,
+    pendingCount,
+    allSent: messages.length > 0 && sentCount === messages.length,
+    anyFailed: failedCount > 0,
+    messages,
+  };
+}
+
+/**
+ * Binabasa ang tunay na status ng isang batch. `null` kapag hindi mabasa
+ * (404, hindi 2xx, network) — fail-open: hindi nito gagawing "failed" ang
+ * isang send na tinanggap ng API.
+ *
+ * `timeoutMs` — kapag tinatawag mula sa bounded na paghihintay, ito ang
+ * natitirang budget ng buong request (hindi na lalampas pa sa 5s na default).
+ */
+export async function fetchTextBeeMessageReport(params: {
+  apiKey: string;
+  smsBatchId: string;
+  timeoutMs?: number;
+}): Promise<TextBeeBatchOutcome | null> {
+  const batch = params.smsBatchId.trim();
+  if (batch === '') return null;
+
+  try {
+    const url = `${TEXTBEE_MESSAGES_URL}?smsBatchId=${
+      encodeURIComponent(batch)
+    }&limit=100`;
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: { 'x-api-key': params.apiKey },
+      signal: AbortSignal.timeout(
+        Math.max(1, params.timeoutMs ?? TEXTBEE_STATUS_TIMEOUT_MS),
+      ),
+    });
+    if (!res.ok) {
+      // 404 = wala sa account/history ang batch. Hindi ito delivery failure.
+      console.warn(
+        `[sms] TextBee status check unavailable (http=${res.status}, batch=${batch})`,
+      );
+      return null;
+    }
+    const body = await res.json().catch(() => null);
+    return parseTextBeeMessageReport(body);
+  } catch (_) {
+    console.warn('[sms] TextBee status check failed: network error');
+    return null;
+  }
+}
+
+/**
+ * Bounded na paghihintay sa resulta ng batch — humihinto agad kapag
+ * `sent`/`delivered` ang lahat o may `failed`, o kapag naubos ang `timeoutMs`.
+ *
+ * Ito ang nagsasabi kung ang problema ay (a) nasa device/SIM/carrier (`failed`
+ * + `errorCode`) o (b) nasa daan pa lang (`pending`) — bagay na hindi
+ * maipapakita ng `200` ng send.
+ */
+export async function waitForTextBeeBatchOutcome(params: {
+  apiKey: string;
+  smsBatchId: string;
+  timeoutMs: number;
+}): Promise<TextBeeBatchOutcome | null> {
+  if (params.timeoutMs <= 0) return null;
+
+  // HARD DEADLINE: kasama sa `timeoutMs` ang sleep at ang bawat fetch. Dating
+  // tig-5s ang timeout ng fetch at pagkatapos lang nito sinusuri ang oras, kaya
+  // ang 1500ms na budget ay nagiging ~6.5s sa OTP request — dagdag na
+  // paghihintay sa user na wala namang nakukuhang bagong impormasyon kapag
+  // naka-queue lang ang mensahe sa gateway phone.
+  const deadline = Date.now() + params.timeoutMs;
+  let last: TextBeeBatchOutcome | null = null;
+
+  while (true) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return last;
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(TEXTBEE_STATUS_POLL_INTERVAL_MS, remaining))
+    );
+
+    const budget = deadline - Date.now();
+    if (budget <= 0) return last;
+
+    const report = await fetchTextBeeMessageReport({
+      apiKey: params.apiKey,
+      smsBatchId: params.smsBatchId,
+      timeoutMs: budget,
+    });
+    if (report && report.total > 0) {
+      last = report;
+      if (report.allSent || report.anyFailed) return report;
+    }
+  }
+}
+
 /**
  * Ipinapadala ang SMS sa TextBee. Hindi ito nagbabato — isang
  * `SmsSendResult` ang isinasagot para pareho ang handling ng Semaphore.
@@ -239,6 +425,20 @@ export async function sendTextBeeSms(params: {
 
     const body = await res.json().catch(() => null);
     const result = parseTextBeeSendResponse(res.status, body);
+
+    if (result.accepted) {
+      // Ebidensya ng bawat send, walang key/numero/code: HTTP status, batch id
+      // at bilang ng recipient. Ito ang hinahanap kapag may "hindi dumating".
+      const data = textBeeData(body);
+      const recipientCount = typeof data?.recipientCount === 'number'
+        ? data.recipientCount
+        : 1;
+      console.info(
+        `[sms] TextBee accepted (http=${res.status}, batch=${
+          result.gatewayReference ?? 'none'
+        }, recipients=${recipientCount})`,
+      );
+    }
 
     if (!result.accepted) {
       // Walang API key, walang recipient, at walang OTP sa log.

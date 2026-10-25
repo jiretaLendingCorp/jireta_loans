@@ -128,7 +128,7 @@ class _MpinSettingsCardState extends ConsumerState<MpinSettingsCard> {
     }
 
     final ok = await ref.read(authProvider.notifier).sendOtp(
-          phone: phone,
+          identifier: phone,
           purpose: AppConstants.otpPurposeResetMpin,
         );
     if (!mounted) return;

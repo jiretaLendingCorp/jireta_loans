@@ -2,9 +2,10 @@
 abstract class IAuthRepository {
   Future<Map<String, dynamic>> login(
       {required String email, required String password});
-  Future<void> sendOtp({required String phone});
+  /// [identifier] — PH mobile number O email (Gmail) na padadalhan ng OTP.
+  Future<void> sendOtp({required String identifier});
   Future<Map<String, dynamic>> verifyOtp(
-      {required String phone, required String otp});
+      {required String identifier, required String otp});
   Future<void> forceChangePassword(
       {required String currentPassword, required String newPassword});
 

@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:mask_text_input_formatter/mask_text_input_formatter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/constants/app_constants.dart';
@@ -14,6 +13,7 @@ import '../../../../core/security/mpin_login_gate.dart';
 import '../../../../core/security/mpin_service.dart';
 import '../../../../core/security/secure_storage.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/utils/validators.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/dialogs/loading_dialog.dart';
@@ -49,13 +49,10 @@ class MobileLoginScreen extends ConsumerStatefulWidget {
 
 class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     with SingleTickerProviderStateMixin {
-  final _phoneCtrl = TextEditingController();
-  // Lokal na 10-digit na numero (9XX XXX XXXX). Ang `+63` ay prefix na lang sa
-  // field — hindi na kailangang i-type ng user ang `0` o ang `+63`.
-  final _phoneMask = MaskTextInputFormatter(
-    mask: '### ### ####',
-    filter: {'#': RegExp(r'[0-9]')},
-  );
+  /// Isang field lang para sa mobile number O email (hal. Gmail). Ang numero ay
+  /// awtomatikong naka-format (`912 345 6789`); ang email ay malayang ita-type
+  /// (may `@`) at doon ipapadala ng server ang OTP.
+  final _identifierCtrl = TextEditingController();
 
   /// TEMP: hidden for now — flip back to `true` to restore the
   /// "or continue with" divider and the "Continue with Google" button.
@@ -86,6 +83,16 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   /// Auto-hide ng validation message (hal. "Incorrect MPIN") — 3 segundo lang.
   Timer? _mpinErrorTimer;
+
+  /// Natitirang segundo bago payagan ng server ang BAGONG code para sa reset.
+  ///
+  /// Galing ito sa `retry_after_seconds` kapag pinindot ang "Reset MPIN" habang
+  /// naka-cooldown pa ang OTP na ipinadala sa pag-login (ang cooldown ay per
+  /// numero, kahit anong purpose — `auth-otp`). Sadyang HIWALAY sa
+  /// `_mpinError`: ang cooldown ay HINDI maling MPIN, kaya hindi ito dapat
+  /// magpula ng 4 na tuldok na parang tinanggihan ang naipasok.
+  int _resetCooldownSeconds = 0;
+  Timer? _resetCooldownTimer;
 
   /// Tagal bago kusang mawala ang mensahe ng maling MPIN.
   static const _mpinErrorDuration = Duration(seconds: 3);
@@ -139,11 +146,12 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   @override
   void dispose() {
-    _phoneCtrl.dispose();
+    _identifierCtrl.dispose();
     _fadeController.dispose();
     _lockTimer?.cancel();
     _mpinLockTimer?.cancel();
     _mpinErrorTimer?.cancel();
+    _resetCooldownTimer?.cancel();
     _padController.dispose();
     _lifecycleListener.dispose();
     super.dispose();
@@ -320,6 +328,26 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     _mpinErrorTimer = null;
   }
 
+  /// Binibilang pababa ang natitirang cooldown ng OTP para sa reset. Kapag
+  /// umabot sa 0, nawawala ang mensahe at muling naka-enable ang "Reset MPIN"
+  /// — walang kailangang i-refresh o i-back ng user.
+  void _startResetCooldown(int seconds) {
+    _resetCooldownTimer?.cancel();
+    setState(() => _resetCooldownSeconds = seconds.clamp(1, 600));
+    _resetCooldownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      if (_resetCooldownSeconds <= 1) {
+        t.cancel();
+        setState(() => _resetCooldownSeconds = 0);
+      } else {
+        setState(() => _resetCooldownSeconds--);
+      }
+    });
+  }
+
   void _startMpinLock(Duration remaining) {
     _mpinLockTimer?.cancel();
     setState(() => _mpinLockSeconds = remaining.inSeconds.clamp(1, 600));
@@ -360,6 +388,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     // `verifyOtp` ang parehong numero at owner).
     unawaited(SecureStorage.clearLoginPhone());
     unawaited(SecureStorage.clearLoginOwner());
+    // Huwag manatili ang identifier (lalo na ang email) ng lumang account —
+    // baka doon mapunta ang "Reset MPIN" ng susunod na mag-login.
+    unawaited(SecureStorage.clearLoginIdentifier());
   }
 
   /// Nagpapadala ng bagong OTP (purpose=reset_mpin) at dinadala ang user sa
@@ -374,10 +405,19 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   /// may valid na reset token.
   Future<void> _resetMpin() async {
     final phone = _mpinPhone;
-    if (_mpinBusy || phone == null || phone.isEmpty) return;
+    if (_mpinBusy || _resetCooldownSeconds > 0) return;
+    if (phone == null || phone.isEmpty) return;
+    // Kung email (Gmail) ang ginamit sa login, doon ipapadala ang reset code —
+    // hindi sa numero. Fallback sa numero kapag wala pang natandaang identifier.
+    final identifier = (await SecureStorage.getLoginIdentifier()) ?? phone;
+    if (!mounted) return;
+    // Bagong kahilingan — luma na ang nakaraang countdown (magbabalik ito kung
+    // naka-cooldown pa rin ang server, gamit ang bagong sagot nito).
+    _resetCooldownTimer?.cancel();
     setState(() {
       _mpinBusy = true;
       _mpinError = null;
+      _resetCooldownSeconds = 0;
     });
     // Naka-center na loading modal habang nagsasagawa ng bagong OTP.
     final hideLoading = showLoadingOverlay(context);
@@ -385,46 +425,92 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     // hindi naipadala (resend cooldown / SMS failure / network) — dito pa lang
     // makikita ang tamang error, imbes na maghintay ng code na hindi darating.
     final sent = await ref.read(authProvider.notifier).sendOtp(
-          phone: phone,
+          identifier: identifier,
           purpose: AppConstants.otpPurposeResetMpin,
         );
     hideLoading();
     if (!mounted) return;
     setState(() => _mpinBusy = false);
     if (!sent) {
+      final notifier = ref.read(authProvider.notifier);
       final err = ref.read(authProvider).error;
-      setState(() {
-        _mpinError =
-            ref.read(authProvider.notifier).extractErrorMessage(err ?? '') ??
-                'We could not send a verification code. Please try again.';
-      });
+      // Naka-cooldown pa ang OTP ng numerong ito (madalas: kaka-send lang ng
+      // login OTP) → hindi ito maling MPIN. Countdown sa "Reset MPIN" ang
+      // ipakita, at neutral na mensahe — hindi pulang error na hindi mawala.
+      final wait = notifier.extractOtpLockoutSeconds(err ?? '');
+      if (wait != null && wait > 0) {
+        _startResetCooldown(wait);
+        return;
+      }
+      // Iba pang dahilan (SMS/email failure, network): toast — kusang nawawala,
+      // at hindi nag-iiwan ng pulang tuldok sa MPIN screen.
+      _showError(
+        notifier.extractErrorMessage(err ?? '') ??
+            'We could not send a verification code. Please try again.',
+      );
       return;
     }
     // Sariling URI ang reset flow — `/reset-mpin/verify-otp?s=<token>` — kaya
     // kitang iba ito sa ordinaryong login OTP. Opaque na token lang ang nasa
     // URL; nasa secure storage ang numero (security: huwag ilagay ang numero
     // sa address bar / browser history).
-    final sessionToken = await SecureStorage.createResetOtpSession(phone);
+    final sessionToken =
+        await SecureStorage.createResetOtpSession(identifier);
     if (!mounted) return;
     context.go(
       Uri(
         path: RouteConstants.resetMpinOtpVerify,
         queryParameters: {'s': sessionToken},
       ).toString(),
-      extra: OtpFlowArgs(phone: phone, resetMpin: true),
+      extra: OtpFlowArgs(phone: identifier, resetMpin: true),
     );
   }
 
-  /// Ang lokal na 10-digit na naipasok (hal. `9123456789`).
-  String get _rawPhone => _phoneMask.getUnmaskedText();
+  /// Email ba ang nilalagay ng user? (may `@` o titik) — dito nakabatay ang
+  /// prefix icon, hint, at kung email o SMS ang hihingin sa server.
+  bool get _isEmailInput =>
+      _identifierCtrl.text.contains('@') ||
+      RegExp(r'[A-Za-z]').hasMatch(_identifierCtrl.text);
 
-  /// Ang numerong ipinapadala sa API. Kailangang `09XXXXXXXXX` (11 digit) ang
-  /// tinatanggap ng backend, kaya idinadagdag dito ang nangungunang `0` — sa UI
-  /// lang naka-`+63` ang numero.
-  String get _apiPhone => '0$_rawPhone';
+  /// Ang lokal na 10-digit na naipasok (hal. `9123456789`) — walang spaces.
+  String get _rawPhone => _identifierCtrl.text.replaceAll(RegExp(r'\D'), '');
 
-  bool get _isPhoneValid =>
-      _rawPhone.length == 10 && _rawPhone.startsWith('9');
+  /// Ang identifier na ipinapadala sa API: email (`juan@gmail.com`) O numero sa
+  /// system format (`09XXXXXXXXX` — 11 digit, kaya idinadagdag ang `0`).
+  String get _apiIdentifier {
+    final text = _identifierCtrl.text.trim();
+    if (_isEmailInput) return text.toLowerCase();
+    return '0$_rawPhone';
+  }
+
+  bool get _isIdentifierValid =>
+      _isEmailInput
+          ? AppValidators.isValidEmail(_identifierCtrl.text)
+          : _rawPhone.length == 10 && _rawPhone.startsWith('9');
+
+  /// Awtomatikong naglalagay ng spaces sa mobile number (`912 345 6789`)
+  /// habang nagta-type — pero hinahayaang malayang i-type ang email.
+  void _onIdentifierChanged(String value) {
+    final looksLikeEmail =
+        value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value);
+    if (!looksLikeEmail) {
+      final digits = value.replaceAll(RegExp(r'\D'), '');
+      final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+      final buffer = StringBuffer();
+      for (var i = 0; i < limited.length; i++) {
+        if (i == 3 || i == 6) buffer.write(' ');
+        buffer.write(limited[i]);
+      }
+      final formatted = buffer.toString();
+      if (formatted != value) {
+        _identifierCtrl.value = TextEditingValue(
+          text: formatted,
+          selection: TextSelection.collapsed(offset: formatted.length),
+        );
+      }
+    }
+    setState(() {});
+  }
 
   bool get _isOnline => ref.read(connectivityProvider).valueOrNull ?? true;
 
@@ -445,9 +531,10 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   Future<void> _sendOtp() async {
     if (!_isOnline || _lockSecondsLeft > 0) return;
-    if (!_isPhoneValid) {
+    if (!_isIdentifierValid) {
       _showError(
-        'Enter a valid Philippine mobile number (+63 9XX XXX XXXX).',
+        'Enter a valid Philippine mobile number (+63 9XX XXX XXXX) or email '
+        'address.',
       );
       return;
     }
@@ -455,11 +542,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     // not covered by it.
     FocusManager.instance.primaryFocus?.unfocus();
     setState(() => _loading = true);
-    final ok = await ref.read(authProvider.notifier).sendOtp(phone: _apiPhone);
+    final ok = await ref
+        .read(authProvider.notifier)
+        .sendOtp(identifier: _apiIdentifier);
     if (!mounted) return;
     setState(() => _loading = false);
     if (ok) {
-      context.go(RouteConstants.otpVerify, extra: _apiPhone);
+      // `pending` = tinanggap ng SMS gateway pero nasa queue pa sa gateway
+      // phone (hindi pa naipadala). Sabihin ito agad para hindi maghintay ang
+      // user ng code na hindi pa umalis sa phone.
+      if (ref.read(authProvider.notifier).lastOtpQueued) {
+        context.showToast(
+          'Your code is on its way. It may take a moment to arrive.',
+        );
+      }
+      context.go(RouteConstants.otpVerify, extra: _apiIdentifier);
     } else {
       final err = ref.read(authProvider).error;
       final lockSecs =
@@ -722,6 +819,55 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
+  /// Ang mensahe sa ilalim ng 4 na tuldok — isa lang sa mga ito ang lumalabas.
+  ///
+  /// Ang cooldown ng bagong OTP ay kulay-impormasyon (hindi pula) dahil tama
+  /// ang MPIN — hinihintay lang na papayagan ng server ang bagong code. Kapag
+  /// natapos ang countdown, kusang nawawala ito.
+  Widget? _buildMpinStatus({required bool locked}) {
+    final String message;
+    final IconData icon;
+    final Color color;
+    if (locked) {
+      message = 'Too many attempts. Try again in $_mpinLockLabel.';
+      icon = Icons.timer_rounded;
+      color = AppColors.error;
+    } else if (_mpinError != null) {
+      message = _mpinError!;
+      icon = Icons.error_outline_rounded;
+      color = AppColors.error;
+    } else if (_resetCooldownSeconds > 0) {
+      message =
+          'You can request a new code in ${_resetCooldownSeconds}s.';
+      icon = Icons.timer_rounded;
+      color = AppColors.textSecondary;
+    } else {
+      return null;
+    }
+    return Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              message,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                height: 1.3,
+                color: color,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// Ang MPIN view: nasa itaas ang numerong ginamit sa login, ang 4 na tuldok,
   /// at ang numeric keypad na may nakabox na numero sa ibaba.
   Widget _buildMpinView() {
@@ -810,10 +956,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                     children: [
                                       // Watawat ng Pilipinas — iginuhit (hindi
                                       // emoji) para lumabas sa lahat ng platform.
-                                      const PhilippineFlag(width: 20),
+                                      // Email naman ang icon kapag email (Gmail)
+                                      // ang identifier na ginamit sa login.
+                                      if (phone.contains('@'))
+                                        const Icon(
+                                          Icons.mail_outline_rounded,
+                                          size: 16,
+                                          color: AppColors.deepNavy,
+                                        )
+                                      else
+                                        const PhilippineFlag(width: 20),
                                       const SizedBox(width: 8),
                                       Text(
-                                        formatMpinPhone(phone),
+                                        phone.contains('@')
+                                            ? phone
+                                            : formatMpinPhone(phone),
                                         style: const TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.w700,
@@ -888,39 +1045,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       const SizedBox(height: 14),
                       SizedBox(
                         height: 38,
-                        child: (locked || _mpinError != null)
-                            ? Center(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      locked
-                                          ? Icons.timer_rounded
-                                          : Icons.error_outline_rounded,
-                                      size: 15,
-                                      color: AppColors.error,
-                                    ),
-                                    const SizedBox(width: 6),
-                                    Flexible(
-                                      child: Text(
-                                        locked
-                                            ? 'Too many attempts. Try again '
-                                                'in $_mpinLockLabel.'
-                                            : _mpinError!,
-                                        textAlign: TextAlign.center,
-                                        maxLines: 2,
-                                        style: const TextStyle(
-                                          fontSize: 12.5,
-                                          fontWeight: FontWeight.w600,
-                                          height: 1.3,
-                                          color: AppColors.error,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : null,
+                        child: _buildMpinStatus(locked: locked),
                       ),
 
                       // Nasa ibaba ang keypad — may pagitan sa mga tuldok.
@@ -948,14 +1073,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                           const SizedBox(height: 14),
                           Center(
                             child: TextButton(
-                              onPressed: _mpinBusy ? null : _resetMpin,
-                              child: const Text(
-                                'Reset MPIN',
+                              onPressed:
+                                  (_mpinBusy || _resetCooldownSeconds > 0)
+                                      ? null
+                                      : _resetMpin,
+                              child: Text(
+                                _resetCooldownSeconds > 0
+                                    ? 'Try again in ${_resetCooldownSeconds}s'
+                                    : 'Reset MPIN',
                                 style: TextStyle(
                                   fontSize: 12.5,
                                   fontWeight: FontWeight.w700,
                                   letterSpacing: 0.2,
-                                  color: AppColors.deepNavy,
+                                  color: _resetCooldownSeconds > 0
+                                      ? AppColors.textTertiary
+                                      : AppColors.deepNavy,
                                 ),
                               ),
                             ),
@@ -1027,7 +1159,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
       connectivityProvider.select((v) => v.valueOrNull ?? true),
     );
 
-    final canSendOtp = _isPhoneValid &&
+    final canSendOtp = _isIdentifierValid &&
         !_loading &&
         !_googleLoading &&
         isOnline &&
@@ -1190,7 +1322,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                 ),
                                                 const SizedBox(height: 22),
                                                 const Text(
-                                                  'Mobile Number',
+                                                  'Mobile Number or Email',
                                                   style: TextStyle(
                                                     fontSize: 12.5,
                                                     fontWeight: FontWeight.w700,
@@ -1201,21 +1333,24 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                 const SizedBox(height: 10),
                                                 // Premium input — simple (no extra smooth anim)
                                                 TextFormField(
-                                                  controller: _phoneCtrl,
-                                                  keyboardType:
-                                                      TextInputType.phone,
-                                                  maxLength: 12,
-                                                  inputFormatters: [_phoneMask],
+                                                  controller: _identifierCtrl,
+                                                  keyboardType: TextInputType
+                                                      .emailAddress,
+                                                  maxLength: 60,
+                                                  autocorrect: false,
+                                                  enableSuggestions: false,
                                                   style: const TextStyle(
                                                     fontSize: 16,
                                                     fontWeight: FontWeight.w600,
                                                     color: AppColors.deepNavy,
                                                     letterSpacing: 0.8,
                                                   ),
-                                                  onChanged: (_) =>
-                                                      setState(() {}),
+                                                  onChanged:
+                                                      _onIdentifierChanged,
                                                   decoration: InputDecoration(
-                                                    hintText: '912 345 6789',
+                                                    hintText: _isEmailInput
+                                                        ? 'you@gmail.com'
+                                                        : '912 345 6789',
                                                     hintStyle: TextStyle(
                                                       fontSize: 15,
                                                       fontWeight:
@@ -1238,7 +1373,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                     // +63 (Pilipinas) — lokal
                                                     // na 10-digit na numero
                                                     // (9XXX XXX XXX) ang type.
-                                                    prefixIcon: const Padding(
+                                                    prefixIcon: _isEmailInput
+                                                        ? const Padding(
+                                                            padding:
+                                                                EdgeInsets.only(
+                                                                    left: 14,
+                                                                    right: 10),
+                                                            child: Icon(
+                                                              Icons
+                                                                  .mail_outline_rounded,
+                                                              size: 20,
+                                                              color: AppColors
+                                                                  .deepNavy,
+                                                            ),
+                                                          )
+                                                        : const Padding(
                                                       padding:
                                                           EdgeInsets.only(
                                                               left: 14,
@@ -1289,7 +1438,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                       minWidth: 0,
                                                       minHeight: 0,
                                                     ),
-                                                    suffixIcon: _phoneCtrl
+                                                    suffixIcon: _identifierCtrl
                                                             .text.isNotEmpty
                                                         ? Padding(
                                                             padding:
@@ -1297,13 +1446,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                                     .only(
                                                                     right: 12),
                                                             child: Icon(
-                                                              _isPhoneValid
+                                                              _isIdentifierValid
                                                                   ? Icons
                                                                       .check_circle_rounded
                                                                   : Icons
                                                                       .error_outline_rounded,
                                                               size: 20,
-                                                              color: _isPhoneValid
+                                                              color: _isIdentifierValid
                                                                   ? const Color(
                                                                       0xFF2E7D32)
                                                                   : AppColors
