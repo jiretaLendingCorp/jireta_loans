@@ -982,7 +982,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   }
 
   Widget _buildLoanDetailsStep(
-      NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting) {
+      NumberFormat fmt, Map<String, dynamic>? preview, bool isSubmitting,
+      {Widget? footer}) {
     final bottomInset = MediaQuery.of(context).viewInsets.bottom;
     return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
@@ -993,10 +994,18 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       // column pa rin at pareho ang pagkakasuno-sunod.
       // Breakpoint 1000: ang 2-step re-apply (max 960) ay nananatiling isang
       // column, at dito lang sa mas malawak na wizard pumapasok ang 2 columns.
-      child: LenderTwoPane(
-        breakpoint: 1000,
-        left: _buildAmountFrequencyTermSection(preview),
-        right: _buildPurposeScheduleSection(preview),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LenderTwoPane(
+            breakpoint: 1000,
+            left: _buildAmountFrequencyTermSection(preview),
+            right: _buildPurposeScheduleSection(preview),
+          ),
+          // 2-step re-apply: nasa ILALIM ng Payment Schedule Preview card ang
+          // T&C — bahagi ng scroll, hindi naka-pin sa ilalim ng screen.
+          if (footer != null) footer,
+        ],
       ),
     );
   }
@@ -1211,48 +1220,50 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         Expanded(
           child: _CenteredMaxWidth(
             maxWidth: 960,
-            child: _buildLoanDetailsStep(fmt, preview, isSubmitting),
+            child: _buildLoanDetailsStep(
+              fmt,
+              preview,
+              isSubmitting,
+              // Nasa baba ng Payment Schedule Preview card, hindi sa ilalim
+              // ng screen.
+              footer: _buildTermsAgreement(),
+            ),
           ),
         ),
-        _buildTermsAgreement(),
         _buildQuickStepNav(isSubmitting),
       ],
     );
   }
 
-  /// Terms and Conditions checkbox — laging visible sa 2-step re-apply at
-  /// required bago mag-submit. Ang link ay nagbubukas ng buong T&C sheet.
+  /// Terms and Conditions checkbox — required bago mag-submit sa 2-step
+  /// re-apply. Nasa ilalim ito ng Payment Schedule Preview card (scroll kasama
+  /// ng content), hindi naka-pin sa ilalim ng screen.
   Widget _buildTermsAgreement() {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 960),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              LenderTermsAgreementCheckbox(
-                value: _acceptedTerms,
-                onChanged: (value) => setState(() {
-                  _acceptedTerms = value;
-                  if (value) _termsError = null;
-                }),
-              ),
-              if (_termsError != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    _termsError!,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.error,
-                    ),
-                  ),
-                ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LenderTermsAgreementCheckbox(
+            value: _acceptedTerms,
+            onChanged: (value) => setState(() {
+              _acceptedTerms = value;
+              if (value) _termsError = null;
+            }),
           ),
-        ),
+          if (_termsError != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                _termsError!,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.error,
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }
@@ -4330,53 +4341,77 @@ class LenderTermsAgreementCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SizedBox(
-          width: 24,
-          height: 24,
-          child: Checkbox(
-            key: const Key('terms_checkbox'),
-            value: value,
-            activeColor: AppColors.lenderBlue,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            visualDensity: VisualDensity.compact,
-            onChanged: (v) => onChanged(v ?? false),
+        // Kapareho ng unang loan application: may text sa itaas ng checkbox
+        // bago ang "I have read and agree…" na row.
+        const Text(
+          'I confirm that the information in this loan application is true '
+          'and correct. I authorize Jireta Loans & Credit Corp. to verify my '
+          'information and assess my application. I understand that '
+          'submitting this application does not guarantee approval, and that '
+          'the final loan amount, interest, fees, and payment schedule will '
+          'be disclosed in the loan agreement.',
+          style: TextStyle(
+            fontSize: 12,
+            height: 1.5,
+            color: AppColors.textSecondary,
           ),
         ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Wrap(
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              InkWell(
-                onTap: () => onChanged(!value),
-                child: const Text(
-                  'I have read and agree to the ',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.3,
-                    fontWeight: FontWeight.w500,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: Checkbox(
+                key: const Key('terms_checkbox'),
+                value: value,
+                activeColor: AppColors.lenderBlue,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                onChanged: (v) => onChanged(v ?? false),
               ),
-              InkWell(
-                onTap: () => showTermsAndConditionsSheet(context),
-                child: const Text(
-                  'Terms and Conditions',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    height: 1.3,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.lenderBlue,
-                    decoration: TextDecoration.underline,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  InkWell(
+                    onTap: () => onChanged(!value),
+                    child: const Text(
+                      'I have read and agree to the ',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.3,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
                   ),
-                ),
+                  InkWell(
+                    // Loan-confirmation terms (amount, interest, schedule,
+                    // release, late payments, electronic confirmation) — hindi
+                    // ang account-level T&C ng profile/footer.
+                    onTap: () => showLoanConfirmationTermsSheet(context),
+                    child: const Text(
+                      'Terms and Conditions',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        height: 1.3,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.lenderBlue,
+                        decoration: TextDecoration.underline,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ],
     );

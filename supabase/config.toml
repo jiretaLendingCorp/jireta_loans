@@ -518,24 +518,38 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
-# MOBILE OTP (rider / lender login + MPIN reset) — Semaphore SMS API v4:
-#   Every OTP is a cryptographically random 6-digit code; only its SHA-256 hash
-#   is stored in otp_codes.otp_hash. OTPs are never logged and never returned
-#   to the client. The old "always 123456" bypass is removed.
+# MOBILE OTP (rider / lender login + MPIN reset) — TextBee SMS gateway (primary):
+#   Only the SHA-256 hash is stored in otp_codes.otp_hash. OTPs are never logged
+#   and never returned to the client.
+#   Walang fixed/default OTP: bawat request ay random na generateOtpCode()
+#   (cryptographically secure). Ang `TEMP_FIXED_OTP = '123456'` bypass ay
+#   tinanggal na — kaya kapag bigo ang SMS gateway, 502 ang sagot at
+#   dini-delete ang code (hindi na valid ang OTP na hindi naipadala).
+#   TEXTBEE_API_KEY      — REQUIRED for TextBee SMS (Dashboard → API keys).
+#                          Set in cloud: `supabase secrets set TEXTBEE_API_KEY=...`
+#                          Server-side only: never put this in Flutter, public
+#                          env vars, logs or git.
+#   TEXTBEE_DEVICE_ID    — optional. Id of the Android gateway device that sends
+#                          the SMS (GET /api/v1/gateway/devices). Kapag wala, ang
+#                          default device (o ang enabled device na pinakahuling
+#                          may heartbeat) ang gagamitin ng TextBee.
+#   SMS_PROVIDER         — optional. `semaphore` forces the legacy Semaphore
+#                          sender; default picks TextBee when TEXTBEE_API_KEY is
+#                          set, otherwise Semaphore.
+#   OTP_EXPIRY_MINUTES          — OTP validity in minutes (default: 5)
+#   OTP_RESEND_COOLDOWN_SECONDS — server-side resend cooldown (default: 60)
+#   MPIN_RESET_TOKEN_MINUTES    — reset authorization validity (default: 10)
+# Semaphore fallback (kapag `SMS_PROVIDER=semaphore` o walang TEXTBEE_API_KEY):
 #   SEMAPHORE_API_KEY           — required for real SMS (Semaphore → API keys).
-#                                 Set in cloud: `supabase secrets set SEMAPHORE_API_KEY=...`
 #   SEMAPHORE_SENDER_NAME       — approved sender name. Kapag walang naka-set, ang
 #                                 default sender name ng Semaphore account ang
 #                                 gagamitin; huwag maglagay ng hindi pa aprubado
 #                                 (unapproved sender name = status `Failed`).
-#   OTP_EXPIRY_MINUTES          — OTP validity in minutes (default: 5)
-#   OTP_RESEND_COOLDOWN_SECONDS — server-side resend cooldown (default: 60)
-#   MPIN_RESET_TOKEN_MINUTES    — reset authorization validity (default: 10)
 # USE_MOCK_SMS:
-#   true  — skip the real Semaphore call. The OTP is still random and hashed;
+#   true  — skip the real provider call. The OTP is still random and hashed;
 #           for LOCAL DEVELOPMENT only, the full message is written to sms_logs
 #           (read it in Supabase Studio). NEVER enable in production.
-#   false — call Semaphore `/api/v4/otp` (requires SEMAPHORE_API_KEY).
+#   false — call the configured provider (TextBee, o Semaphore `/api/v4/otp`).
 # RESEND (Gmail via Resend API — password reset / email verification only):
 #   RESEND_API_KEY      — required for sending reset emails via Resend (https://resend.com/api-keys)
 #                         Set in cloud: `supabase secrets set RESEND_API_KEY=re_xxx` or Dashboard → Edge Functions → Secrets.

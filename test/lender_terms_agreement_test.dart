@@ -44,6 +44,11 @@ void main() {
 
     await tester.pumpWidget(_host(value));
 
+    // May text sa itaas ng checkbox — gaya ng unang loan application.
+    expect(
+      find.textContaining('I confirm that the information in this loan application'),
+      findsOneWidget,
+    );
     expect(find.text('I have read and agree to the '), findsOneWidget);
     expect(find.text('Terms and Conditions'), findsOneWidget);
     expect(tester.widget<Checkbox>(find.byType(Checkbox)).value, isFalse);
@@ -69,6 +74,19 @@ void main() {
 
     // LegalInfoSheet title ng T&C.
     expect(find.text('Terms & Conditions'), findsOneWidget);
+    // KAPAREHO ng unang loan application ang nilalaman — may pamagat na
+    // "JIRETA LOANS & CREDIT CORP." / "Loan Amount, Payment, and Process
+    // Confirmation", tapos 1. Loan Amount. Walang "Introduction" at wala
+    // ang account-level T&C ("1. Account Security") ng profile/footer.
+    expect(find.text('Introduction'), findsNothing);
+    expect(find.text('JIRETA LOANS & CREDIT CORP.'), findsOneWidget);
+    expect(
+      find.text('Loan Amount, Payment, and Process Confirmation'),
+      findsOneWidget,
+    );
+    expect(find.text('1. Loan Amount'), findsOneWidget);
+    expect(find.text('11. Electronic Confirmation'), findsOneWidget);
+    expect(find.text('1. Account Security'), findsNothing);
     // Hindi na-tick ang checkbox sa pagbukas ng link.
     expect(value.value, isFalse);
   });

@@ -618,7 +618,12 @@ class _RiderCollectionDetailsScreenState
             if (col != null)
               Padding(
                 padding: const EdgeInsets.only(left: 12),
-                child: StatusBadge(status: col.status),
+                child: StatusBadge(
+                    status: col.status,
+                    // Rider-facing term — huwag "Failed" (tingnan ang
+                    // `CollectionAssignmentModel.statusLabel`).
+                    labelOverride:
+                        col.status == 'failed' ? 'Uncollected' : null),
               ),
           ],
           body: pageBody,
@@ -665,6 +670,9 @@ class _RiderCollectionDetailsScreenState
                       child: StatusBadge(
                           status: col.status,
                           small: false,
+                          // Rider-facing term — huwag "Failed".
+                          labelOverride:
+                              col.status == 'failed' ? 'Uncollected' : null,
                           // Green AppBar: keep the status readable.
                           onDark: true))),
           ],

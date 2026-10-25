@@ -1,24 +1,35 @@
 // supabase/functions/_shared/sms.ts
 // ─────────────────────────────────────────────────────────────────────────────
-// Semaphore SMS sender (official API v4).
+// SMS sender — TextBee (primary) o Semaphore (fallback).
 //
-//   POST https://api.semaphore.co/api/v4/messages  → regular messages
-//   POST https://api.semaphore.co/api/v4/otp       → OTP traffic (dedicated
-//                                                   route, `{otp}` placeholder)
+//   TextBee:  POST https://api.textbee.dev/api/v1/gateway/send-sms
+//             header `x-api-key`, JSON `{ recipients, message, deviceId? }`
+//   Semaphore: POST https://api.semaphore.co/api/v4/messages  → regular
+//             POST https://api.semaphore.co/api/v4/otp       → OTP traffic
+//             (dedicated route, `{otp}` placeholder)
 //
-// Docs: https://semaphore.co/docs
+// Docs: https://textbee.dev/docs/api-reference · https://semaphore.co/docs
+//
+// PINIPILI ANG PROVIDER:
+//   * `SMS_PROVIDER=semaphore` → Semaphore lang (escape hatch).
+//   * `TEXTBEE_API_KEY` naka-set → TextBee.
+//   * Kung wala, Semaphore (backwards compatible sa lumang deployment).
+// Walang automatic na paglipat sa dalawang provider sa isang send — kapag
+// nag-fail ang TextBee, failure ito (hindi doble ang SMS).
 //
 // MAHALAGA:
-//   * Ang API key ay galing LANG sa Edge Function secret (SEMAPHORE_API_KEY).
-//     Hindi ito kailanman isinusulat sa logs, sa client response, o sa DB.
-//   * Ang `status` sa Semaphore response ay QUEUED/PENDING pa lang sa
-//     simula — acceptance ng API ay HINDI pa delivery. Kaya ang naka-store sa
+//   * Ang API key ay galing LANG sa Edge Function secret (`TEXTBEE_API_KEY` /
+//     `SEMAPHORE_API_KEY`). Hindi ito kailanman isinusulat sa logs, sa client
+//     response, o sa DB.
+//   * Ang `status` sa provider response ay QUEUED/PENDING pa lang sa simula —
+//     acceptance ng API ay HINDI pa delivery. Kaya ang naka-store sa
 //     `sms_logs` ay ang totoong provider status (queued → 'pending'), at ang
 //     `accepted` flag ay "tinanggap ng API", hindi "na-deliver".
 //   * Ang OTP message body ay hindi nilo-log; ang caller ang nagpapasa ng
 //     redacted na `logMessage` para sa `sms_logs`.
 // ─────────────────────────────────────────────────────────────────────────────
 import { getAdminClient } from './db.ts';
+import { sendTextBeeSms } from './textbee.ts';
 
 const SEMAPHORE_MESSAGES_URL = 'https://api.semaphore.co/api/v4/messages';
 const SEMAPHORE_OTP_URL = 'https://api.semaphore.co/api/v4/otp';
@@ -270,6 +281,34 @@ export async function sendSms(params: {
       gatewayReference: null,
       errorCode: 'MOCK_MODE',
     };
+  }
+
+  // ── TextBee (primary kapag naka-set ang secret) ────────────────────────
+  // Ang TextBee ay walang `{otp}` placeholder, kaya ang code ay pinalitan na
+  // dito sa message bago ipadala. Ang ipapasa sa `sms_logs` ay ang redacted
+  // na `logMessage` pa rin — walang code na naka-store o naka-log.
+  const textBeeApiKey = (Deno.env.get('TEXTBEE_API_KEY') ?? '').trim();
+  const providerOverride = (Deno.env.get('SMS_PROVIDER') ?? '').trim().toLowerCase();
+  if (textBeeApiKey !== '' && providerOverride !== 'semaphore') {
+    const message = params.otpCode
+      ? params.message.replace('{otp}', params.otpCode)
+      : params.message;
+
+    const result = await sendTextBeeSms({
+      apiKey: textBeeApiKey,
+      to: params.to,
+      message,
+      deviceId: Deno.env.get('TEXTBEE_DEVICE_ID'),
+    });
+
+    await recordSmsLog({
+      ...params,
+      status: result.status,
+      gatewayReference: result.gatewayReference,
+      logMessage,
+    });
+
+    return result;
   }
 
   const apiKey = Deno.env.get('SEMAPHORE_API_KEY');

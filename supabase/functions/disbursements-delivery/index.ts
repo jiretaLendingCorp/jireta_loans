@@ -18,6 +18,7 @@ import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { validateUUID } from '../_shared/validators.ts';
 import { startLoanPaymentSchedule } from '../_shared/loan_schedules.ts';
+import { validateDeliveryProofTotal } from '../_shared/delivery_proof.ts';
 
 const PROOF_BUCKET = 'disbursement-proofs';
 
@@ -44,7 +45,9 @@ function runInBackground(task: Promise<unknown>): void {
 async function ensureProofBucket(db: ReturnType<typeof getAdminClient>): Promise<void> {
   const { data: buckets } = await db.storage.listBuckets();
   if (buckets?.some((b) => b.name === PROOF_BUCKET)) return;
-  await db.storage.createBucket(PROOF_BUCKET, { public: false, fileSizeLimit: '10MB' });
+  // 5MB ang server-side limit ng proof (validateDeliveryProofSize) — pantay
+  // ang bucket guard para hindi na kailangang i-rely sa code check lang.
+  await db.storage.createBucket(PROOF_BUCKET, { public: false, fileSizeLimit: '5MB' });
 }
 
 const DISB_PROOF_COLUMN_BY_TYPE: Record<string, string> = {
@@ -370,28 +373,53 @@ async function handleUploadProof(req: Request) {
 
   const updates: Record<string, string> = {};
   const failed: string[] = [];
-  await ensureProofBucket(db);
 
+  // ── 5MB TOTAL (lahat ng proof files) — SERVER-SIDE guard ──
+  // Sinusuri LAHAT bago mag-upload ng kahit isa, para hindi maiwan ang
+  // disbursement na kalahati lang ang naka-save kapag lumampas sa limit.
+  const decodedProofs: Array<{
+    type: string;
+    column: string;
+    proof: Record<string, unknown>;
+    bytes: Uint8Array;
+  }> = [];
   for (const proof of proofs) {
     const type = proof?.type as string;
     const column = DISB_PROOF_COLUMN_BY_TYPE[type];
     if (!column || !proof.content_base64) continue;
+    decodedProofs.push({
+      type,
+      column,
+      proof,
+      bytes: decodeBase64(proof.content_base64),
+    });
+  }
 
-    const ext = extFromMime(proof.mime_type);
+  const totalProofBytes = decodedProofs.reduce(
+    (sum, p) => sum + p.bytes.byteLength,
+    0,
+  );
+  const sizeError = validateDeliveryProofTotal(totalProofBytes);
+  if (sizeError) return errorResponse(sizeError, 413, 'PAYLOAD_TOO_LARGE');
+
+  await ensureProofBucket(db);
+
+  for (const { type, column, proof, bytes } of decodedProofs) {
+    const mimeType = (proof.mime_type as string | null | undefined) ?? 'image/jpeg';
+    const ext = extFromMime(mimeType);
     const path = `${disbursement_id}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const bytes = decodeBase64(proof.content_base64);
 
     // Isang beses na retry para sa transient storage failures — hindi dapat
     // maging "failed" ang isang submit dahil lang sa isang bigong upload.
     let uploadError = (await db.storage
       .from(PROOF_BUCKET)
-      .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true })).error;
+      .upload(path, bytes, { contentType: mimeType, upsert: true })).error;
 
     if (uploadError) {
       await new Promise((r) => setTimeout(r, 400));
       uploadError = (await db.storage
         .from(PROOF_BUCKET)
-        .upload(path, bytes, { contentType: proof.mime_type ?? 'image/jpeg', upsert: true })).error;
+        .upload(path, bytes, { contentType: mimeType, upsert: true })).error;
     }
 
     if (uploadError) {

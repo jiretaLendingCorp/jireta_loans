@@ -1066,7 +1066,11 @@ class _CollectionFilterBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(riderDashboardProvider.notifier);
-    final hasFilter = state.selectedMonth != null || state.selectedDate != null;
+    // Default na ang kasalukuyang buwan, kaya hindi na kailangan ng "clear"
+    // button hangga't wala pang ibang period/date na pinili.
+    final hasFilter = state.selectedDate != null ||
+        (state.selectedMonth != null &&
+            state.selectedMonth != RiderDashboardNotifier.currentMonthKey());
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(

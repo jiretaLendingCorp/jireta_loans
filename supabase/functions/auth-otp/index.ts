@@ -83,14 +83,6 @@ function clientIp(req: Request): string {
 const MAX_OTP_ATTEMPTS = 5;
 const DEFAULT_PASSWORD = '12345678';
 
-// TEMP: fixed OTP para makapag-test kahit hindi pa approved ang Semaphore
-// sender name. Kapag may value, ito ang isinusulat sa otp_codes at HINDI
-// binabalik ang 502 kapag bigo ang SMS — mananatiling valid ang code para
-// maka-login pa rin. Ibalik sa `null` (random na `generateOtpCode()`) kapag
-// tapos na ang testing.
-// (`as string | null` para hindi i-narrow ng TypeScript sa literal type.)
-const TEMP_FIXED_OTP = '123456' as string | null;
-
 const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 
 // ── Persistent, escalating OTP lockout ─────────────────────────────────────
@@ -106,7 +98,8 @@ const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 // effectively locked forever by a single escalating streak.
 const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48 hours = 2880 minutes
 
-/** Semaphore inserts the real code sa `{otp}` — hindi ito nilo-log. */
+/** Ang provider layer ang naglalagay ng code sa `{otp}` (Semaphore OTP route)
+ * o nagpapalit nito (TextBee) — hindi ito nilo-log. */
 function otpMessageTemplate(minutes: number): string {
   return `Your Jireta Loans OTP is: {otp}. Valid for ${minutes} minutes. Do not share this code.`;
 }
@@ -399,8 +392,8 @@ async function handleSendOtp(req: Request) {
   // Isang active na OTP lang bawat numero (atomic din ito sa DB trigger).
   await db.from('otp_codes').update({ used: true }).eq('phone_number', phone).eq('used', false);
 
-  // Cryptographically secure random code — maliban sa TEMP fixed OTP sa itaas.
-  const code = TEMP_FIXED_OTP ?? generateOtpCode();
+  // Cryptographically secure random code — walang fixed/default na value.
+  const code = generateOtpCode();
   const codeHash = await hashOtpCode(code, phone);
   const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
 
@@ -422,8 +415,9 @@ async function handleSendOtp(req: Request) {
   }
 
   // Semaphore's dedicated OTP route: ang API ang naglalagay ng code sa
-  // `{otp}` placeholder. Ang buong message (may code) ay HINDI nilo-log sa
-  // totoong send — redacted ang ipinapasa sa sms_logs.
+  // `{otp}` placeholder. Sa TextBee, ang `_shared/sms.ts` ang nagpapalit ng
+  // placeholder bago ipadala. Ang buong message (may code) ay HINDI nilo-log
+  // sa totoong send — redacted ang ipinapasa sa sms_logs.
   const useMock = isMockSmsEnabled();
   const messageTemplate = otpMessageTemplate(OTP_EXPIRY_MINUTES);
   const smsResult = await sendSms({
@@ -438,16 +432,7 @@ async function handleSendOtp(req: Request) {
     userId: userId ?? undefined,
   });
 
-  if (!smsResult.accepted && TEMP_FIXED_OTP !== null) {
-    // TEMP fixed OTP: kahit bigo ang SMS, mananatili ang code para ma-verify.
-    console.warn(
-      '[auth-send-otp] SMS failed — TEMP fixed OTP pa rin ang valid:',
-      smsResult.status,
-      smsResult.errorCode ?? 'unknown',
-    );
-  }
-
-  if (!smsResult.accepted && TEMP_FIXED_OTP === null) {
+  if (!smsResult.accepted) {
     // Huwag iwang valid ang code na hindi naipadala — at i-delete para
     // makapag-retry agad ang user (hindi ito mabibilang sa cooldown).
     await db
@@ -466,10 +451,17 @@ async function handleSendOtp(req: Request) {
         error_code: smsResult.errorCode ?? null,
       },
     });
+    // Provider-side rate limit / plan limit: malinaw na 429 para alam ng app
+    // na hintayin na lang, hindi "sira ang number".
+    const providerRateLimited =
+      smsResult.errorCode === 'TEXTBEE_HTTP_429' ||
+      smsResult.errorCode === 'SEMAPHORE_HTTP_429';
     return errorResponse(
-      'We could not send the verification code right now. Please try again.',
-      502,
-      'SMS_FAILED',
+      providerRateLimited
+        ? 'The SMS service is temporarily rate limited. Please try again in a few minutes.'
+        : 'We could not send the verification code right now. Please try again.',
+      providerRateLimited ? 429 : 502,
+      providerRateLimited ? 'SMS_RATE_LIMITED' : 'SMS_FAILED',
     );
   }
 

@@ -1,7 +1,10 @@
 // lib/presentation/features/rider/history/providers/rider_history_provider.dart
 // Rider History — pinagsamang history ng lahat ng natapos na gawain:
-// completed collections, completed CI investigations, at completed cash
+// completed/failed collections, completed CI investigations, at completed cash
 // deliveries. May buwanang (month) filter na server-side (date range).
+//
+// Kasama ang FAILED collections: hindi na ito ipinapakita sa dashboard Total
+// Collected, kaya dito sa History lumalabas ang mga na-fail na assignment.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../../core/di/injection.dart';
@@ -127,6 +130,9 @@ class RiderHistoryNotifier extends StateNotifier<RiderHistoryState>
         page: 1,
         limit: 50,
       );
+      // Hiwalay na query ang failed — isang status lang ang tinatanggap ng
+      // `collections-get-list` (`.eq('status', ...)`), kaya hindi pwedeng
+      // pagsamahin sa isang `status` na comma-separated.
       // Kasama ang approved/rejected: pag na-review ng staff ang CI,
       // lumalabas ito sa `completed` at "nawawala" sana sa history.
       final ciFuture = _ciDs.getCiList(
@@ -144,9 +150,18 @@ class RiderHistoryNotifier extends StateNotifier<RiderHistoryState>
         page: 1,
         limit: 50,
       );
+      final failedCollFuture = _collDs.getCollectionList(
+        status: 'failed',
+        dateFrom: range?.$1,
+        dateTo: range?.$2,
+        page: 1,
+        limit: 50,
+      );
 
-      final collections = (await collFuture)
-        ..sort((a, b) => _collectionDate(b).compareTo(_collectionDate(a)));
+      final collections = <CollectionAssignmentModel>[
+        ...await collFuture,
+        ...await failedCollFuture,
+      ]..sort((a, b) => _collectionDate(b).compareTo(_collectionDate(a)));
       final ciTasks = (await ciFuture)
         ..sort((a, b) => _ciDate(b).compareTo(_ciDate(a)));
       final deliveries = (await disbFuture)

@@ -66,7 +66,8 @@ void main() {
     await loadTestEnv();
   });
 
-  Future<void> pumpHero(WidgetTester tester, {double width = 800}) async {
+  Future<void> pumpHero(WidgetTester tester,
+      {double width = 800, KpiRiderModel? kpi}) async {
     tester.view.physicalSize = Size(width, 700);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -82,7 +83,7 @@ void main() {
             body: Padding(
               padding: const EdgeInsets.all(18),
               child: RiderAmountHero(
-                state: RiderDashboardState(kpi: KpiRiderModel.empty()),
+                state: RiderDashboardState(kpi: kpi ?? KpiRiderModel.empty()),
               ),
             ),
           ),
@@ -137,6 +138,17 @@ void main() {
         .where((c) => c.decoration != null)
         .length;
     expect(decoratedAncestors, 1);
+  });
+
+  testWidgets('walang "failed" chip sa Total Collected card', (tester) async {
+    // Ang mga failed collection ay nasa History, hindi sa dashboard hero.
+    await pumpHero(tester,
+        kpi: const KpiRiderModel(
+            totalFailedCollections: 3, totalAmountCollected: 5000));
+
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('failed'), findsNothing);
+    expect(find.text('₱5,000.00'), findsOneWidget);
   });
 
   testWidgets('walang separating line sa pagitan ng quota at TOTAL COLLECTED',

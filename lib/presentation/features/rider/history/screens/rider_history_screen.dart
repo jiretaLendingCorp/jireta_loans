@@ -456,15 +456,19 @@ class _CollectionHistoryCard extends StatelessWidget {
     // (`requested_amount`) — hindi ang default na installment due.
     final amount = item.collectibleAmount;
     final date = item.completedAt ?? item.collectionSchedule ?? item.createdAt;
+    // Kasama na ang failed/"uncollected" collections sa history — kulay pula
+    // at "Uncollected" ang label para hindi ito mapagkamalang nakolekta.
+    final uncollected = item.status == 'failed';
     return _HistoryCard(
       keyId: 'coll_${item.id}',
-      icon: Icons.payments_outlined,
-      accent: AppColors.riderGreen,
+      icon:
+          uncollected ? Icons.error_outline_rounded : Icons.payments_outlined,
+      accent: uncollected ? AppColors.statusRejected : AppColors.riderGreen,
       title: item.lenderName.isEmpty ? 'Lender' : item.lenderName,
       subtitle: 'Loan #${item.loanNumber.isEmpty ? '—' : item.loanNumber}',
       trailingTitle: '₱${peso.format(amount)}',
       trailingCaption: date.toDateString(),
-      typeLabel: 'Collection',
+      typeLabel: uncollected ? 'Uncollected' : 'Collection',
       onTap: () => context.push('${RouteConstants.riderCollections}/${item.id}'),
     );
   }

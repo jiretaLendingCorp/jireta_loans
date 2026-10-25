@@ -54,6 +54,93 @@ const List<LegalSection> kTermsAndConditionsSections = [
   ),
 ];
 
+/// Buong nilalaman ng **loan-confirmation** Terms and Conditions — ito ang
+/// binubuksan ng "Terms and Conditions" link sa loan application, bago ang
+/// "Submit Application".
+///
+/// HIWALAY ito sa [kTermsAndConditionsSections] (account terms ng profile at ng
+/// web footer): loan-specific ang mga pangako dito (amount, interest, schedule,
+/// release, late payments, electronic confirmation), kaya hindi ito dapat
+/// palitan ng pangkalahatang account terms sa gitna ng loan application.
+const List<LegalSection> kLoanConfirmationTermsSections = [
+  // Pareho ito ng unang loan application (Required Documents step): may
+  // pamagat na linya bago ang numbered na sections.
+  LegalSection(
+    title: 'JIRETA LOANS & CREDIT CORP.',
+    body: 'Loan Amount, Payment, and Process Confirmation',
+  ),
+  LegalSection(
+    title: '1. Loan Amount',
+    body:
+        'I confirm that I have reviewed the requested loan amount and understand that the final approved loan amount will be determined by Jireta Loans & Credit Corp. The amount approved by the company may differ from the amount originally requested.',
+  ),
+  LegalSection(
+    title: '2. Interest and Total Repayment',
+    body:
+        'I understand that the applicable interest rate, interest computation, total amount payable, and any applicable fees or deductions must be clearly disclosed to me before I accept the final loan agreement.',
+  ),
+  LegalSection(
+    title: '3. Payment Schedule',
+    body:
+        'I acknowledge that I must review my payment schedule, including the amount due per installment, payment frequency, due dates, and final payment deadline. I agree to make payments according to the schedule stated in my accepted loan agreement.',
+  ),
+  LegalSection(
+    title: '4. Payment Methods',
+    body:
+        'I understand that payments may be made through the company\'s authorized payment methods, such as:\n'
+        '\u2022 Payment collected by an authorized company rider.\n'
+        '\u2022 Payment made directly at the company office.\n'
+        '\u2022 Online payment through an authorized payment provider, when available.\n'
+        'I understand that I should keep the receipt or electronic confirmation as proof of payment.',
+  ),
+  LegalSection(
+    title: '5. Loan Release Process',
+    body:
+        'I understand that the release of the approved loan amount is subject to the company\'s verification, approval, and release procedures. The loan may be delivered through an authorized company representative or released at the company office, as applicable.',
+  ),
+  LegalSection(
+    title: '6. Payment Recording and Monitoring',
+    body:
+        'I understand that my payment records and outstanding balance will be monitored through the company\'s lending management system. I may review my available loan information and payment status through the authorized interface.',
+  ),
+  LegalSection(
+    title: '7. Late or Missed Payments',
+    body:
+        'I understand that missed or late payments must be handled according to the terms disclosed in my loan agreement and applicable laws. Any penalties, additional charges, or other consequences must be clearly disclosed before I agree to them.',
+  ),
+  LegalSection(
+    title: '8. Confirmation of Loan Details',
+    body:
+        'Before confirming the loan, I will verify the following:\n'
+        '\u2022 Approved loan amount.\n'
+        '\u2022 Interest rate and interest computation.\n'
+        '\u2022 Total repayment amount.\n'
+        '\u2022 Installment amount and payment frequency.\n'
+        '\u2022 Payment due dates and final deadline.\n'
+        '\u2022 Applicable fees, deductions, and other disclosed charges.\n'
+        '\u2022 Loan release method and repayment procedures.',
+  ),
+  LegalSection(
+    title: '9. Accuracy and Disputes',
+    body:
+        'I agree to notify the company promptly if I discover an error in my loan details or payment records. I understand that I may request clarification or correction through the company\'s authorized personnel.',
+  ),
+  LegalSection(
+    title: '10. Voluntary Acceptance',
+    body:
+        'I confirm that I have had the opportunity to review the loan details and ask questions before accepting the agreement. I understand that I should not confirm the loan if any amount, charge, or payment condition is unclear.',
+  ),
+  LegalSection(
+    title: '11. Electronic Confirmation',
+    body:
+        'By checking the confirmation box and selecting the confirmation button, I acknowledge that I have reviewed the displayed loan details and agree to proceed under the final loan agreement presented to me. The system should record the confirmation date, time, and applicable loan details.',
+  ),
+  LegalSection(
+    title: 'Jireta Loans & Credit Corp.',
+    body: 'Sta. Barbara, Pangasinan',
+  ),
+];
+
 /// Buong nilalaman ng Privacy Policy — ISANG pinagmumulan lang ito para sa
 /// profile, sa footer ng web login, at sa mga link sa ibang screens.
 const List<LegalSection> kPrivacyPolicySections = [
@@ -182,6 +269,20 @@ void showTermsAndConditionsSheet(BuildContext context) {
     builder: (_) => const LegalInfoSheet(
       title: 'Terms & Conditions',
       sections: kTermsAndConditionsSections,
+    ),
+  );
+}
+
+/// Buksan ang loan-confirmation Terms and Conditions sa scrollable na bottom
+/// sheet — ito ang T&C ng loan application (bago ang "Submit Application").
+void showLoanConfirmationTermsSheet(BuildContext context) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (_) => const LegalInfoSheet(
+      title: 'Terms & Conditions',
+      sections: kLoanConfirmationTermsSections,
     ),
   );
 }

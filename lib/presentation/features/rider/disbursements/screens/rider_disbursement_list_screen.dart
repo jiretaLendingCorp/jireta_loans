@@ -9,6 +9,9 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/disbursement_model.dart';
 import '../../../../shared/widgets/layout/mobile_refresh.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+// Isang breakpoint lang ang buong app para sa desktop chrome.
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint;
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../providers/rider_disbursement_provider.dart';
 
@@ -25,6 +28,21 @@ class _RiderDisbursementListScreenState
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(riderDisbursementProvider);
+    // Desktop: naka-center at may max na lapad (1240) ang feed — kapareho ng
+    // rider dashboard/history. Dati, nakaunat ang card sa buong monitor at
+    // sobrang lapad ng Upload button. Sa mobile, walang binago.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    final hPad = isDesktop ? 28.0 : 16.0;
+    final bottomPad = isDesktop ? 40.0 : 100.0;
+    final listPadding =
+        EdgeInsets.fromLTRB(hPad, isDesktop ? 20 : 16, hPad, bottomPad);
+
+    Widget capped(Widget child) => Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1240),
+            child: child,
+          ),
+        );
 
     return MobileScaffold(
       title: 'Cash Deliveries',
@@ -63,32 +81,32 @@ class _RiderDisbursementListScreenState
         ),
       ],
       body: state.isLoading
-          ? ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          ? capped(ListView.builder(
+              padding: listPadding,
               itemCount: 5,
               itemBuilder: (_, __) => const Padding(
                 padding: EdgeInsets.only(bottom: 12),
                 child: ShimmerLoader(height: 120, borderRadius: 16),
               ),
-            )
+            ))
           : state.disbursements.isEmpty
               // Naka-scroll ang empty state para may magawang pull-down.
               ? MobileRefresh(
                   color: AppColors.riderGreen,
                   fill: true,
                   onRefresh: _refresh,
-                  child: _buildEmpty(),
+                  child: capped(_buildEmpty()),
                 )
               : MobileRefresh(
                   color: AppColors.riderGreen,
                   onRefresh: _refresh,
-                  child: ListView.builder(
+                  child: capped(ListView.builder(
                     physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                    padding: listPadding,
                     itemCount: state.disbursements.length,
                     itemBuilder: (_, i) =>
                         _buildCard(context, state.disbursements[i]),
-                  ),
+                  )),
                 ),
     );
   }
@@ -131,6 +149,7 @@ class _RiderDisbursementListScreenState
   }
 
   Widget _buildCard(BuildContext context, DisbursementModel disbursement) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
     final fmt = NumberFormat('#,##0.00', 'en_PH');
     final delivery = disbursement.deliveryDate;
     return Container(
@@ -218,31 +237,43 @@ class _RiderDisbursementListScreenState
                   color: context.cTextPrimary,
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
+              // Expanded + ellipsis: sa makitid na screen (o mahabang petsa)
+              // nag-truncate ang "Deliver by" sa halip na umapaw.
               if (delivery != null)
-                Text(
-                  'Deliver by: ${delivery.month}/${delivery.day}/${delivery.year}',
-                  style: TextStyle(
-                      fontSize: 12, color: context.cTextSecondary),
+                Expanded(
+                  child: Text(
+                    'Deliver by: ${delivery.month}/${delivery.day}/${delivery.year}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 12, color: context.cTextSecondary),
+                  ),
                 ),
             ],
           ),
           const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => context.push(
-                RouteConstants.riderDisbursementUploadProof.replaceFirst(
-                    ':id', disbursement.id),
-              ),
-              icon: Icon(Icons.camera_alt_outlined, size: 18),
-              label: Text('Upload Cash on Delivery Proof'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.riderGreen,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+          // Mobile: buong lapad. Desktop: makitid at naka-align sa KANAN —
+          // hindi nakaunat sa buong 1100+ px na card.
+          Align(
+            alignment: isDesktop ? Alignment.centerRight : Alignment.center,
+            child: SizedBox(
+              width: isDesktop ? 320 : double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () => context.push(
+                  RouteConstants.riderDisbursementUploadProof.replaceFirst(
+                      ':id', disbursement.id),
+                ),
+                icon: Icon(Icons.camera_alt_outlined, size: 18),
+                label: Text('Upload Cash on Delivery Proof'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.riderGreen,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
           ),

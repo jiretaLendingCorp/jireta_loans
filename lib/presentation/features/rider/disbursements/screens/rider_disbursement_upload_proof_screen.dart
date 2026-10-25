@@ -7,11 +7,14 @@ import 'package:image_picker/image_picker.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/validation/delivery_proof_rules.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/image/xfile_preview.dart';
 import '../../../../shared/widgets/layout/mobile_scaffold.dart';
+import '../../../../shared/widgets/layout/web_scaffold.dart'
+    show kDesktopBreakpoint;
 import '../../../../shared/widgets/signature_pad.dart';
 import '../providers/rider_disbursement_provider.dart';
 import '../../location/providers/rider_location_provider.dart';
@@ -31,21 +34,41 @@ class _RiderDisbursementUploadProofScreenState
     extends ConsumerState<RiderDisbursementUploadProofScreen> {
   final _picker = ImagePicker();
   static const _maxPhotos = 2;
+
   final List<XFile> _proofPhotos = [];
+
+  /// Laki (bytes) ng bawat piniling photo — kailangan para mabilis na
+  /// ma-recompute ang TOTAL kapag may tinanggal.
+  final Map<String, int> _photoBytes = {};
+
+  /// Pinagsamang laki ng lahat ng piniling photo. 5MB ANG LIMIT NG KABUUAN
+  /// (hindi kada photo) — tingnan ang [DeliveryProofRules].
+  int _totalBytes = 0;
   String? _signatureBase64;
+
+  /// Validation error ng huling piniling photo — inline sa card (hindi lang
+  /// transient na snackbar), para kitang-kita kung bakit tinanggihan.
+  String? _pickError;
   bool _isSubmitting = false;
+
+  /// Naka-cache na notifier: HINDI na pwedeng gamitin ang `ref` sa `dispose()`
+  /// ("Cannot use ref after the widget was disposed"), kaya ito ang tinatawag
+  /// doon para tumigil ang location tracking pag-alis ng screen.
+  RiderLocationNotifier? _location;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(riderLocationProvider.notifier).startTracking();
+      if (!mounted) return;
+      _location = ref.read(riderLocationProvider.notifier);
+      _location?.startTracking();
     });
   }
 
   @override
   void dispose() {
-    ref.read(riderLocationProvider.notifier).stopTracking();
+    _location?.stopTracking();
     super.dispose();
   }
 
@@ -63,9 +86,30 @@ class _RiderDisbursementUploadProofScreenState
       imageQuality: 80,
       maxWidth: 1920,
     );
-    if (picked != null) {
-      setState(() => _proofPhotos.add(picked));
+    if (picked == null) return;
+
+    // ── Validation bago tanggapin ang photo ──────────────────────────────
+    // 1) Uri: image lang (hindi PDF/dokumento o file na walang image mime).
+    if (!DeliveryProofRules.isImage(picked.mimeType)) {
+      setState(() => _pickError = DeliveryProofRules.notImageMessage);
+      return;
     }
+    // 2) Laki: max 5MB ang KABUUAN ng lahat ng photo — ipinapakita ang
+    //    aktwal na total kapag lumampas.
+    final size = await picked.length();
+    final totalBytes = _totalBytes + size;
+    if (!DeliveryProofRules.isWithinLimit(totalBytes)) {
+      setState(() => _pickError =
+          DeliveryProofRules.oversizeMessage(totalBytes));
+      return;
+    }
+
+    setState(() {
+      _pickError = null;
+      _proofPhotos.add(picked);
+      _photoBytes[picked.path] = size;
+      _totalBytes += size;
+    });
   }
 
   Future<void> _submit() async {
@@ -152,25 +196,92 @@ class _RiderDisbursementUploadProofScreenState
     // provider ay agad na dini-dispose pagkatapos ng `ref.read` — nawawala ang
     // realtime refresh at ang error/submitting state ng submit.
     ref.watch(riderDisbursementProvider);
+
+    // Parehong widgets sa mobile at desktop — ang layout lang ang nag-iiba.
+    final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
+    // Sa desktop, pinupuno ng photo box ang buong taas ng card (para walang
+    // blangkong puwang sa ibaba kapag magkapantay ang dalawang card).
+    final photoSection = _buildPhotoSection(fillHeight: isDesktop);
+    // Sa desktop, mas mataas ang signature canvas para puno ang card —
+    // magkapantay ang taas ng dalawang card (IntrinsicHeight + stretch).
+    final signaturePad = _buildSignaturePad(height: isDesktop ? 200 : 150);
+    // Walang Cancel sa desktop — nasa sidebar/top bar ang paglabas doon.
+    final actions = _buildActions(context, showCancel: !isDesktop);
+
     return MobileScaffold(
       title: 'Cash on Delivery',
       accentColor: AppColors.riderGreen,
       showBottomNav: false,
       navItems: const [],
-      body: ListView(
-        padding: EdgeInsets.all(16),
-        children: [
-          _buildPhotoSection(),
-          SizedBox(height: 16),
-          _buildSignaturePad(),
-          SizedBox(height: 24),
-          AppButton(
-            label: 'Submit',
-            onPressed: _isSubmitting ? null : _submit,
-            isLoading: _isSubmitting,
-            backgroundColor: AppColors.riderGreen,
-          ),
-          SizedBox(height: 12),
+      body: isDesktop
+          // DESKTOP: DALAWANG COLUMN — Cash on Delivery photos sa KALIWA,
+          // Lender Signature sa KANAN — at naka-cap (1080) at nakasentro.
+          // Dati, isang column lang na nakaunat sa buong lapad: blangko ang
+          // kalahati ng bawat card at sobrang lapad ng signature canvas.
+          ? SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1080),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // IntrinsicHeight + stretch: MAGKAPANTAY ang taas ng
+                      // dalawang card (dati, magkaiba ang haba ng puting card).
+                      IntrinsicHeight(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(flex: 5, child: photoSection),
+                            const SizedBox(width: 20),
+                            Expanded(flex: 6, child: signaturePad),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      // Submit + Cancel sa ibaba, naka-align sa KANAN at
+                      // makitid lang — hindi nakaunat sa buong lapad.
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 380),
+                          child: actions,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                photoSection,
+                const SizedBox(height: 16),
+                signaturePad,
+                const SizedBox(height: 24),
+                actions,
+              ],
+            ),
+    );
+  }
+
+  /// Submit + Cancel — isang column, buong lapad sa mobile at naka-cap (380)
+  /// sa desktop (kanang bahagi ng content).
+  Widget _buildActions(BuildContext context, {bool showCancel = true}) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      // Buong lapad ng 380 na cap sa desktop; sa mobile, buong lapad ng screen.
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        AppButton(
+          label: 'Submit',
+          onPressed: _isSubmitting ? null : _submit,
+          isLoading: _isSubmitting,
+          backgroundColor: AppColors.riderGreen,
+        ),
+        if (showCancel) ...[
+          const SizedBox(height: 12),
           OutlinedButton(
             // Cancel = back. Kapag walang ma-pop (hal. deep link), diretso
             // sa disbursements list para hindi ma-stuck sa screen.
@@ -184,15 +295,15 @@ class _RiderDisbursementUploadProofScreenState
             style: OutlinedButton.styleFrom(
               foregroundColor: context.cTextSecondary,
               side: BorderSide(color: context.cBorder),
-              padding: EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               minimumSize: const Size(double.infinity, 50),
             ),
-            child: Text('Cancel'),
+            child: const Text('Cancel'),
           ),
         ],
-      ),
+      ],
     );
   }
 
@@ -239,9 +350,81 @@ class _RiderDisbursementUploadProofScreenState
     await _pickPhoto(fromCamera: choice == 'camera');
   }
 
-  Widget _buildPhotoSection() {
+  /// [fillHeight] = desktop: ang photo box (previews o empty placeholder) ay
+  /// nag-e-expand para puno ang card — kung hindi, may mahabang blangkong
+  /// puwang sa ibaba kapag pinantay ang taas sa signature card.
+  Widget _buildPhotoSection({bool fillHeight = false}) {
     final missingRequired = _proofPhotos.isEmpty;
+
+    final Widget photoBox = _proofPhotos.isNotEmpty
+        ? Row(
+            crossAxisAlignment: fillHeight
+                ? CrossAxisAlignment.stretch
+                : CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < _proofPhotos.length; i++) ...[
+                if (i > 0) SizedBox(width: 8),
+                Expanded(
+                  child: Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: fillHeight
+                            ? SizedBox.expand(
+                                child: XFilePreview(file: _proofPhotos[i]))
+                            : XFilePreview(
+                                file: _proofPhotos[i],
+                                height: 140,
+                                width: double.infinity),
+                      ),
+                      Positioned(
+                        top: 6,
+                        right: 6,
+                        child: GestureDetector(
+                          onTap: () => setState(() {
+                            final removed = _proofPhotos.removeAt(i);
+                            _totalBytes -= _photoBytes.remove(removed.path) ?? 0;
+                            _pickError = null;
+                          }),
+                          child: Container(
+                            padding: EdgeInsets.all(5),
+                            decoration: BoxDecoration(
+                                color: Colors.red, shape: BoxShape.circle),
+                            child: Icon(Icons.close,
+                                color: Colors.white, size: 14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          )
+        : Container(
+            width: double.infinity,
+            height: fillHeight ? double.infinity : 180,
+            decoration: BoxDecoration(
+              color: context.cSurfaceVariant,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: context.cBorder),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.image_outlined,
+                    size: 40, color: context.cTextTertiary),
+                SizedBox(height: 8),
+                Text('No photo yet',
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: context.cTextSecondary)),
+              ],
+            ),
+          );
     return Container(
+      key: const ValueKey('cod_photo_card'),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.cSurface,
@@ -281,82 +464,59 @@ class _RiderDisbursementUploadProofScreenState
             ],
           ),
           SizedBox(height: 12),
-          // Photo box: previews (max 2) o empty placeholder kapag wala.
-          if (_proofPhotos.isNotEmpty)
+          // Photo box: previews (max 2) o empty placeholder kapag wala. Sa
+          // desktop, pinupuno nito ang natitirang taas ng card.
+          if (fillHeight) Expanded(child: photoBox) else photoBox,
+          if (_pickError != null) ...[
+            SizedBox(height: 10),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = 0; i < _proofPhotos.length; i++) ...[
-                  if (i > 0) SizedBox(width: 8),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: XFilePreview(
-                              file: _proofPhotos[i],
-                              height: 140,
-                              width: double.infinity),
-                        ),
-                        Positioned(
-                          top: 6,
-                          right: 6,
-                          child: GestureDetector(
-                            onTap: () =>
-                                setState(() => _proofPhotos.removeAt(i)),
-                            child: Container(
-                              padding: EdgeInsets.all(5),
-                              decoration: BoxDecoration(
-                                  color: Colors.red, shape: BoxShape.circle),
-                              child: Icon(Icons.close,
-                                  color: Colors.white, size: 14),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                Icon(Icons.error_outline,
+                    size: 14, color: AppColors.error),
+                SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    _pickError!,
+                    style: TextStyle(
+                        fontSize: 11.5,
+                        height: 1.3,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.error),
                   ),
-                ],
+                ),
               ],
-            )
-          else
-            Container(
-              width: double.infinity,
-              height: 180,
-              decoration: BoxDecoration(
-                color: context.cSurfaceVariant,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: context.cBorder),
-              ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.image_outlined,
-                      size: 40, color: context.cTextTertiary),
-                  SizedBox(height: 8),
-                  Text('No photo yet',
-                      style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: context.cTextSecondary)),
-                  SizedBox(height: 2),
-                  Text('Tap Upload below to add up to 2 photos',
-                      style: TextStyle(
-                          fontSize: 12, color: context.cTextTertiary)),
-                ],
-              ),
             ),
+          ],
           SizedBox(height: 12),
-          // Maliit na Upload + Clear buttons, naka-right align.
+          // Maliit na Upload + Clear buttons, naka-right align — at sa
+          // KALIWA ng row na ito ang "Tap Upload … max 5MB total" na helper
+          // text (hindi sa loob ng empty placeholder).
           Row(
             mainAxisAlignment: MainAxisAlignment.end,
             mainAxisSize: MainAxisSize.max,
             children: [
+              if (_proofPhotos.isEmpty)
+                Expanded(
+                  child: Text(
+                    'Tap Upload to add up to 2 photos '
+                    '(max ${DeliveryProofRules.maxLabel} total).',
+                    style:
+                        TextStyle(fontSize: 11, color: context.cTextTertiary),
+                  ),
+                )
+              else
+                const Spacer(),
               // Text lang ang Clear — hindi button style.
               TextButton(
-                onPressed: _proofPhotos.isEmpty
+                onPressed: _proofPhotos.isEmpty && _pickError == null
                     ? null
-                    : () => setState(() => _proofPhotos.clear()),
+                    : () => setState(() {
+                          _proofPhotos.clear();
+                          _photoBytes.clear();
+                          _totalBytes = 0;
+                          _pickError = null;
+                        }),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.error,
                   padding:
@@ -394,8 +554,9 @@ class _RiderDisbursementUploadProofScreenState
     );
   }
 
-  Widget _buildSignaturePad() {
+  Widget _buildSignaturePad({double height = 150}) {
     return Container(
+      key: const ValueKey('cod_signature_card'),
       padding: EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.cSurface,
@@ -415,16 +576,20 @@ class _RiderDisbursementUploadProofScreenState
             children: [
               Icon(Icons.draw_outlined, color: AppColors.riderGreen, size: 20),
               SizedBox(width: 8),
-              Text('Lender Signature (Optional)',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                      color: context.cTextPrimary)),
+              // Expanded: sa makitid na screen (o maliit na desktop window) ay
+              // nag-w-wrap ang mahabang title sa halip na umapaw.
+              Expanded(
+                child: Text('Lender Signature (Optional)',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                        color: context.cTextPrimary)),
+              ),
             ],
           ),
           SizedBox(height: 12),
           SignaturePad(
-            height: 150,
+            height: height,
             showActionIcons: false,
             // "Signature cleared" feedback: 1 segundo lang (rider flow).
             clearedFeedbackDuration: const Duration(seconds: 1),

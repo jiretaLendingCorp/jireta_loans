@@ -158,27 +158,8 @@ class RiderAmountHero extends StatelessWidget {
                   ),
                 ),
               ),
-              if (kpi.totalFailedCollections > 0) ...[
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.16),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '${kpi.totalFailedCollections} failed',
-                      style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white),
-                    ),
-                  ),
-                ),
-              ],
+              // Walang "N failed" chip dito — ang mga failed collection ay
+              // nasa History (kasama sa feed), hindi sa Total Collected card.
             ],
           ),
         ],

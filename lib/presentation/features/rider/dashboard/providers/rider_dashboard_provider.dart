@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/errors/error_handler.dart';
 import '../../../../../core/di/injection.dart';
+import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/datasources/remote/kpi_remote_datasource.dart';
 import '../../../../../data/datasources/remote/collection_remote_datasource.dart';
 import '../../../../../data/datasources/remote/ci_remote_datasource.dart';
@@ -68,7 +69,12 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
   final DisbursementRemoteDataSource _disbDs;
 
   RiderDashboardNotifier(this._kpiDs, this._collDs, this._ciDs, this._disbDs)
-      : super(RiderDashboardState(kpi: KpiRiderModel.empty())) {
+      : super(RiderDashboardState(
+          kpi: KpiRiderModel.empty(),
+          // Default: KASALUKUYANG buwan — monthly ang TOTAL COLLECTED sa unang
+          // bukas ng dashboard, hindi all-time.
+          selectedMonth: currentMonthKey(),
+        )) {
     bindRealtimeRefresh([
       'collection_assignments',
       'credit_investigations',
@@ -79,8 +85,15 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
     load();
   }
 
+  /// `YYYY-MM` ng kasalukuyang buwan (Asia/Manila) — ang default na period ng
+  /// Total Collected.
+  static String currentMonthKey() {
+    final now = nowManila();
+    return '${now.year}-${now.month.toString().padLeft(2, '0')}';
+  }
+
   static List<String> availableMonths({int count = 12}) {
-    final now = DateTime.now();
+    final now = nowManila();
     return List.generate(count, (i) {
       final d = DateTime(now.year, now.month - i, 1);
       return '${d.year}-${d.month.toString().padLeft(2, '0')}';
@@ -162,9 +175,11 @@ class RiderDashboardNotifier extends StateNotifier<RiderDashboardState>
     await load(month: monthKey, date: formatted);
   }
 
+  /// Binabalik sa default na period (kasalukuyang buwan) — hindi all-time.
   Future<void> clearFilters() async {
-    state = state.copyWith(clearMonth: true, clearDate: true);
-    await load(month: null, date: null);
+    final m = currentMonthKey();
+    state = state.copyWith(selectedMonth: m, clearDate: true);
+    await load(month: m, date: null);
   }
 
   Future<void> refresh() => load();

@@ -240,7 +240,9 @@ class CollectionAssignmentModel {
       case 'completed':
         return 'Completed';
       case 'failed':
-        return 'Failed';
+        // Rider-facing term: hindi nakolekta, hindi "Failed" — walang
+        // paratang na tono sa rider kapag hindi natapos ang assignment.
+        return 'Uncollected';
       default:
         return status;
     }

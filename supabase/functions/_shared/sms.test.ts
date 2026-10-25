@@ -207,6 +207,137 @@ Deno.test({
   },
 });
 
+Deno.test({
+  name: "TEXTBEE_API_KEY routes OTP traffic through TextBee (code substituted)",
+  permissions: { env: true },
+  fn: async () => {
+    const previous = {
+      textbee: Deno.env.get("TEXTBEE_API_KEY"),
+      provider: Deno.env.get("SMS_PROVIDER"),
+      device: Deno.env.get("TEXTBEE_DEVICE_ID"),
+      mock: Deno.env.get("USE_MOCK_SMS"),
+      semaphore: Deno.env.get("SEMAPHORE_API_KEY"),
+    };
+    Deno.env.set("TEXTBEE_API_KEY", "tb-test-key");
+    Deno.env.set("TEXTBEE_DEVICE_ID", "device-1");
+    Deno.env.delete("SMS_PROVIDER");
+    Deno.env.delete("USE_MOCK_SMS");
+    Deno.env.delete("SEMAPHORE_API_KEY");
+
+    const calls: { url: string; body: string; headers: Record<string, string> }[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      calls.push({
+        url,
+        body: String(init?.body ?? ""),
+        headers: (init?.headers ?? {}) as Record<string, string>,
+      });
+      return Promise.resolve(
+        new Response(
+          JSON.stringify({
+            data: { success: true, smsBatchId: "batch-42", recipientCount: 1 },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await sendSms({
+        to: "09171234567",
+        message: "Your Jireta Loans OTP is: {otp}. Valid for 5 minutes.",
+        otpCode: "654321",
+        logMessage: "Your Jireta Loans OTP was sent.",
+      });
+
+      assertEquals(result.accepted, true);
+      assertEquals(result.status, "pending"); // queued, hindi delivered
+      assertEquals(result.gatewayReference, "batch-42");
+      assertEquals(calls.length, 1);
+      assert(calls[0].url.startsWith("https://api.textbee.dev/"));
+      assertEquals(calls[0].headers["x-api-key"], "tb-test-key");
+
+      const body = JSON.parse(calls[0].body) as Record<string, unknown>;
+      assertEquals(body.recipients, ["+639171234567"]);
+      assertEquals(
+        body.message,
+        "Your Jireta Loans OTP is: 654321. Valid for 5 minutes.",
+      );
+      assertEquals(body.deviceId, "device-1");
+    } finally {
+      globalThis.fetch = originalFetch;
+      for (const [name, value] of [
+        ["TEXTBEE_API_KEY", previous.textbee],
+        ["SMS_PROVIDER", previous.provider],
+        ["TEXTBEE_DEVICE_ID", previous.device],
+        ["USE_MOCK_SMS", previous.mock],
+        ["SEMAPHORE_API_KEY", previous.semaphore],
+      ] as const) {
+        if (value === undefined) Deno.env.delete(name);
+        else Deno.env.set(name, value);
+      }
+    }
+  },
+});
+
+Deno.test({
+  name: "SMS_PROVIDER=semaphore keeps the Semaphore path as an escape hatch",
+  permissions: { env: true },
+  fn: async () => {
+    const previous = {
+      textbee: Deno.env.get("TEXTBEE_API_KEY"),
+      provider: Deno.env.get("SMS_PROVIDER"),
+      mock: Deno.env.get("USE_MOCK_SMS"),
+      semaphore: Deno.env.get("SEMAPHORE_API_KEY"),
+      sender: Deno.env.get("SEMAPHORE_SENDER_NAME"),
+    };
+    Deno.env.set("TEXTBEE_API_KEY", "tb-test-key");
+    Deno.env.set("SMS_PROVIDER", "semaphore");
+    Deno.env.set("SEMAPHORE_API_KEY", "sem-key");
+    Deno.env.delete("SEMAPHORE_SENDER_NAME");
+    Deno.env.delete("USE_MOCK_SMS");
+
+    const calls: string[] = [];
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL) => {
+      calls.push(typeof input === "string" ? input : input.toString());
+      return Promise.resolve(
+        new Response(
+          JSON.stringify([{ message_id: 7, status: "Queued" }]),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+      );
+    }) as typeof fetch;
+
+    try {
+      const result = await sendSms({
+        to: "09171234567",
+        message: "Your Jireta Loans OTP is: {otp}.",
+        otpCode: "654321",
+        logMessage: "Your Jireta Loans OTP was sent.",
+      });
+
+      assertEquals(result.accepted, true);
+      assertEquals(result.gatewayReference, "7");
+      assertEquals(calls.length, 1);
+      assert(calls[0].startsWith("https://api.semaphore.co/"));
+    } finally {
+      globalThis.fetch = originalFetch;
+      for (const [name, value] of [
+        ["TEXTBEE_API_KEY", previous.textbee],
+        ["SMS_PROVIDER", previous.provider],
+        ["USE_MOCK_SMS", previous.mock],
+        ["SEMAPHORE_API_KEY", previous.semaphore],
+        ["SEMAPHORE_SENDER_NAME", previous.sender],
+      ] as const) {
+        if (value === undefined) Deno.env.delete(name);
+        else Deno.env.set(name, value);
+      }
+    }
+  },
+});
+
 Deno.test("form omits sendername unless configured (unapproved name = Failed)", () => {
   const unset = buildSemaphoreForm({
     apiKey: "key",
