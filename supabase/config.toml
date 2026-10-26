@@ -536,7 +536,7 @@ deno_version = 2
 #                          HINDI ito ang numero ng recipient — ang recipients ay
 #                          ang aktwal na numero na inilagay ng lender/rider, at
 #                          hindi kailangan i-register bilang device ang mga iyon.
-#   TEXTBEE_STATUS_CHECK_MS — optional (default 1200, `0` = off). Gaano katagal
+#   TEXTBEE_STATUS_CHECK_MS — optional (default 500, `0` = off). Gaano katagal
 #                          titingnan ang GET /api/v1/gateway/messages?smsBatchId=...
 #                          pagkatapos ng send, HARD DEADLINE (kasama ang sleep at
 #                          fetch timeout, kaya hindi na lumalampas sa budget).
@@ -548,6 +548,13 @@ deno_version = 2
 #                          `sms_status: "pending"` at "Your code is on its way" ang
 #                          sagot (hindi "OTP sent successfully"), dahil ang phone
 #                          pa lang ang may hawak ng mensahe.
+#                          PERF: ang UNANG poll ay agad (walang 500ms na tulog
+#                          bago ito) at sa pagitan lang ng mga poll natutulog,
+#                          kaya kapag `sent`/`failed` na agad ang batch ay halos
+#                          walang dagdag na paghihintay. 1200 ang dating default —
+#                          dagdag na 1.2s sa bawat OTP kahit `pending` naman ang
+#                          isasagot; itaas lang ito kapag kailangang habaan ang
+#                          pagtingin para sa mga device-side failure.
 #   SMS_PROVIDER         — optional. `semaphore` forces the legacy Semaphore
 #                          sender; default picks TextBee when TEXTBEE_API_KEY is
 #                          set, otherwise Semaphore.

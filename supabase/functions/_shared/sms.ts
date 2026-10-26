@@ -70,18 +70,20 @@ export function isMockSmsEnabled(): boolean {
  * phone pa ang nagpapadala, at kapag ang SIM/device/carrier ang pumalya, dito
  * lang lumalabas ang `failed` + `errorCode`.
  *
- * Maikli ito (default 1200ms, hard deadline) dahil ang sagot ay
+ * Maikli ito (default 500ms, hard deadline) dahil ang sagot ay
  * hindi na kailangang hintayin ang `sent` ng carrier: kapag `pending` pa rin,
  * ang caller ay nag-uulat ng "on the way" — hindi "sent" — at hindi na
- * pinaghihintay ang user ng ilang segundo para sa parehong sagot.
+ * pinaghihintay ang user ng ilang segundo para sa parehong sagot. Ang unang
+ * poll ay agad (walang 500ms na tulog bago ito), kaya ang 500ms na ito ay
+ * tunay na budget para sa unang sagot, hindi karagdagang paghihintay.
  *
  * `0` = patayin ang pagtingin (bumalik sa dating behavior).
  */
 function textBeeStatusCheckMs(): number {
   const raw = (Deno.env.get('TEXTBEE_STATUS_CHECK_MS') ?? '').trim();
   const parsed = parseInt(raw, 10);
-  if (raw === '') return 1200;
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 1200;
+  if (raw === '') return 500;
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 500;
 }
 
 /**
@@ -315,12 +317,14 @@ export async function sendSms(params: {
       ? params.message.replace('{otp}', params.otpCode)
       : params.message;
 
+    const smsStartedAt = Date.now();
     const accepted = await sendTextBeeSms({
       apiKey: textBeeApiKey,
       to: params.to,
       message,
       deviceId: Deno.env.get('TEXTBEE_DEVICE_ID'),
     });
+    const sendMs = Date.now() - smsStartedAt;
 
     // ── Tunay na status ng batch ─────────────────────────────────────────
     // Tinanggap ng API ≠ naipadala ng phone. Kapag `failed` ang mensahe sa
@@ -328,12 +332,15 @@ export async function sendSms(params: {
     // limit, kulang ang SMS permission), HINDI ito ipapasa bilang "sent" —
     // failure ito para ma-retry ng user at makita sa logs ang errorCode.
     let result = accepted;
+    let statusCheckMs = 0;
     if (accepted.accepted && accepted.gatewayReference) {
+      const checkStartedAt = Date.now();
       const report = await waitForTextBeeBatchOutcome({
         apiKey: textBeeApiKey,
         smsBatchId: accepted.gatewayReference,
         timeoutMs: textBeeStatusCheckMs(),
       });
+      statusCheckMs = Date.now() - checkStartedAt;
       if (report && report.total > 0) {
         const failure = report.messages.find((m) => m.status === 'failed');
         if (report.anyFailed && report.sentCount === 0) {
@@ -371,12 +378,22 @@ export async function sendSms(params: {
       }
     }
 
+    const logStartedAt = Date.now();
     await recordSmsLog({
       ...params,
       status: result.status,
       gatewayReference: result.gatewayReference,
       logMessage,
     });
+
+    // Timing ng bawat yugto para may ebidensya kapag "mabagal ang OTP": send =
+    // TextBee API, status_check = gateway phone, log = sms_logs insert. Walang
+    // numero o code sa linyang ito.
+    console.info(
+      `[sms] TextBee result=${result.status} send_ms=${sendMs} ` +
+        `status_check_ms=${statusCheckMs} log_ms=${Date.now() - logStartedAt} ` +
+        `total_ms=${Date.now() - smsStartedAt}`,
+    );
 
     return result;
   }

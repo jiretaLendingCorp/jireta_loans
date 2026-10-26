@@ -452,6 +452,39 @@ Deno.test("the status wait never outlives its budget, even while the batch stays
   }
 });
 
+Deno.test("an already-sent batch is read on the first poll, without a fixed sleep", async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (() =>
+    Promise.resolve(
+      new Response(
+        JSON.stringify({
+          data: [{ status: "sent", recipient: "+639171234567" }],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    )) as typeof fetch;
+
+  try {
+    const startedAt = Date.now();
+    const report = await waitForTextBeeBatchOutcome({
+      apiKey: "tb_key",
+      smsBatchId: "batch-sent",
+      timeoutMs: 1_200,
+    });
+    const elapsed = Date.now() - startedAt;
+
+    assertEquals(report?.allSent, true);
+    // Dati: may fixed 500ms na tulog BAGO ang unang poll, kaya dagdag na
+    // kalahating segundo sa bawat OTP kahit `sent` na agad ang batch.
+    assert(
+      elapsed < 250,
+      `the first poll waited ${elapsed}ms before asking the gateway`,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 Deno.test("a slow status fetch is cut off by the remaining budget", async () => {
   const originalFetch = globalThis.fetch;
   globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) =>

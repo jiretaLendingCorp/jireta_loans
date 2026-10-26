@@ -241,6 +241,7 @@ serve(async (req) => {
 
 // ── [moved from functions/auth-send-otp/index.ts] ───────────────────────────
 async function handleSendOtp(req: Request) {
+  const startedAt = Date.now();
   const body = await req.json().catch(() => ({})) as Record<string, unknown>;
   // Maaaring PH mobile number O email (hal. Gmail) ang identifier.
   // `identifier` ang bagong field; `phone_number` / `email` ay para sa lumang
@@ -360,12 +361,33 @@ async function handleSendOtp(req: Request) {
   // Lenders may self-register via OTP: an unregistered phone is allowed to
   // request an OTP. Riders must be registered by the head manager first, so
   // once a phone IS registered we only allow OTP for rider/lender roles.
-  const { data: userRow } = await db
-    .from('users')
-    .select('id, account_status, first_name, last_name, email, roles!users_role_id_fkey(name)')
-    .eq('phone_number', phone)
-    .maybeSingle();
-  const user = singleWithObjectEmbeds(userRow);
+  //
+  // PERF: tatlong independent na READ (user row, pinakabagong OTP, at ang
+  // 10-minute window count) ang SABAY na tumatakbo. Dating sunod-sunod ang
+  // bawat round trip bago pa maipadala ang SMS — bawat isa ay dagdag na
+  // paghihintay sa login. Ang ORDER ng pagsuri sa resulta ay hindi nagbago:
+  // account → cooldown → window limit.
+  const windowStart = new Date(Date.now() - OTP_WINDOW_MINUTES * 60000).toISOString();
+  const [userLookup, latestOtpLookup, otpWindowLookup] = await Promise.all([
+    db
+      .from('users')
+      .select('id, account_status, first_name, last_name, email, roles!users_role_id_fkey(name)')
+      .eq('phone_number', phone)
+      .maybeSingle(),
+    db
+      .from('otp_codes')
+      .select('created_at')
+      .eq('phone_number', phone)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+    db
+      .from('otp_codes')
+      .select('*', { count: 'exact', head: true })
+      .eq('phone_number', phone)
+      .gte('created_at', windowStart),
+  ]);
+  const user = singleWithObjectEmbeds(userLookup.data);
 
   let userId: string | null = null;
   if (user) {
@@ -398,16 +420,8 @@ async function handleSendOtp(req: Request) {
   // ── Resend cooldown (server-side, hindi lang UI timer) ──────────────────
   // Base sa PINAKABAGONG OTP ng numero (kahit anong purpose) para hindi ito
   // ma-bypass sa pagpalit ng purpose.
-  const { data: latestOtp } = await db
-    .from('otp_codes')
-    .select('created_at')
-    .eq('phone_number', phone)
-    .order('created_at', { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
   const cooldown = resendCooldownRemaining(
-    latestOtp?.created_at,
+    latestOtpLookup.data?.created_at,
     OTP_RESEND_COOLDOWN_SECONDS,
   );
   if (cooldown > 0) {
@@ -419,15 +433,8 @@ async function handleSendOtp(req: Request) {
     );
   }
 
-  const windowStart = new Date(Date.now() - OTP_WINDOW_MINUTES * 60000).toISOString();
-  const { count } = await db
-    .from('otp_codes')
-    .select('*', { count: 'exact', head: true })
-    .eq('phone_number', phone)
-    .gte('created_at', windowStart);
-
   // 10 OTP requests per phone per 10 minutes → rate limit + block on breach.
-  if ((count ?? 0) >= OTP_RATE_LIMIT) {
+  if ((otpWindowLookup.count ?? 0) >= OTP_RATE_LIMIT) {
     await blockKey({
       key: `otp:phone:${phone}`,
       reason: 'OTP request limit reached for this number',
@@ -542,6 +549,7 @@ async function handleSendOtp(req: Request) {
   // sa totoong send — redacted ang ipinapasa sa sms_logs.
   const useMock = isMockSmsEnabled();
   const messageTemplate = otpMessageTemplate(OTP_EXPIRY_MINUTES);
+  const smsStartedAt = Date.now();
   const smsResult = await sendSms({
     to: phone,
     message: messageTemplate,
@@ -594,6 +602,15 @@ async function handleSendOtp(req: Request) {
       ip_address: ip,
     });
   }
+
+  // Ebidensya para sa "mabagal ang OTP": ang total_ms ay ang buong request na
+  // hinihintay ng app (DB + provider), at sms_ms ang TextBee/Semaphore na
+  // bahagi lang. Walang numero o code sa linyang ito.
+  console.info(
+    `[auth-otp] send-otp ok (status=${smsResult.status}, sms_ms=${
+      Date.now() - smsStartedAt
+    }, total_ms=${Date.now() - startedAt})`,
+  );
 
   // `sent` lang kapag tinanggap na ng carrier (galing sa status check); kapag
   // naka-queue pa rin, `pending` ang iniuulat para hindi magkunwari ang app na

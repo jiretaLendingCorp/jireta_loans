@@ -347,6 +347,12 @@ export async function fetchTextBeeMessageReport(params: {
  * Ito ang nagsasabi kung ang problema ay (a) nasa device/SIM/carrier (`failed`
  * + `errorCode`) o (b) nasa daan pa lang (`pending`) — bagay na hindi
  * maipapakita ng `200` ng send.
+ *
+ * PERF: ang UNANG poll ay agad (walang tulog bago ito). Dating laging may
+ * fixed na 500ms na tulog muna, kaya ang bawat OTP request ay may 500ms na
+ * dagdag na paghihintay kahit `sent`/`failed` na ang batch bago pa tayo
+ * tumingin — halatang-halata sa login (at sa mga test na ~500ms tumatagal).
+ * Sa pagitan lang ng mga poll natutulog, at hindi lumalampas sa `timeoutMs`.
  */
 export async function waitForTextBeeBatchOutcome(params: {
   apiKey: string;
@@ -364,13 +370,6 @@ export async function waitForTextBeeBatchOutcome(params: {
   let last: TextBeeBatchOutcome | null = null;
 
   while (true) {
-    const remaining = deadline - Date.now();
-    if (remaining <= 0) return last;
-
-    await new Promise((resolve) =>
-      setTimeout(resolve, Math.min(TEXTBEE_STATUS_POLL_INTERVAL_MS, remaining))
-    );
-
     const budget = deadline - Date.now();
     if (budget <= 0) return last;
 
@@ -383,6 +382,12 @@ export async function waitForTextBeeBatchOutcome(params: {
       last = report;
       if (report.allSent || report.anyFailed) return report;
     }
+
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) return last;
+    await new Promise((resolve) =>
+      setTimeout(resolve, Math.min(TEXTBEE_STATUS_POLL_INTERVAL_MS, remaining))
+    );
   }
 }
 
