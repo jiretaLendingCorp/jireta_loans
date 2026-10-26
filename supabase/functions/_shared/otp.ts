@@ -142,6 +142,40 @@ export function otpRejectionReason(
 }
 
 /**
+ * Default na body ng OTP SMS.
+ *
+ * MAIKLI at walang canned na A2P na salita ("OTP", "Do not share this code",
+ * "Valid for ... minutes") dahil iyon ang hinaharang ng anti-smishing filter
+ * ng PH carrier kapag ang sender ay personal SIM at hindi rehistradong A2P.
+ *
+ * Ebidensya: mula sa PAREHONG gateway SIM patungo sa PAREHONG numero, ang
+ * ordinaryong text mula sa Messaging app ay dumarating, samantalang ang canned
+ * na OTP template sa itaas ay hindi — kahit nag-uuwi pa ang carrier ng
+ * delivery report (kaya "Delivered" sa TextBee Activity pero walang SMS sa
+ * telepono). Brand + code lang ang ipinapadala, tulad ng normal na P2P text.
+ *
+ * `OTP_SMS_TEMPLATE` ang nagpapalit nito; kailangang may `{otp}`.
+ */
+export const DEFAULT_OTP_SMS_TEMPLATE = 'Jireta: {otp}. Expires in {minutes} min.';
+
+/**
+ * Ang totoong ipapadalang body ng OTP, galing sa `OTP_SMS_TEMPLATE` o sa
+ * default. Pinapalitan dito ang `{minutes}`; ang `{otp}` ay pinapalitan ng
+ * `sendSms` (para hindi dumaan ang code sa kahit anong log).
+ *
+ * Ang override na walang `{otp}` ay TINATANGGIHAN (default ang gagamitin) —
+ * kung hindi, may OTP na walang code ang ipapadala.
+ */
+export function otpSmsBodyTemplate(
+  minutes: number,
+  configured?: string | null,
+): string {
+  const raw = (configured ?? '').trim();
+  const template = raw.includes('{otp}') ? raw : DEFAULT_OTP_SMS_TEMPLATE;
+  return template.replace(/\{minutes\}/g, String(minutes));
+}
+
+/**
  * Natitirang segundo bago pwede ulit mag-request ng bagong OTP.
  *
  * Ang cooldown ay base sa `created_at` ng PINAKABAGONG OTP ng numero (kahit

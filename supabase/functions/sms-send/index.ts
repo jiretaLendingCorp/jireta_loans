@@ -17,6 +17,7 @@ import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { isAuthorizedWebhook } from '../_shared/webhook_auth.ts';
 import { getSchedulePayment } from '../_shared/loan_financials.ts';
+import { otpSmsBodyTemplate } from '../_shared/otp.ts';
 import { embedAsObject } from '../_shared/types.ts';
 
 // Manila (UTC+8) date string N days from today, as YYYY-MM-DD.
@@ -66,7 +67,11 @@ async function handleSendOtp(req: Request) {
 
   if (!phone || !otp) return errorResponse('phone and otp are required', 400, 'MISSING_FIELDS');
 
-  const message = `Your Jireta Loans OTP is: ${otp}. Valid for 5 minutes. Do not share this code.`;
+  // Parehong body at parehong template ang ginagamit ng `auth-otp` — maikli at
+  // hindi kamukha ng canned A2P na mensahe, dahil hinaharang iyon ng carrier
+  // anti-smishing filter kapag personal SIM ang sender ("Delivered" sa TextBee
+  // pero walang SMS sa telepono). Ang `{otp}` ay pinapalitan ng `sendSms`.
+  const message = otpSmsBodyTemplate(5, Deno.env.get('OTP_SMS_TEMPLATE'));
 
   const db = getAdminClient();
   const { data: user } = await db
@@ -78,6 +83,7 @@ async function handleSendOtp(req: Request) {
   const result = await sendSms({
     to: phone,
     message,
+    otpCode: otp,
     // Huwag itago ang OTP sa sms_logs — hash lang ang nasa otp_codes.
     logMessage: 'Your Jireta Loans OTP was sent. Do not share this code.',
     userId: user?.id,

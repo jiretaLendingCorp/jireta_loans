@@ -394,7 +394,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   }
 
   /// Nagpapadala ng bagong OTP (purpose=reset_mpin) at dinadala ang user sa
-  /// Verify OTP. Ang tunay na 6-digit code ay ipinapadala ng Semaphore sa
+  /// Verify OTP. Ang tunay na 6-digit code ay ipinapadala ng TextBee sa
   /// registered na numero; ang OTP verification ang magbibigay ng single-use
   /// reset authorization para sa bagong MPIN.
   ///
@@ -548,14 +548,12 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     if (!mounted) return;
     setState(() => _loading = false);
     if (ok) {
-      // `pending` = tinanggap ng SMS gateway pero nasa queue pa sa gateway
-      // phone (hindi pa naipadala). Sabihin ito agad para hindi maghintay ang
-      // user ng code na hindi pa umalis sa phone.
-      if (ref.read(authProvider.notifier).lastOtpQueued) {
-        context.showToast(
-          'Your code is on its way. It may take a moment to arrive.',
-        );
-      }
+      // Totoong kalagayan ng SMS ayon sa server: `queued` = nasa gateway
+      // phone pa, `unconfirmed` = tinanggap ng API pero walang status,
+      // `confirmed` lang kapag may delivery report. Sabihin ito agad para
+      // hindi maghintay ang user ng code na hindi pa umalis sa phone.
+      final notice = ref.read(authProvider.notifier).otpDeliveryNotice;
+      if (notice != null) context.showToast(notice);
       context.go(RouteConstants.otpVerify, extra: _apiIdentifier);
     } else {
       final err = ref.read(authProvider).error;

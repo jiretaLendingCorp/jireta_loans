@@ -518,7 +518,7 @@ deno_version = 2
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
-# MOBILE OTP (rider / lender login + MPIN reset) — TextBee SMS gateway (primary):
+# MOBILE OTP (rider / lender login + MPIN reset) — TextBee SMS gateway (ONLY):
 #   Only the SHA-256 hash is stored in otp_codes.otp_hash. OTPs are never logged
 #   and never returned to the client.
 #   Walang fixed/default OTP: bawat request ay random na generateOtpCode()
@@ -530,13 +530,37 @@ deno_version = 2
 #                          Server-side only: never put this in Flutter, public
 #                          env vars, logs or git.
 #   TEXTBEE_DEVICE_ID    — optional. Id of the Android gateway device that sends
-#                          the SMS (GET /api/v1/gateway/devices). Kapag wala, ang
-#                          default device (o ang enabled device na pinakahuling
-#                          may heartbeat) ang gagamitin ng TextBee.
+#                          the SMS (`_id` sa GET /api/v1/gateway/devices, o
+#                          textbee app → Settings → Device ID; 24 hex). Kapag
+#                          wala, ang default device (o ang enabled device na
+#                          pinakahuling may heartbeat) ang gagamitin ng TextBee —
+#                          at i-pin ito ng server sa unang send para hindi na
+#                          lumipat pa sa ibang phone.
 #                          HINDI ito ang numero ng recipient — ang recipients ay
 #                          ang aktwal na numero na inilagay ng lender/rider, at
 #                          hindi kailangan i-register bilang device ang mga iyon.
-#   TEXTBEE_STATUS_CHECK_MS — optional (default 500, `0` = off). Gaano katagal
+#                          Kapag numero ng telepono ang naipaste dito,
+#                          `TEXTBEE_DEVICE_ID_INVALID` ang malinaw na failure
+#                          (hindi na umaabot sa TextBee).
+#   TEXTBEE_SIM_SUBSCRIPTION_ID — optional. Ang SIM na ipapadala, galing sa
+#                          `simInfo.sims[].subscriptionId` ng device. Kapag wala,
+#                          ang DEFAULT SMS SIM ng phone ang gagamitin — kaya sa
+#                          ANDROID itakda: Settings → Network & internet → SIMs
+#                          → SMS → ang SIM na may regular SMS load. Kapag
+#                          data-only (hal. GOMO) ang default, pwedeng "sent" ang
+#                          lalabas pero walang SMS na dumarating. Ang naka-pin
+#                          na id ay sinusuri laban sa SIM list ng device; kapag
+#                          wala ito (`TEXTBEE_SIM_NOT_CONFIGURED`) hindi na
+#                          tahimik na lumilipat sa ibang SIM. Nagbabago ang id
+#                          kapag inalis/isiningit ang SIM — kunin ang bago sa
+#                          textbee app → SIM Cards.
+#   TEXTBEE_GATEWAY_NUMBER — optional pero inirerekomenda. Ang numero ng SIM
+#                          sa gateway phone (`+639XXXXXXXXX`). Kapag ang lender
+#                          ay naglagay ng numerong ITO, ang OTP ay self-send:
+#                          "Delivered" agad sa TextBee Activity pero sa gateway
+#                          phone lang darating. Naka-log ito nang malinaw para
+#                          hindi mapagkamalan na "hindi naipadala".
+#   TEXTBEE_STATUS_CHECK_MS — optional (default 2500, `0` = off). Gaano katagal
 #                          titingnan ang GET /api/v1/gateway/messages?smsBatchId=...
 #                          pagkatapos ng send, HARD DEADLINE (kasama ang sleep at
 #                          fetch timeout, kaya hindi na lumalampas sa budget).
@@ -548,30 +572,53 @@ deno_version = 2
 #                          `sms_status: "pending"` at "Your code is on its way" ang
 #                          sagot (hindi "OTP sent successfully"), dahil ang phone
 #                          pa lang ang may hawak ng mensahe.
-#                          PERF: ang UNANG poll ay agad (walang 500ms na tulog
-#                          bago ito) at sa pagitan lang ng mga poll natutulog,
-#                          kaya kapag `sent`/`failed` na agad ang batch ay halos
-#                          walang dagdag na paghihintay. 1200 ang dating default —
-#                          dagdag na 1.2s sa bawat OTP kahit `pending` naman ang
-#                          isasagot; itaas lang ito kapag kailangang habaan ang
-#                          pagtingin para sa mga device-side failure.
-#   SMS_PROVIDER         — optional. `semaphore` forces the legacy Semaphore
-#                          sender; default picks TextBee when TEXTBEE_API_KEY is
-#                          set, otherwise Semaphore.
+#                          Ang UNANG poll ay agad (walang tulog bago ito) at
+#                          humihinto AGAD kapag `sent`/`delivered`/`failed` na
+#                          ang batch — kaya ang karaniwang nadadagdag ay 1-3s
+#                          lang, at ang ":"OTP sent successfully" ay TOTOONG
+#                          naipadala na ng gateway phone (hindi lang tinanggap
+#                          ng API). Kapag umabot sa 6s na `pending` pa rin,
+#                          "Your code is on its way" ang sagot. Babaan (hal.
+#                          500) kung mas mabilis na sagot ang priority kaysa
+#                          sa kumpirmasyon ng totoong send.
+#   TEXTBEE_GATEWAY_DIAGNOSTICS — optional (`true` = on, default off). Kapag
+#                          naka-queue/naka-pending ang OTP, mag-log sa background
+#                          ng (a) kalusugan ng gateway phone (enabled, heartbeat
+#                          age, Doze, battery optimization, SIM ids, unang
+#                          hadlang) at (b) HULING status ng batch pagkalipas ng
+#                          ~5-25s (`sent`/`delivered`/`failed`/`unknown` +
+#                          errorCode). Walang dagdag na paghihintay sa Send OTP
+#                          button. Makukuha rin ito sa
+#                          scripts/textbee_sms_diagnose.ts.
 #   OTP_EXPIRY_MINUTES          — OTP validity in minutes (default: 5)
 #   OTP_RESEND_COOLDOWN_SECONDS — server-side resend cooldown (default: 60)
 #   MPIN_RESET_TOKEN_MINUTES    — reset authorization validity (default: 10)
-# Semaphore fallback (kapag `SMS_PROVIDER=semaphore` o walang TEXTBEE_API_KEY):
-#   SEMAPHORE_API_KEY           — required for real SMS (Semaphore → API keys).
-#   SEMAPHORE_SENDER_NAME       — approved sender name. Kapag walang naka-set, ang
-#                                 default sender name ng Semaphore account ang
-#                                 gagamitin; huwag maglagay ng hindi pa aprubado
-#                                 (unapproved sender name = status `Failed`).
+#   OTP_SMS_TEMPLATE            — optional. Ang eksaktong body ng OTP SMS;
+#                          kailangang may `{otp}` (at pwedeng may `{minutes}`).
+#                          Default: `Jireta: {otp}. Expires in {minutes} min.`
+#                          BAKIT MAIKLI: ang canned na A2P na mensahe ("Your ...
+#                          OTP is ... Do not share this code", "Valid for N
+#                          minutes") ay hinaharang ng anti-smishing filter ng PH
+#                          carrier kapag ang sender ay personal SIM at hindi
+#                          rehistradong A2P sender. Nag-uuwi pa rin ang carrier
+#                          ng delivery report, kaya "Delivered" sa TextBee
+#                          Activity pero walang SMS sa telepono — habang
+#                          DUMARATING ang ordinaryong text mula sa parehong SIM
+#                          at parehong numero. Kaya brand + code lang ang
+#                          ipinapadala, tulad ng normal na P2P text. Huwag
+#                          maglagay ng link (hinarang ng Globe/Smart kahit sa
+#                          P2P) at iwasan ang "OTP"/"Do not share"/urgency. Kung
+#                          kailangan pa rin ng guaranteed delivery, kailangan ng
+#                          REGISTERED A2P sender (hindi kaya ng TextBee, na
+#                          personal SIM ang ginagamit).
+# WALANG IBANG SMS PROVIDER: TextBee lang ang ginagamit ng `_shared/sms.ts`.
+# Kapag kulang o mali ang TEXTBEE_API_KEY, `TEXTBEE_NOT_CONFIGURED` ang failure
+# (walang tahimik na paglipat sa ibang gateway).
 # USE_MOCK_SMS:
 #   true  — skip the real provider call. The OTP is still random and hashed;
 #           for LOCAL DEVELOPMENT only, the full message is written to sms_logs
 #           (read it in Supabase Studio). NEVER enable in production.
-#   false — call the configured provider (TextBee, o Semaphore `/api/v4/otp`).
+#   false — call TextBee (production).
 # RESEND (Gmail via Resend API — password reset / email verification only):
 #   RESEND_API_KEY      — required for sending reset emails via Resend (https://resend.com/api-keys)
 #                         Set in cloud: `supabase secrets set RESEND_API_KEY=re_xxx` or Dashboard → Edge Functions → Secrets.

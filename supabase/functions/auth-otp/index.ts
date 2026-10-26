@@ -18,13 +18,18 @@ import {
   validateEmail,
   validatePhone,
 } from '../_shared/validators.ts';
-import { sendSms, isMockSmsEnabled } from '../_shared/sms.ts';
+import {
+  sendSms,
+  isMockSmsEnabled,
+  type SmsDelivery,
+} from '../_shared/sms.ts';
 import { sendLoginOtpEmail, sendMpinResetOtpEmail } from '../_shared/email.ts';
 import {
   generateOtpCode,
   hashOtpCode,
   normalizeOtpPurpose,
   otpRejectionReason,
+  otpSmsBodyTemplate,
   parseOtpIdentifier,
   resendCooldownRemaining,
   type OtpPurpose,
@@ -101,10 +106,45 @@ const OTP_PASSWORD = (phone: string) => `OTP_${phone}_SECURE`;
 // effectively locked forever by a single escalating streak.
 const MAX_LOCKOUT_MINUTES = 2 * 24 * 60; // 48 hours = 2880 minutes
 
-/** Ang provider layer ang naglalagay ng code sa `{otp}` (Semaphore OTP route)
- * o nagpapalit nito (TextBee) — hindi ito nilo-log. */
+/** Ang provider layer (TextBee) ang nagpapalit ng code sa `{otp}` — hindi ito
+ * nilo-log. Ang mismong body ay galing sa `OTP_SMS_TEMPLATE` (default sa
+ * `_shared/otp.ts`): maikli at hindi kamukha ng canned A2P na mensahe, dahil
+ * hinaharang iyon ng carrier anti-smishing filter kapag personal SIM ang
+ * sender — "Delivered" sa TextBee pero walang dumarating.
+ *
+ * Ang `{minutes}`/`{otp}` ay hindi nakalimutan dito: `{otp}` ay pinapalitan ng
+ * `sendSms`, at ang buong body ay HINDI nilo-log (ang `otpLogMessage` ang
+ * isinusulat sa `sms_logs`). */
 function otpMessageTemplate(minutes: number): string {
-  return `Your Jireta Loans OTP is: {otp}. Valid for ${minutes} minutes. Do not share this code.`;
+  return otpSmsBodyTemplate(minutes, Deno.env.get('OTP_SMS_TEMPLATE'));
+}
+
+/**
+ * Ang sinasabi ng app tungkol sa SMS — nakabatay sa TOTOONG kalagayan na
+ * iniulat ng gateway, hindi lang sa HTTP 200 ng send request.
+ *
+ *   confirmed        — may delivery report ang carrier (TextBee `delivered`).
+ *   carrier_accepted — tinanggap ng carrier (TextBee `sent`); maraming PH
+ *                      carrier ang walang delivery report, kaya wala tayong
+ *                      sasabihing "delivered".
+ *   unconfirmed      — tinanggap ng API pero walang nabasang status.
+ *   queued           — nasa queue pa ang code sa gateway phone.
+ *
+ * Walang "OTP sent successfully" na blanketong sagot: iyon ang dating
+ * dahilan kung bakit naghihintay ang user ng code na hindi pa naipapadala.
+ */
+function smsDeliveryMessage(delivery: SmsDelivery | undefined): string {
+  switch (delivery) {
+    case 'confirmed':
+      return 'Code delivered to your phone.';
+    case 'carrier_accepted':
+      return 'Code sent by SMS. Delivery confirmation is not available.';
+    case 'unconfirmed':
+      return 'OTP request accepted; delivery not yet confirmed.';
+    case 'queued':
+    default:
+      return 'Your code is on its way. It may take a moment to arrive.';
+  }
 }
 
 /** Redacted na bersyon para sa `sms_logs` — walang OTP. */
@@ -283,20 +323,23 @@ async function handleSendOtp(req: Request) {
   // successfully" kahit `pending`, kaya naghihintay ang user ng code na wala
   // pang lumalabas sa gateway phone.
   //
-  // Ang `sms_status` ay ISINASAMA lang sa login flow. Sa reset flow, hayag dapat
-  // na magkapareho ang sagot para sa may account at walang account, kaya hindi
-  // ito idinadagdag doon.
-  const sentResponse = (smsStatus?: 'sent' | 'pending') =>
+  // Ang `sms_status`/`sms_delivery` ay ISINASAMA lang sa login flow. Sa reset
+  // flow, hayag dapat na magkapareho ang sagot para sa may account at walang
+  // account, kaya hindi ito idinadagdag doon.
+  const sentResponse = (
+    sms?: { status: 'sent' | 'pending'; delivery: SmsDelivery },
+  ) =>
     jsonResponse({
       message: purpose === MPIN_RESET_PURPOSE
         ? `If this ${viaEmail ? 'email address' : 'mobile number'} is registered, we sent a verification code.`
         : viaEmail
         ? 'We sent a verification code to your email address.'
-        : smsStatus === 'pending'
-        ? 'Your code is on its way. It may take a moment to arrive.'
-        : 'OTP sent successfully',
-      ...(purpose !== MPIN_RESET_PURPOSE && smsStatus
-        ? { sms_status: smsStatus }
+        : smsDeliveryMessage(sms?.delivery),
+      // `sms_status` = estado sa `sms_logs` (compat sa lumang app build);
+      // `sms_delivery` = kung may ebidensya na ng delivery (`confirmed` lang
+      // kapag may delivery report mula sa carrier).
+      ...(purpose !== MPIN_RESET_PURPOSE && sms
+        ? { sms_status: sms.status, sms_delivery: sms.delivery }
         : {}),
       // Ang app ay nagpapakita ng "check your Gmail" na kopya kapag email ang
       // channel — hindi ito ang SMS queue (`sms_status`).
@@ -543,10 +586,9 @@ async function handleSendOtp(req: Request) {
     return sentResponse();
   }
 
-  // Semaphore's dedicated OTP route: ang API ang naglalagay ng code sa
-  // `{otp}` placeholder. Sa TextBee, ang `_shared/sms.ts` ang nagpapalit ng
-  // placeholder bago ipadala. Ang buong message (may code) ay HINDI nilo-log
-  // sa totoong send — redacted ang ipinapasa sa sms_logs.
+  // TextBee: ang `_shared/sms.ts` ang nagpapalit ng `{otp}` placeholder bago
+  // ipadala. Ang buong message (may code) ay HINDI nilo-log sa totoong send —
+  // redacted ang ipinapasa sa sms_logs.
   const useMock = isMockSmsEnabled();
   const messageTemplate = otpMessageTemplate(OTP_EXPIRY_MINUTES);
   const smsStartedAt = Date.now();
@@ -583,9 +625,7 @@ async function handleSendOtp(req: Request) {
     });
     // Provider-side rate limit / plan limit: malinaw na 429 para alam ng app
     // na hintayin na lang, hindi "sira ang number".
-    const providerRateLimited =
-      smsResult.errorCode === 'TEXTBEE_HTTP_429' ||
-      smsResult.errorCode === 'SEMAPHORE_HTTP_429';
+    const providerRateLimited = smsResult.errorCode === 'TEXTBEE_HTTP_429';
     return errorResponse(
       providerRateLimited
         ? 'The SMS service is temporarily rate limited. Please try again in a few minutes.'
@@ -604,10 +644,15 @@ async function handleSendOtp(req: Request) {
   }
 
   // Ebidensya para sa "mabagal ang OTP": ang total_ms ay ang buong request na
-  // hinihintay ng app (DB + provider), at sms_ms ang TextBee/Semaphore na
-  // bahagi lang. Walang numero o code sa linyang ito.
+  // hinihintay ng app (DB + provider), at sms_ms ang TextBee na bahagi lang.
+  // Walang numero o code sa linyang ito.
+  // `batch` = smsBatchId mula sa TextBee. Hanapin ang batch na ito sa
+  // TextBee dashboard → Messages para makita kung tumama ang send at kung ano
+  // ang huling status. Walang numero at walang OTP sa linyang ito.
   console.info(
-    `[auth-otp] send-otp ok (status=${smsResult.status}, sms_ms=${
+    `[auth-otp] send-otp ok (status=${smsResult.status}, delivery=${
+      smsResult.delivery ?? 'unconfirmed'
+    }, batch=${smsResult.gatewayReference ?? 'none'}, sms_ms=${
       Date.now() - smsStartedAt
     }, total_ms=${Date.now() - startedAt})`,
   );
@@ -615,7 +660,10 @@ async function handleSendOtp(req: Request) {
   // `sent` lang kapag tinanggap na ng carrier (galing sa status check); kapag
   // naka-queue pa rin, `pending` ang iniuulat para hindi magkunwari ang app na
   // naipadala na ang code.
-  return sentResponse(smsResult.status === 'sent' ? 'sent' : 'pending');
+  return sentResponse({
+    status: smsResult.status === 'sent' ? 'sent' : 'pending',
+    delivery: smsResult.delivery ?? 'unconfirmed',
+  });
 }
 
 // ── [moved from functions/auth-verify-otp/index.ts] ─────────────────────────
@@ -753,6 +801,13 @@ async function handleVerifyOtp(req: Request) {
   });
 
   if (rejection) {
+    // Sanitized na dahilan lang — walang code at walang buong numero. Ito ang
+    // tumutukoy kung ang 401 ay (a) `not_found` (na-delete ang code matapos
+    // pumalya ang SMS send, o wala talagang na-request), o (b) mali/expired/
+    // gamit na ang code. Hindi nito ginagalaw ang auth: 401 pa rin ang sagot.
+    console.warn(
+      `[auth-otp] verify rejected (reason=${rejection}, purpose=${purpose})`,
+    );
     if (otpRow) {
       if (rejection === 'mismatch' || rejection === 'purpose_mismatch') {
         await db

@@ -1659,7 +1659,7 @@ Shared utilities (imported by Edge Functions) ───────────�
 validation + role extraction │ │ ├── rbac.ts # Permission enforcement helper │ │
 ├── db.ts # Supabase admin client (service role) │ │ ├── validators.ts # Input
 sanitization + schema validators │ │ ├── audit.ts # Audit log writer helper │ │
-├── notifications.ts # FCM push notification helper │ │ ├── sms.ts # Semaphore
+├── notifications.ts # FCM push notification helper │ │ ├── sms.ts # TextBee
 SMS helper │ │ ├── xendit.ts # Xendit API wrapper helper │ │ ├── rate_limiter.ts
 
 # Rate limiting helper │ │ ├── errors.ts # Standard error response builder │ │
@@ -1671,7 +1671,7 @@ account_status, failed_attempts, lockout, force_password_change. │ │ # Retur
 JWT access token, role, force_change_password flag. │ │ # Writes: auth_logs
 event. │ │ │ ├── auth-send-otp/index.ts │ │ # POST: Send OTP to phone number for
 Rider/Lender (mobile). │ │ # Enforces: OTP rate limit (3 per 5 min), active
-account check. │ │ # Uses: Semaphore SMS for OTP delivery. │ │ # Writes:
+account check. │ │ # Uses: TextBee SMS for OTP delivery. │ │ # Writes:
 auth_logs(otp_sent). │ │ │ ├── auth-verify-otp/index.ts │ │ # POST: Verify OTP
 submitted by Rider/Lender. │ │ # Enforces: OTP expiry, attempt limit, account
 status. │ │ # Returns: JWT access token, role, force_change_password flag. │ │ #
@@ -1934,8 +1934,8 @@ metrics. │ │ # RBAC: lender only. │ │ │ │ # ── SMS (2 functions)
 ───────────────────────────────────────────── │ ├── sms-send-reminder/index.ts │
 │ # POST: Cron-triggered. Send SMS payment reminders 2 days before due. │ │ #
 Fetches: loan_schedules where due_date = today + 2. │ │ # Uses:
-sms_templates(payment_reminder), Semaphore API. │ │ # Writes: sms_logs. │ │ │
-├── sms-send-otp/index.ts │ │ # POST: Internal helper. Send OTP via Semaphore
+sms_templates(payment_reminder), TextBee API. │ │ # Writes: sms_logs. │ │ │
+├── sms-send-otp/index.ts │ │ # POST: Internal helper. Send OTP via TextBee
 SMS. │ │ # Called by: auth-send-otp. Not publicly accessible. │ │ │ │ # ── Audit
 (1 function) ──────────────────────────────────────────── │ └──
 audit-get-logs/index.ts │ # GET: Paginated audit log viewer. HM only. Read-only.

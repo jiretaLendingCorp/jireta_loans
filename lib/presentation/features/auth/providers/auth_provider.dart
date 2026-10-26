@@ -19,6 +19,32 @@ import '../../../../data/datasources/remote/auth_remote_datasource.dart';
 import '../../../../data/models/user_model.dart';
 import '../../../shared/providers/auth_state_provider.dart';
 
+/// Ang mensaheng ipinapakita pagkatapos ng OTP send, ayon sa `sms_delivery`
+/// ng server:
+///
+///   confirmed        — may delivery report ang carrier.
+///   carrier_accepted — tinanggap ng carrier; maraming PH carrier ang walang
+///                      delivery report, kaya hindi ito sasabihing "delivered".
+///   unconfirmed      — tinanggap ng API pero walang nabasang status.
+///   queued           — nasa queue pa sa gateway phone.
+///
+/// `null` kapag wala/hindi kilala ang estado (hal. email ang channel) — walang
+/// dapat sabihin tungkol sa SMS.
+String? otpDeliveryNoticeFor(String? delivery) {
+  switch (delivery) {
+    case 'confirmed':
+      return 'Code delivered to your phone.';
+    case 'carrier_accepted':
+      return 'Code sent by SMS. Delivery confirmation is not available.';
+    case 'unconfirmed':
+      return 'OTP request accepted; delivery not yet confirmed.';
+    case 'queued':
+      return 'Your code is on its way. It may take a moment to arrive.';
+    default:
+      return null;
+  }
+}
+
 class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   final AuthRemoteDataSource _ds;
   final AuthStateNotifier _authState;
@@ -52,6 +78,20 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
   String? _lastOtpStatus;
   String? get lastOtpStatus => _lastOtpStatus;
   bool get lastOtpQueued => _lastOtpStatus == 'pending';
+
+  /// Ebidensya ng aktwal na delivery galing sa server (`sms_delivery`):
+  /// `confirmed` (may delivery report ang carrier), `carrier_accepted`
+  /// (tinanggap ng carrier, walang report), `queued` (nasa gateway phone pa),
+  /// `unconfirmed` (tinanggap ng API pero walang nabasang status), `failed`.
+  /// `null` = hindi natukoy (hal. email ang channel).
+  String? _lastOtpDelivery;
+  String? get lastOtpDelivery => _lastOtpDelivery;
+
+  /// Ang mensaheng dapat makita ng user para sa huling OTP send.
+  ///
+  /// Hindi kailanman nagsasabing "delivered" kung walang delivery report, at
+  /// hindi rin "sent" kung naka-queue pa lang sa gateway phone.
+  String? get otpDeliveryNotice => otpDeliveryNoticeFor(_lastOtpDelivery);
 
   /// True kapag dapat dumaan muna sa authenticator (TOTP) challenge ang
   /// bagong login.
@@ -226,6 +266,10 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       final res = await _ds.sendOtp(identifier: identifier, purpose: purpose);
       final status = (res['sms_status'] as String?)?.trim().toLowerCase();
       _lastOtpStatus = (status == null || status.isEmpty) ? null : status;
+      final delivery =
+          (res['sms_delivery'] as String?)?.trim().toLowerCase();
+      _lastOtpDelivery =
+          (delivery == null || delivery.isEmpty) ? null : delivery;
       state = const AsyncData(null);
       return true;
     } catch (e, s) {

@@ -406,12 +406,11 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         _attemptsUsed = 0;
       });
       _focusNodes[0].requestFocus();
-      // `pending` = nasa queue pa sa gateway phone. Huwag sabihing "resent" na
+      // Totoong kalagayan ng SMS ayon sa server. Huwag sabihing "resent" na
       // parang naipadala na — maghihintay ang user ng code na wala pa.
-      if (ref.read(authProvider.notifier).lastOtpQueued) {
-        context.showToast(
-          'New code queued. It may take a moment to arrive.',
-        );
+      final notice = ref.read(authProvider.notifier).otpDeliveryNotice;
+      if (notice != null) {
+        context.showToast(notice);
       } else {
         context.showSnackBarAsToast(
           SnackBar(

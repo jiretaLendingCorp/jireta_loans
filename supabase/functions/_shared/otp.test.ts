@@ -9,11 +9,13 @@ import {
   assertNotEquals,
 } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import {
+  DEFAULT_OTP_SMS_TEMPLATE,
   generateOtpCode,
   hashOtpCode,
   isOtpPurpose,
   normalizeOtpPurpose,
   otpRejectionReason,
+  otpSmsBodyTemplate,
   parseOtpIdentifier,
   resendCooldownRemaining,
 } from "./otp.ts";
@@ -168,6 +170,52 @@ Deno.test("attempt ceiling blocks further guesses", () => {
       maxAttempts: 5,
     }),
     "too_many_attempts",
+  );
+});
+
+/**
+ * Ang body ng OTP SMS ay dapat ordinaryong P2P text ang hitsura. Ang canned na
+ * A2P na salita ("OTP", "Do not share this code", "Valid for ... minutes") ang
+ * hinaharang ng carrier anti-smishing filter kapag personal SIM ang sender —
+ * "Delivered" sa TextBee pero walang dumarating sa telepono.
+ */
+Deno.test("the default OTP body carries no canned A2P/smishing wording", () => {
+  const body = otpSmsBodyTemplate(5);
+  assertEquals(body, DEFAULT_OTP_SMS_TEMPLATE.replace("{minutes}", "5"));
+  assert(body.includes("{otp}"), "the code placeholder must survive");
+  for (const canned of ["OTP", "Do not share", "Valid for", "Your "] ) {
+    assertEquals(
+      body.includes(canned),
+      false,
+      `default OTP body must not contain ${JSON.stringify(canned)}`,
+    );
+  }
+});
+
+Deno.test("OTP_SMS_TEMPLATE overrides the body and keeps {otp}", () => {
+  assertEquals(
+    otpSmsBodyTemplate(10, "Jireta code {otp} ({minutes} min)"),
+    "Jireta code {otp} (10 min)",
+  );
+  // Maraming placeholder — lahat pinapalitan.
+  assertEquals(
+    otpSmsBodyTemplate(3, "{minutes}m: {otp} ({minutes}m)"),
+    "3m: {otp} (3m)",
+  );
+});
+
+Deno.test("an override without {otp} falls back to the default body", () => {
+  assertEquals(
+    otpSmsBodyTemplate(5, "Jireta verification"),
+    DEFAULT_OTP_SMS_TEMPLATE.replace("{minutes}", "5"),
+  );
+  assertEquals(
+    otpSmsBodyTemplate(5, "   "),
+    DEFAULT_OTP_SMS_TEMPLATE.replace("{minutes}", "5"),
+  );
+  assertEquals(
+    otpSmsBodyTemplate(5, null),
+    DEFAULT_OTP_SMS_TEMPLATE.replace("{minutes}", "5"),
   );
 });
 

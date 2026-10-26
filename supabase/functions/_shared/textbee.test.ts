@@ -11,11 +11,18 @@ import {
 import {
   buildTextBeePayload,
   fetchTextBeeMessageReport,
+  isTextBeeSelfSend,
   maskTextBeeNumber,
   normalizeTextBeeRecipient,
+  parseTextBeeGatewayHealth,
   parseTextBeeMessageReport,
   parseTextBeeSendResponse,
+  parseTextBeeSimSubscriptionId,
   sendTextBeeSms,
+  textBeeDeliveryState,
+  textBeeGatewaySummary,
+  textBeeRecipientAudit,
+  validateTextBeeDeviceId,
   TEXTBEE_MESSAGES_URL,
   TEXTBEE_SEND_URL,
   waitForTextBeeBatchOutcome,
@@ -45,6 +52,10 @@ Deno.test("payload carries recipients + message, deviceId only when configured",
     deviceId: "  device-abc  ",
   });
   assertEquals(withDevice.deviceId, "device-abc");
+
+  // Walang `simSubscriptionId` sa request: default SMS SIM ng phone ang
+  // gagamitin (nagbabago kasi ang numeric SIM id kapag nag-SIM swap).
+  assertEquals("simSubscriptionId" in withDevice, false);
 
   const blankDevice = buildTextBeePayload({
     to: "09171234567",
@@ -302,6 +313,7 @@ Deno.test("message report masks numbers and summarizes the batch", () => {
         recipient: "+639171234567",
         smsBatch: "b1",
         simSubscriptionId: 1,
+        simUsed: { subscriptionId: 2, carrierName: "TNT", slotIndex: 1 },
       },
       {
         _id: "m2",
@@ -318,6 +330,8 @@ Deno.test("message report masks numbers and summarizes the batch", () => {
   assert(report);
   assertEquals(report.total, 3);
   assertEquals(report.sentCount, 1);
+  // `delivered` lang ang may delivery report galing sa carrier.
+  assertEquals(report.deliveredCount, 1);
   assertEquals(report.failedCount, 1);
   assertEquals(report.pendingCount, 1);
   assertEquals(report.allSent, false);
@@ -326,6 +340,9 @@ Deno.test("message report masks numbers and summarizes the batch", () => {
   assertEquals(report.messages[1].recipient, "+6392*****567");
   assertEquals(report.messages[1].errorCode, "1");
   assertEquals(report.messages[0].simSubscriptionId, "1");
+  // Ang TUNAY na SIM na ginamit ng phone ang iniuulat.
+  assertEquals(report.messages[0].simUsedSubscriptionId, 2);
+  assertEquals(report.messages[1].simUsedSubscriptionId, null);
   // Walang buong numero sa kahit anong daraanan ng log.
   assertEquals(JSON.stringify(report).includes("9171234567"), false);
   assertEquals(maskTextBeeNumber("+639171234567"), "+6391*****567");
@@ -511,4 +528,408 @@ Deno.test("a slow status fetch is cut off by the remaining budget", async () => 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+Deno.test("only a valid PH mobile becomes an E.164 recipient", () => {
+  // Natitirang trunk zero at country code — nino-normalize pa rin.
+  assertEquals(normalizeTextBeeRecipient("+63 0917 123 4567"), "+639171234567");
+  assertEquals(normalizeTextBeeRecipient("6309171234567"), "+639171234567");
+
+  // Putol/sobrang digit: WALANG recipient. Dating nagiging `+6309...` o
+  // `+63917123456` at "tinatanggap" ng API pero hindi kayang i-deliver.
+  assertEquals(normalizeTextBeeRecipient("0917123456"), "");
+  assertEquals(normalizeTextBeeRecipient("091712345678"), "");
+  assertEquals(normalizeTextBeeRecipient("12345"), "");
+  assertEquals(normalizeTextBeeRecipient("+63-000"), "");
+
+  // Explicit international input ay pinapasa (hindi PH-only ang helper).
+  assertEquals(normalizeTextBeeRecipient("+1 (201) 555-0123"), "+12015550123");
+});
+
+Deno.test("an invalid recipient is rejected before any network call", async () => {
+  let calls = 0;
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (() => {
+    calls++;
+    return Promise.reject(new Error("must not be called"));
+  }) as typeof fetch;
+
+  try {
+    const result = await sendTextBeeSms({
+      apiKey: "tb_key",
+      to: "0917123456",
+      message: "Your Jireta Loans OTP is: 123456.",
+    });
+    assertEquals(result.accepted, false);
+    assertEquals(result.status, "failed");
+    assertEquals(result.errorCode, "TEXTBEE_INVALID_RECIPIENT");
+    assertEquals(calls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+Deno.test("delivery is only 'confirmed' when the carrier reports delivered", () => {
+  const base = {
+    total: 1,
+    sentCount: 0,
+    deliveredCount: 0,
+    failedCount: 0,
+    pendingCount: 0,
+    unknownCount: 0,
+    allSent: false,
+    anyFailed: false,
+    messages: [],
+  };
+
+  assertEquals(
+    textBeeDeliveryState({ ...base, sentCount: 1, deliveredCount: 1, allSent: true }),
+    "confirmed",
+  );
+  // `sent` = tinanggap ng carrier, walang delivery report.
+  assertEquals(
+    textBeeDeliveryState({ ...base, sentCount: 1, allSent: true }),
+    "carrier_accepted",
+  );
+  assertEquals(textBeeDeliveryState({ ...base, pendingCount: 1 }), "queued");
+  assertEquals(textBeeDeliveryState({ ...base, unknownCount: 1 }), "unconfirmed");
+  assertEquals(
+    textBeeDeliveryState({ ...base, failedCount: 1, anyFailed: true }),
+    "failed",
+  );
+  // Walang report na nabasa — hinding hindi "confirmed".
+  assertEquals(textBeeDeliveryState(null), "unconfirmed");
+});
+
+Deno.test("unknown and delivery_failed are never counted as sent", () => {
+  const report = parseTextBeeMessageReport({
+    data: [
+      { status: "unknown", recipient: "+639171234567" },
+      { status: "delivery_failed", recipient: "+639281234567" },
+      { status: "delivered", recipient: "+639991234567" },
+    ],
+  });
+  assert(report);
+  assertEquals(report.total, 3);
+  assertEquals(report.deliveredCount, 1);
+  assertEquals(report.sentCount, 1);
+  assertEquals(report.unknownCount, 1);
+  assertEquals(report.failedCount, 1);
+  assertEquals(report.allSent, false);
+  assertEquals(textBeeDeliveryState(report), "unconfirmed");
+});
+
+Deno.test("a 200 rejection carries the top-level error reason (redacted)", () => {
+  const result = parseTextBeeSendResponse(200, {
+    success: false,
+    error: "No enabled device found. Enable a device or pass a deviceId.",
+  });
+  assertEquals(result.accepted, false);
+  assertEquals(result.status, "failed");
+  assertEquals(result.errorCode, "TEXTBEE_REJECTED");
+  assertStringIncludes(String(result.providerDetail), "No enabled device found");
+
+  const redacted = parseTextBeeSendResponse(200, {
+    success: false,
+    error: "Recipient 09171234567 refused for code 123456",
+  });
+  assertEquals(String(redacted.providerDetail).includes("09171234567"), false);
+  assertEquals(String(redacted.providerDetail).includes("123456"), false);
+});
+
+Deno.test("gateway health names the blocker behind a queued message", () => {
+  const fresh = new Date(Date.now() - 60_000).toISOString();
+  const device = (overrides: Record<string, unknown> = {}) => ({
+    data: [{
+      _id: "dev1",
+      name: "gateway",
+      enabled: true,
+      isDefault: true,
+      heartbeatIntervalMinutes: 30,
+      lastHeartbeat: fresh,
+      smsSendDelaySeconds: 5,
+      powerInfo: { isDeviceIdleMode: false, isIgnoringBatteryOptimizations: true },
+      simInfo: { sims: [{ subscriptionId: 1 }, { subscriptionId: 2 }] },
+      ...overrides,
+    }],
+  });
+
+  const healthy = parseTextBeeGatewayHealth(device());
+  assert(healthy);
+  assertEquals(healthy.issue, null);
+  assertEquals(healthy.simSubscriptionIds, [1, 2]);
+  assertEquals(healthy.smsSendDelaySeconds, 5);
+
+  // `queued` dahil disabled / offline / Doze / pinapatay ng battery saver.
+  assertEquals(
+    parseTextBeeGatewayHealth(device({ enabled: false }))?.issue,
+    "DEVICE_DISABLED",
+  );
+  assertEquals(
+    parseTextBeeGatewayHealth(device({ lastHeartbeat: "2020-01-01T00:00:00.000Z" }))
+      ?.issue,
+    "DEVICE_OFFLINE",
+  );
+  assertEquals(
+    parseTextBeeGatewayHealth(
+      device({
+        powerInfo: { isDeviceIdleMode: true, isIgnoringBatteryOptimizations: true },
+      }),
+    )?.issue,
+    "DEVICE_DOZE",
+  );
+  assertEquals(
+    parseTextBeeGatewayHealth(
+      device({
+        powerInfo: { isDeviceIdleMode: false, isIgnoringBatteryOptimizations: false },
+      }),
+    )?.issue,
+    "BATTERY_OPTIMIZED",
+  );
+
+  assertEquals(parseTextBeeGatewayHealth({ data: [] })?.issue, "NO_DEVICE");
+  // Naka-configure na TEXTBEE_DEVICE_ID na wala na sa account.
+  assertEquals(
+    parseTextBeeGatewayHealth(device(), { deviceId: "gone" })?.issue,
+    "NO_DEVICE",
+  );
+  assertEquals(parseTextBeeGatewayHealth({ data: "nope" }), null);
+});
+
+Deno.test("a pinned SIM travels in the payload; an invalid one is dropped", () => {
+  // Ang `simSubscriptionId` ay ang SIM na nagpapadala sa gateway phone — hindi
+  // ito recipient, at hindi ito ang device.
+  const pinned = buildTextBeePayload({
+    to: "09633851074",
+    message: "hi",
+    deviceId: "dev-1",
+    simSubscriptionId: 2,
+  });
+  assertEquals(pinned.recipients, ["+639633851074"]);
+  assertEquals(pinned.deviceId, "dev-1");
+  assertEquals(pinned.simSubscriptionId, 2);
+
+  for (const invalid of [null, undefined, -1, 1.5, Number.NaN]) {
+    const payload = buildTextBeePayload({
+      to: "09633851074",
+      message: "hi",
+      simSubscriptionId: invalid as number | null | undefined,
+    });
+    assertEquals("simSubscriptionId" in payload, false);
+  }
+});
+
+Deno.test("a phone number pasted into TEXTBEE_DEVICE_ID is rejected", () => {
+  // Classic misconfiguration: ang numero ng gateway SIM ang naipaste sa
+  // `TEXTBEE_DEVICE_ID`. Kung ipapasa ito sa TextBee, 400 ang sagot — kaya
+  // sinasabi nang malinaw bago pa mag-send.
+  assertEquals(validateTextBeeDeviceId(""), { deviceId: null, error: null });
+  assertEquals(validateTextBeeDeviceId(null), { deviceId: null, error: null });
+  assertEquals(validateTextBeeDeviceId("  "), { deviceId: null, error: null });
+  assertEquals(validateTextBeeDeviceId("09633851074"), {
+    deviceId: null,
+    error: "TEXTBEE_DEVICE_ID_INVALID",
+  });
+  assertEquals(validateTextBeeDeviceId("+63 963 385 1074"), {
+    deviceId: null,
+    error: "TEXTBEE_DEVICE_ID_INVALID",
+  });
+  assertEquals(validateTextBeeDeviceId("664a9b8cd0e1f2a3b4c5d6e7"), {
+    deviceId: "664a9b8cd0e1f2a3b4c5d6e7",
+    error: null,
+  });
+  // Ibang hugis (lumang/fixture id) — pinapasa; TextBee ang huling magsasabi.
+  assertEquals(validateTextBeeDeviceId("dev-1"), {
+    deviceId: "dev-1",
+    error: null,
+  });
+});
+
+Deno.test("the SIM subscription id env accepts only whole numbers", () => {
+  assertEquals(parseTextBeeSimSubscriptionId("1"), 1);
+  assertEquals(parseTextBeeSimSubscriptionId(" 2 "), 2);
+  assertEquals(parseTextBeeSimSubscriptionId("0"), 0);
+  assertEquals(parseTextBeeSimSubscriptionId(""), null);
+  assertEquals(parseTextBeeSimSubscriptionId(undefined), null);
+  assertEquals(parseTextBeeSimSubscriptionId("abc"), null);
+});
+
+Deno.test("the recipient audit compares the number the gateway recorded", () => {
+  const matching = parseTextBeeMessageReport({
+    data: [{ status: "delivered", recipient: "+639633851074" }],
+  });
+  const ok = textBeeRecipientAudit(matching, "09633851074");
+  assertEquals(ok.ok, true);
+  assertEquals(ok.expected, "+6396*****074");
+  assertEquals(ok.reported, ["+6396*****074"]);
+  assertEquals(ok.mismatched, null);
+
+  // Iba ang pinadalhan ng gateway sa numerong hiniling — hindi na ito
+  // ituturing na tagumpay kahit `delivered` ang status.
+  const wrong = parseTextBeeMessageReport({
+    data: [{ status: "delivered", recipient: "+639171234567" }],
+  });
+  const mismatch = textBeeRecipientAudit(wrong, "09633851074");
+  assertEquals(mismatch.ok, false);
+  assertEquals(mismatch.mismatched, "+6391*****567");
+
+  // Walang iniulat na recipient (lumang app) — hindi ito mismatch.
+  const silent = parseTextBeeMessageReport({ data: [{ status: "sent" }] });
+  assertEquals(textBeeRecipientAudit(silent, "09633851074").ok, true);
+
+  // Higit sa isang recipient sa isang OTP request — mali.
+  const many = parseTextBeeMessageReport({
+    data: [
+      { status: "sent", recipient: "+639633851074" },
+      { status: "sent", recipient: "+639171234567" },
+    ],
+  });
+  assertEquals(textBeeRecipientAudit(many, "09633851074").ok, false);
+
+  // Walang report/numero — hindi ito nag-aakusa ng mali.
+  assertEquals(textBeeRecipientAudit(null, "09633851074").ok, true);
+});
+
+Deno.test("self-send is the gateway SIM's own number, not the recipient", () => {
+  assertEquals(isTextBeeSelfSend("09633851074", "+639633851074"), true);
+  assertEquals(isTextBeeSelfSend("+639633851074", "09633851074"), true);
+  assertEquals(isTextBeeSelfSend("09171234567", "+639633851074"), false);
+  // Walang naka-configure na gateway number — walang self-send check.
+  assertEquals(isTextBeeSelfSend("09633851074", ""), false);
+  assertEquals(isTextBeeSelfSend("09633851074", null), false);
+  assertEquals(isTextBeeSelfSend("09633851074", "not-a-number"), false);
+});
+
+Deno.test("a SIM out of service is named as the blocker", () => {
+  const fresh = new Date(Date.now() - 60_000).toISOString();
+  const base = {
+    _id: "dev1",
+    enabled: true,
+    isDefault: true,
+    heartbeatIntervalMinutes: 30,
+    lastHeartbeat: fresh,
+    powerInfo: {
+      isDeviceIdleMode: false,
+      isIgnoringBatteryOptimizations: true,
+    },
+  };
+
+  const inService = parseTextBeeGatewayHealth({
+    data: [{
+      ...base,
+      simInfo: {
+        sims: [{
+          subscriptionId: 1,
+          simSlotIndex: 0,
+          serviceState: "IN_SERVICE",
+          signalLevel: 3,
+        }],
+      },
+    }],
+  });
+  assert(inService);
+  assertEquals(inService.issue, null);
+  assertEquals(inService.sims, [{
+    subscriptionId: 1,
+    slotIndex: 0,
+    serviceState: "IN_SERVICE",
+    signalLevel: 3,
+  }]);
+
+  // Wala sa network ang SIM — walang SMS na aalis kahit may load.
+  const outOfService = parseTextBeeGatewayHealth({
+    data: [{
+      ...base,
+      simInfo: {
+        sims: [{ subscriptionId: 1, serviceState: "OUT_OF_SERVICE" }],
+      },
+    }],
+  });
+  assertEquals(outOfService?.issue, "SIM_NOT_IN_SERVICE");
+
+  // Isa lang sa dalawang SIM ang wala sa network: hindi ito hadlang.
+  const mixed = parseTextBeeGatewayHealth({
+    data: [{
+      ...base,
+      simInfo: {
+        sims: [
+          { subscriptionId: 1, serviceState: "OUT_OF_SERVICE" },
+          { subscriptionId: 2, serviceState: "IN_SERVICE" },
+        ],
+      },
+    }],
+  });
+  assertEquals(mixed?.issue, null);
+});
+
+Deno.test("sendTextBeeSms sends the pinned SIM with the recipient", async () => {
+  const calls: { url: string; init: RequestInit }[] = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({
+      url: typeof input === "string" ? input : input.toString(),
+      init: init ?? {},
+    });
+    return Promise.resolve(
+      new Response(
+        JSON.stringify({
+          data: { success: true, smsBatchId: "batch_sim", recipientCount: 1 },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+  }) as typeof fetch;
+
+  try {
+    await sendTextBeeSms({
+      apiKey: "tb_key",
+      to: "09633851074",
+      message: "code",
+      deviceId: "664a9b8cd0e1f2a3b4c5d6e7",
+      simSubscriptionId: 2,
+    });
+    assertEquals(calls.length, 1);
+    const body = JSON.parse(String(calls[0].init.body)) as Record<string, unknown>;
+    // Ang recipient ay ang lender; ang device at SIM ay ang gateway.
+    assertEquals(body.recipients, ["+639633851074"]);
+    assertEquals(body.deviceId, "664a9b8cd0e1f2a3b4c5d6e7");
+    assertEquals(body.simSubscriptionId, 2);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+Deno.test("the gateway summary names the reason a message stays queued", () => {
+  const summary = textBeeGatewaySummary({
+    deviceId: "6addc57ba4996b8ebfc1f040",
+    name: "gateway",
+    enabled: true,
+    isDefault: true,
+    heartbeatAgeMinutes: 240,
+    doze: true,
+    batteryOptimizationsIgnored: false,
+    smsSendDelaySeconds: 3,
+    simSubscriptionIds: [1, 2],
+    sims: [
+      {
+        subscriptionId: 1,
+        slotIndex: 0,
+        serviceState: "IN_SERVICE",
+        signalLevel: 2,
+      },
+      {
+        subscriptionId: 2,
+        slotIndex: 1,
+        serviceState: "OUT_OF_SERVICE",
+        signalLevel: null,
+      },
+    ],
+    issue: "DEVICE_OFFLINE",
+  });
+  assertStringIncludes(summary, "device=6addc57ba4996b8ebfc1f040");
+  assertStringIncludes(summary, "heartbeat_min=240");
+  assertStringIncludes(summary, "doze=true");
+  assertStringIncludes(summary, "battery_opt_ignored=false");
+  assertStringIncludes(summary, "sims=1/2");
+  assertStringIncludes(summary, "sim_service=IN_SERVICE/OUT_OF_SERVICE");
+  assertStringIncludes(summary, "issue=DEVICE_OFFLINE");
 });

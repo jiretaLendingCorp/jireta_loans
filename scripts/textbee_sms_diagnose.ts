@@ -20,20 +20,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import {
   buildTextBeePayload,
+  fetchTextBeeGatewayHealth,
   fetchTextBeeMessageReport,
+  isTextBeeSelfSend,
   maskTextBeeNumber,
   parseTextBeeSendResponse,
+  parseTextBeeSimSubscriptionId,
+  textBeeDeliveryState,
+  textBeeRecipientAudit,
+  validateTextBeeDeviceId,
   TEXTBEE_SEND_URL,
   type TextBeeBatchOutcome,
 } from '../supabase/functions/_shared/textbee.ts';
+import { otpSmsBodyTemplate } from '../supabase/functions/_shared/otp.ts';
 
 const API_BASE = 'https://api.textbee.dev/api/v1';
 const STATUS_POLL_MS = 3_000;
 const STATUS_WAIT_SECONDS = 45;
 
-/** Parehong template na ginagamit ng auth-otp — placeholder lang ang code. */
-const OTP_TEMPLATE =
-  'Your Jireta Loans OTP is: 000000. Valid for 5 minutes. Do not share this code.';
+/** Parehong body na ipinapadala ng auth-otp/sms-send — placeholder lang ang
+ * code. Galing ito sa `OTP_SMS_TEMPLATE` para eksakto ang sinusubukan. */
+const OTP_TEMPLATE = otpSmsBodyTemplate(
+  5,
+  Deno.env.get('OTP_SMS_TEMPLATE'),
+).replace('{otp}', '000000');
 
 const args = Deno.args;
 const shouldSend = args.includes('--send');
@@ -53,8 +63,13 @@ function usage(exitCode = 1): never {
 }
 
 const apiKey = (Deno.env.get('TEXTBEE_API_KEY') ?? '').trim();
-const deviceId = (Deno.env.get('TEXTBEE_DEVICE_ID') ?? '').trim();
-
+const deviceIdEnv = (Deno.env.get('TEXTBEE_DEVICE_ID') ?? '').trim();
+const deviceIdCheck = validateTextBeeDeviceId(deviceIdEnv);
+const deviceId = deviceIdCheck.deviceId ?? '';
+const simSubscriptionId = parseTextBeeSimSubscriptionId(
+  Deno.env.get('TEXTBEE_SIM_SUBSCRIPTION_ID'),
+);
+const gatewayNumber = (Deno.env.get('TEXTBEE_GATEWAY_NUMBER') ?? '').trim();
 if (apiKey === '') {
   console.error(
     'TEXTBEE_API_KEY is not set. Kunin ito sa TextBee dashboard → API keys, ' +
@@ -111,11 +126,62 @@ async function listDevices(): Promise<void> {
       `  • ${String(device._id)} enabled=${String(device.enabled)} ` +
         `isDefault=${String(device.isDefault)} name=${String(device.name ?? '-')}`,
     );
+    const simList = Array.isArray(sims?.sims) ? sims.sims : [];
+    const heartbeatMs = Date.parse(String(device.lastHeartbeat ?? ''));
+    const heartbeatMinutes = Number.isFinite(heartbeatMs)
+      ? Math.max(0, Math.round((Date.now() - heartbeatMs) / 60000))
+      : null;
     console.log(
       `    lastHeartbeat=${String(device.lastHeartbeat ?? 'never')} ` +
-        `sims=${Array.isArray(sims?.sims) ? sims?.sims.length : 0} ` +
-        `receiveSMSEnabled=${String(device.receiveSMSEnabled)}`,
+        `(${heartbeatMinutes === null ? 'walang heartbeat' : `${heartbeatMinutes} min ago`}) ` +
+        `sims=${simList.length} ` +
+        `receiveSMSEnabled=${String(device.receiveSMSEnabled)} ` +
+        `app=${String(device.appVersionName ?? '?')} ` +
+        `sentSMSCount=${String(device.sentSMSCount ?? '?')}`,
     );
+    if (heartbeatMinutes === null || heartbeatMinutes > 30) {
+      console.log(
+        '      ⚠ Matagal nang walang heartbeat — malamang offline/asleep/Doze ang ' +
+          'phone na ito. Ang mga send dito ay mananatiling naka-queue.',
+      );
+    }
+    // Walang phone number sa output — slot/carrier/label lang. Ang DEFAULT
+    // SMS SIM ng phone ang ginagamit ng TextBee (walang simSubscriptionId sa
+    // request), kaya dito makikita kung aling SIM ang naka-install at kung
+    // alin ang dapat maging default para sa SMS.
+    for (const [index, sim] of simList.entries()) {
+      const record = sim !== null && typeof sim === 'object'
+        ? sim as Record<string, unknown>
+        : {};
+      const id = record.subscriptionId;
+      const slot = record.simSlotIndex ?? record.slotIndex;
+      const carrier = String(record.carrierName ?? '-');
+      const label = String(record.displayName ?? '-');
+      const serviceState = String(record.serviceState ?? 'unknown');
+      const signalLevel = record.signalLevel;
+      console.log(
+        `      SIM ${typeof slot === 'number' ? slot + 1 : index + 1}: ` +
+          `subscriptionId=${id === undefined ? '(wala)' : String(id)} ` +
+          `carrier=${carrier} label=${label} ` +
+          `serviceState=${serviceState} ` +
+          `signalLevel=${signalLevel === undefined ? '?' : String(signalLevel)}`,
+      );
+      if (serviceState.toUpperCase() !== 'IN_SERVICE') {
+        console.log(
+          '        ⚠ Wala ang SIM na ito sa network — hindi ito makakapagpadala.',
+        );
+      }
+      if (simSubscriptionId !== null && id === simSubscriptionId) {
+        console.log('        ^ ito ang naka-pin na TEXTBEE_SIM_SUBSCRIPTION_ID');
+      }
+    }
+    if (simList.length > 1) {
+      console.log(
+        '      ⚠ Dual-SIM: ang DEFAULT SMS SIM ng phone ang gagamitin. Sa ' +
+          'Android: Settings → Network & internet → SIMs → SMS → piliin ang ' +
+          'SIM na may regular SMS load (hindi data-only tulad ng GOMO).',
+      );
+    }
     if (deviceId !== '' && String(device._id) === deviceId) {
       console.log('    ^ ito ang TEXTBEE_DEVICE_ID (gateway na nagpapadala)');
     }
@@ -124,6 +190,126 @@ async function listDevices(): Promise<void> {
     console.log(
       `  ⚠ TEXTBEE_DEVICE_ID=${deviceId} ay WALA sa account na ito — ` +
         'magre-404/400 ang send.',
+    );
+  }
+
+  // Pinaka-mahalagang tsek: ang NAKA-CONFIGURE na device ba ang pinaka-buhay?
+  // Ang send na may `deviceId` ay HINDI lumilipat sa ibang phone. Kapag ang
+  // naka-configure ay lumang device (naka-enable pa pero patay ang phone),
+  // naka-queue lang ang OTP habang ang TOTOONG gateway phone ay tahimik.
+  const enabled = devices.filter((device) => device.enabled === true);
+  const freshest = enabled
+    .map((device) => ({
+      device,
+      at: Date.parse(String(device.lastHeartbeat ?? '')),
+    }))
+    .filter((entry) => Number.isFinite(entry.at))
+    .sort((a, b) => b.at - a.at)[0];
+  const configured = devices.find((device) => String(device._id) === deviceId);
+  if (configured && freshest && configured !== freshest.device) {
+    const configuredAt = Date.parse(String(configured.lastHeartbeat ?? ''));
+    if (!Number.isFinite(configuredAt) || freshest.at - configuredAt > 600_000) {
+      console.log(
+        `  ⚠ Ang TEXTBEE_DEVICE_ID ay ${String(configured._id)}\n` +
+          `    ${Number.isFinite(configuredAt) ? new Date(configuredAt).toISOString() : 'walang heartbeat'}` +
+          `\n    pero ang pinaka-buhay na enabled device ay ${String(freshest.device._id)} ` +
+          `(${new Date(freshest.at).toISOString()}).\n` +
+          '    Ibig sabihin: posibleng HINDI ito ang konektadong gateway phone — ' +
+          'naka-queue lang ang mga OTP sa lumang device.',
+      );
+    }
+  }
+}
+
+/**
+ * Per-message timestamps — dito makikita kung SAAN nakaantala ang mensahe
+ * (server queue → push → phone → radio → carrier), hindi lang ang status:
+ *   dispatchedAt   empty → wala pa sa push service (nasa server queue)
+ *   pushReceivedAt empty → hindi naabot ng push ang phone (offline/asleep)
+ *   sendAttemptedAt empty → nasa phone, naghihintay ng Send Delay
+ *   sentAt         empty → nasa radio/carrier pa, o pumalya
+ */
+async function printMessageTimestamps(smsBatchId: string): Promise<void> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/gateway/messages?smsBatchId=${
+        encodeURIComponent(smsBatchId)
+      }&limit=100`,
+      { headers: { 'x-api-key': apiKey }, signal: AbortSignal.timeout(10_000) },
+    );
+    if (!res.ok) return;
+    const body = await res.json().catch(() => null) as { data?: unknown } | null;
+    if (!Array.isArray(body?.data)) return;
+    console.log('  Timestamps (kung saan nakaantala):');
+    for (const item of body.data as Record<string, unknown>[]) {
+      const at = (key: string) => String(item[key] ?? '-');
+      const simUsed = item.simUsed !== null && typeof item.simUsed === 'object'
+        ? item.simUsed as Record<string, unknown>
+        : null;
+      console.log(
+        `    ${maskTextBeeNumber(item.recipient) ?? '?'} ` +
+          `status=${String(item.status ?? 'unknown')} ` +
+          `requested=${at('requestedAt')} dispatched=${at('dispatchedAt')} ` +
+          `push_received=${at('pushReceivedAt')} ` +
+          `send_attempted=${at('sendAttemptedAt')} sent=${at('sentAt')} ` +
+          `delivered=${at('deliveredAt')} failed=${at('failedAt')}` +
+          (simUsed
+            ? ` sim_used=${
+              String(simUsed.subscriptionId ?? '?')
+            }(slot=${String(simUsed.slotIndex ?? '?')}, ${
+              String(simUsed.carrierName ?? '?')
+            })`
+            : '') +
+          (item.errorCode ? ` errorCode=${String(item.errorCode)}` : ''),
+      );
+    }
+  } catch (_) {
+    console.log('  (hindi mabasa ang timestamps)');
+  }
+}
+
+/**
+ * Kalusugan ng gateway phone — ito ang sumasagot sa "bakit pending/queued?".
+ * Hindi makikita sa send response (200 = tinanggap lang).
+ */
+async function printGatewayHealth(): Promise<void> {
+  const health = await fetchTextBeeGatewayHealth({ apiKey, deviceId });
+  console.log('\n[1b] Gateway health (GET /gateway/devices)');
+  if (!health) {
+    console.log('  (hindi mabasa ang device health)');
+    return;
+  }
+  line('device', health.deviceId ?? '(default)');
+  line('enabled', health.enabled);
+  line('is_default', health.isDefault);
+  line('heartbeat_min', health.heartbeatAgeMinutes ?? 'n/a');
+  line('doze', health.doze);
+  line('battery_opt_ignored', health.batteryOptimizationsIgnored);
+  line('sms_send_delay_s', health.smsSendDelaySeconds ?? 'n/a');
+  line('sim_subscription_ids', health.simSubscriptionIds.join('/') || 'none');
+  line(
+    'sim_service_state',
+    health.sims
+      .map((sim) =>
+        `${sim.subscriptionId ?? '?'}:${sim.serviceState ?? 'unknown'}`
+      )
+      .join(' / ') || 'none',
+  );
+  line('issue', health.issue ?? 'none');
+  if (
+    simSubscriptionId !== null &&
+    !health.simSubscriptionIds.includes(simSubscriptionId)
+  ) {
+    console.log(
+      `  ✖ TEXTBEE_SIM_SUBSCRIPTION_ID=${simSubscriptionId} ay WALA sa SIM ` +
+        'list ng device. Magbabago ang id kapag inalis/isiningit ang SIM — ' +
+        'kunin ang bago sa textbee app → SIM Cards.',
+    );
+  }
+  if (health.issue) {
+    console.log(
+      '  ⚠ Ito ang hadlang bago pa makapagpadala ang phone — ayusin muna ito ' +
+        '(Gateway Enabled, internet, lastHeartbeat, battery optimization, SIM).',
     );
   }
 }
@@ -139,7 +325,9 @@ async function probeBatch(smsBatchId: string): Promise<TextBeeBatchOutcome | nul
         .map((m) =>
           `${m.recipient ?? '?'}=${m.status}` +
           (m.errorCode ? `(errorCode=${m.errorCode})` : '') +
-          (m.simSubscriptionId ? `[sim=${m.simSubscriptionId}]` : '')
+          (m.simUsedSubscriptionId !== null
+            ? `[sent_via_sim=${m.simUsedSubscriptionId}]`
+            : '')
         )
         .join(', ');
       console.log(
@@ -157,14 +345,41 @@ async function probeBatch(smsBatchId: string): Promise<TextBeeBatchOutcome | nul
 
 console.log('TextBee OTP delivery diagnostic');
 line('endpoint', TEXTBEE_SEND_URL);
-line('x-api-key', '(naka-set, hindi ipinapakita)');
-line('TEXTBEE_DEVICE_ID', deviceId === '' ? '(wala — default device)' : deviceId);
+line('x-api-key', '(naka-set, hindi ipinapakita)');  line('TEXTBEE_DEVICE_ID', deviceId === '' ? '(wala — default device)' : deviceId);
+if (deviceIdCheck.error) {
+  console.log(
+    '  ✖ TEXTBEE_DEVICE_ID ay mukhang NUMERO NG TELEPONO, hindi device id. ' +
+      'Kunin ang device id sa textbee app → Settings → Device ID (24 hex).',
+  );
+}
+line(
+  'SIM',
+  simSubscriptionId === null
+    ? 'default SMS SIM ng phone (walang simSubscriptionId)'
+    : `naka-pin: subscriptionId=${simSubscriptionId}`,
+);
+line(
+  'TEXTBEE_GATEWAY_NUMBER',
+  gatewayNumber === ''
+    ? '(wala — walang self-send check)'
+    : maskTextBeeNumber(gatewayNumber) ?? '(invalid)',
+);
 for (const recipient of recipients) {
   line('recipient', `${recipient.masked}  →  ${recipient.e164}`);
+  if (
+    isTextBeeSelfSend(recipient.e164, gatewayNumber)
+  ) {
+    console.log(
+      '    ⚠ Ito ang numero ng GATEWAY SIM (TEXTBEE_GATEWAY_NUMBER), hindi ' +
+        'ng lender: self-send ito. Lalabas na "Delivered" sa TextBee Activity ' +
+        'pero sa gateway phone lang darating — walang ibang teleponong makakatanggap.',
+    );
+  }
 }
 line('mode', shouldSend ? 'LIVE SEND' : 'dry run (walang SMS)');
 
 await listDevices();
+await printGatewayHealth();
 
 if (!shouldSend) {
   console.log('\n[2] Request body na ipapadala (dry run, naka-mask)');
@@ -173,6 +388,7 @@ if (!shouldSend) {
       to: recipient.raw,
       message: OTP_TEMPLATE,
       deviceId,
+      simSubscriptionId,
     });
     console.log(
       `  ${JSON.stringify({
@@ -194,6 +410,7 @@ for (const [index, recipient] of recipients.entries()) {
     to: recipient.raw,
     message: OTP_TEMPLATE,
     deviceId: deviceId === '' ? undefined : deviceId,
+    simSubscriptionId,
   });
 
   let res: Response;
@@ -234,6 +451,7 @@ for (const [index, recipient] of recipients.entries()) {
       `hanggang ${STATUS_WAIT_SECONDS}s):`,
   );
   const report = await probeBatch(result.gatewayReference);
+  await printMessageTimestamps(result.gatewayReference);
 
   if (!report) {
     console.log(
@@ -244,9 +462,30 @@ for (const [index, recipient] of recipients.entries()) {
   }
 
   const failure = report.messages.find((m) => m.status === 'failed');
-  const sim = report.messages.find((m) => m.simSubscriptionId)?.simSubscriptionId;
+  const sim = report.messages.find((m) => m.simUsedSubscriptionId !== null)
+    ?.simUsedSubscriptionId;
   console.log('  Resulta:');
-  line('messages', `${report.total} (sent=${report.sentCount}, failed=${report.failedCount}, pending=${report.pendingCount})`);
+  line(
+    'messages',
+    `${report.total} (sent=${report.sentCount}, delivered=${report.deliveredCount}, failed=${report.failedCount}, pending=${report.pendingCount}, unknown=${report.unknownCount})`,
+  );
+  line('delivery', textBeeDeliveryState(report));
+  const audit = textBeeRecipientAudit(report, recipient.e164);
+  line('recipient_expected', audit.expected ?? '(invalid)');
+  line('recipient_reported', audit.reported.join(' / ') || '(walang iniulat)');
+  if (!audit.ok) {
+    console.log(
+      '  ✖ RECIPIENT MISMATCH: iba ang numerong pinadalhan ng gateway sa ' +
+        `numerong hiniling (${audit.mismatched ?? 'multiple recipients'}). ` +
+        'Hindi ito makakarating sa lender — tingnan kung ang gateway phone ' +
+        'ang nagpapalit ng recipient, at siguraduhing ang numero ng LENDER ' +
+        'ang ipinasa, hindi ang numero ng gateway SIM.',
+    );
+  }
+  console.log(
+    '  (Ang `sent` ay tinanggap ng carrier; `delivered` lang ang may delivery ' +
+      'report — maraming PH carrier ang hindi nagdadala nito.)',
+  );
   if (sim) line('sent_from_sim', sim);
   if (failure) {
     line('device_error_code', failure.errorCode ?? '(wala)');
@@ -258,14 +497,42 @@ for (const [index, recipient] of recipients.entries()) {
     );
   } else if (report.allSent) {
     console.log(
-      '  Diagnosis: tinanggap ng carrier (sent). Kung wala pa rin sa ' +
-        'telepono: carrier filtering/A2P block o naka-off ang phone — hindi ' +
-        'ito problema ng recipient formatting.',
+      '  Diagnosis: tinanggap ng carrier (sent)' +
+        (report.deliveredCount === report.total
+          ? ' AT may delivery report (delivered) — kumpirmadong umabot.'
+          : ', WALANG delivery report — maraming PH carrier ang hindi ' +
+            'nagdadala nito, kaya hindi ito maipapakitang "delivered".'),
     );
-  } else {
+    if (report.deliveredCount === report.total) {
+      console.log(
+        '  Kung `delivered` ito pero wala sa telepono: (1) tingnan ang ' +
+          'recipient_reported sa itaas — dapat iyon ang numero ng LENDER, ' +
+          'hindi ang numero ng gateway SIM (self-send = delivered agad, sa ' +
+          'gateway phone lang); (2) ' +
+          (gatewayNumber === ''
+            ? 'i-set ang TEXTBEE_GATEWAY_NUMBER para awtomatikong mahuli ang ' +
+              'self-send; '
+            : 'naka-set ang TEXTBEE_GATEWAY_NUMBER — hindi self-send ang numerong ito; ') +
+          '(3) carrier filtering/spam block sa recipient, o ibang telepono ang may ' +
+          'hawak sa numerong iyon.',
+      );
+    } else {
+      console.log(
+        '  Kung wala sa telepono: carrier filtering/A2P block, ibang network ' +
+          'ang recipient, o naka-off ang phone — hindi ito problema ng ' +
+          'recipient formatting.',
+      );
+    }
+  } else if (report.pendingCount > 0) {
     console.log(
       '  Diagnosis: nasa queue pa lang (pending) — offline/asleep ang gateway ' +
         'phone o naantala ang push. Tingnan ang lastHeartbeat sa itaas.',
+    );
+  } else {
+    console.log(
+      '  Diagnosis: `dispatched`/`unknown` — walang resulta mula sa phone. ' +
+        'Hindi ito maipapakitang sent/delivered; tingnan ang heartbeat, SMS ' +
+        'permission at battery optimization ng textbee app.',
     );
   }
 }
