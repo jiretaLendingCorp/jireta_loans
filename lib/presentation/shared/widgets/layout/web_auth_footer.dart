@@ -1,8 +1,9 @@
 // lib/presentation/shared/widgets/layout/web_auth_footer.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/route_constants.dart';
 import '../../../../core/theme/app_colors.dart';
-import '../legal_links.dart';
 
 /// Premium footer — keeps Explore & Contact as requested, no logo/brand,
 /// no Privacy/Terms at bottom (copyright only, centered), compact height
@@ -69,7 +70,9 @@ class _WebAuthFooterState extends State<WebAuthFooter>
                       horizontal: isCompact ? 20 : 24,
                       vertical: isCompact ? 20 : 22,
                     ),
-                    child: isCompact ? const _CompactFooter() : const _WideFooter(),
+                    child: isCompact
+                        ? const _CompactFooter()
+                        : const _WideFooter(),
                   ),
                 ),
               ),
@@ -122,8 +125,20 @@ class _WideFooter extends StatelessWidget {
               // ("About Us", "Help Center") ay inalis — dating nagpapakita ang
               // mga iyon ng "— coming soon" na snackbar. Inutos ng user:
               // WALANG "Coming Soon" sa landing page.
-              _FooterLink(label: 'Privacy Policy', onTap: () => _showLegal(context, isTerms: false)),
-              _FooterLink(label: 'Terms & Conditions', onTap: () => _showLegal(context, isTerms: true)),
+              //
+              // Sariling URI ang dalawa (`/privacy-policy`,
+              // `/terms-and-conditions`) — hindi bottom sheet — para may
+              // totoong address na maibabahagi/bookmark at magamit sa Google
+              // OAuth verification. Pareho ito ng ginagawa ng mga link sa
+              // login page (`LegalLinks`).
+              _FooterLink(
+                label: 'Privacy Policy',
+                onTap: () => context.go(RouteConstants.privacyPolicy),
+              ),
+              _FooterLink(
+                label: 'Terms & Conditions',
+                onTap: () => context.go(RouteConstants.termsAndConditions),
+              ),
             ],
           ),
         ),
@@ -148,42 +163,43 @@ class _WideFooter extends StatelessWidget {
     );
   }
 
-  static void _showLegal(BuildContext context, {required bool isTerms}) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _LegalSheet(isTerms: isTerms),
-    );
-  }
 }
 
 class _CompactFooter extends StatelessWidget {
   const _CompactFooter();
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Explore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white)),
-        SizedBox(height: 10),
+        const Text('Explore', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white)),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 14, runSpacing: 8,
           children: [
             // Placeholder na "Help Center" / "About Us" ay inalis — dating may
             // "— coming soon" na snackbar ang mga iyon.
-            _FooterLink(label: 'Privacy Policy', onTap: null),
-            _FooterLink(label: 'Terms & Conditions', onTap: null),
+            //
+            // Parehong URI ng wide footer: dati'y `onTap: null` ito (patay na
+            // link sa maliit na screen), kaya walang nangyayari sa mobile web.
+            _FooterLink(
+              label: 'Privacy Policy',
+              onTap: () => context.go(RouteConstants.privacyPolicy),
+            ),
+            _FooterLink(
+              label: 'Terms & Conditions',
+              onTap: () => context.go(RouteConstants.termsAndConditions),
+            ),
           ],
         ),
-        SizedBox(height: 18),
-        Text('Contact', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white)),
-        SizedBox(height: 10),
-        _ContactLine(icon: Icons.mail_outline_rounded, text: 'support@jireta.com'),
-        SizedBox(height: 8),
-        _ContactLine(icon: Icons.phone_outlined, text: '(02) 8XXX-XXXX'),
-        SizedBox(height: 8),
-        _ContactLine(icon: Icons.location_on_outlined, text: 'Jireta Loans & Credit Corp'),
+        const SizedBox(height: 18),
+        const Text('Contact', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1.2, color: Colors.white)),
+        const SizedBox(height: 10),
+        const _ContactLine(icon: Icons.mail_outline_rounded, text: 'support@jireta.com'),
+        const SizedBox(height: 8),
+        const _ContactLine(icon: Icons.phone_outlined, text: '(02) 8XXX-XXXX'),
+        const SizedBox(height: 8),
+        const _ContactLine(icon: Icons.location_on_outlined, text: 'Jireta Loans & Credit Corp'),
       ],
     );
   }
@@ -191,8 +207,8 @@ class _CompactFooter extends StatelessWidget {
 
 class _FooterLink extends StatefulWidget {
   final String label;
-  final VoidCallback? onTap;
-  const _FooterLink({required this.label, this.onTap});
+  final VoidCallback onTap;
+  const _FooterLink({required this.label, required this.onTap});
   @override
   State<_FooterLink> createState() => _FooterLinkState();
 }
@@ -208,17 +224,7 @@ class _FooterLinkState extends State<_FooterLink> {
         onExit: (_) => setState(() => _hovered = false),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
-          onTap: widget.onTap ??
-              () {
-                if (widget.label.contains('Privacy')) {
-                  showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => const _LegalSheet(isTerms: false));
-                } else if (widget.label.contains('Terms')) {
-                  showModalBottomSheet(context: context, isScrollControlled: true, backgroundColor: Colors.transparent, builder: (_) => const _LegalSheet(isTerms: true));
-                }
-                // WALANG "— coming soon" na fallback (inutos ng user): ang
-                // ibang label na wala namang tunay na nilalaman ay hindi na
-                // nagpapakita ng kahit anong mensahe.
-              },
+          onTap: widget.onTap,
           child: AnimatedDefaultTextStyle(
             duration: const Duration(milliseconds: 140),
             style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: _hovered ? AppColors.gold : Colors.white.withValues(alpha: 0.75)),
@@ -244,65 +250,6 @@ class _ContactLine extends StatelessWidget {
         // ignore: prefer_const_constructors
         Expanded(child: Text(text, style: TextStyle(fontSize: 12.5, height: 1.4, color: Colors.white, fontWeight: FontWeight.w400))),
       ],
-    );
-  }
-}
-
-class _LegalSheet extends StatelessWidget {
-  final bool isTerms;
-  const _LegalSheet({required this.isTerms});
-  @override
-  Widget build(BuildContext context) {
-    return DraggableScrollableSheet(
-      initialChildSize: 0.72,
-      maxChildSize: 0.92,
-      minChildSize: 0.45,
-      expand: false,
-      builder: (_, ctrl) => Container(
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-        child: ListView(
-          controller: ctrl,
-          padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
-          children: [
-            Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: const Color(0xFFE8E8EE), borderRadius: BorderRadius.circular(2)))),
-            const SizedBox(height: 20),
-            Text(isTerms ? 'Terms & Conditions' : 'Privacy Policy', style: const TextStyle(fontFamily: 'PlayfairDisplay', fontSize: 18, fontWeight: FontWeight.w700, color: AppColors.deepNavy)),
-            const SizedBox(height: 12),
-            // Kaparehong nilalaman ng T&C at Privacy Policy sa profile at sa
-            // loan-apply wizard ([kTermsAndConditionsSections] /
-            // [kPrivacyPolicySections]) — hindi na paikling bersyon dito sa
-            // footer ng web login.
-            for (final section in isTerms
-                ? kTermsAndConditionsSections
-                : kPrivacyPolicySections) ...[
-              Text(
-                section.title,
-                style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.deepNavy,
-                    height: 1.5),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                section.body,
-                style: const TextStyle(
-                    fontSize: 13, height: 1.6, color: AppColors.textSecondary),
-              ),
-              const SizedBox(height: 14),
-            ],
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(backgroundColor: AppColors.deepNavy, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
-                child: const Text('Close'),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
