@@ -57,8 +57,11 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   final _emailCtrl = TextEditingController();
 
   /// Nakalabas ang "or continue with" divider at ang "Continue with Google"
-  /// button sa ilalim ng Send OTP. I-flip sa `false` para itago muli.
-  static const bool _showGoogleSignIn = true;
+  /// button sa ilalim ng Send OTP. Nakatago muna habang hindi pa kumpleto ang
+  /// web OAuth callback (`/login?code=...` ay hindi pa napo-proseso), kaya sa
+  /// Gmail login ay bumabalik lang sa login form. I-flip sa `true` para ilabas
+  /// muli.
+  static const bool _showGoogleSignIn = false;
 
   bool _loading = false;
   bool _googleLoading = false;

@@ -62,9 +62,9 @@ void main() {
     expect(find.text('Or'), findsOneWidget);
     expect(find.text('Email'), findsOneWidget);
     expect(find.text('Send OTP'), findsOneWidget);
-    // Naka-unhide ang Google sign-in sa ilalim ng Send OTP.
-    expect(find.text('or continue with'), findsOneWidget);
-    expect(find.text('Continue with Google'), findsOneWidget);
+    // Nakatago muna ang Google sign-in sa ilalim ng Send OTP.
+    expect(find.text('or continue with'), findsNothing);
+    expect(find.text('Continue with Google'), findsNothing);
 
     final fieldWidth =
         tester.getSize(find.byKey(const Key('loginPhoneField'))).width;
@@ -77,8 +77,7 @@ void main() {
     expect(fieldCenter.dx, closeTo(640, 3),
         reason: 'Hindi naka-center ang login card sa desktop');
 
-    // Walang overlap: nasa ILALIM ng brand header ang simula ng card, kahit
-    // humaba ito dahil sa "Continue with Google" button.
+    // Walang overlap: nasa ILALIM ng brand header ang simula ng card.
     final brand = tester.getRect(find.text('Jireta Loans'));
     final heading = tester.getRect(find.text('Login as'));
     expect(heading.top, greaterThan(brand.bottom),
