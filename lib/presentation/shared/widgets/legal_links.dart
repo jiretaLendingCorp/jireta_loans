@@ -351,8 +351,12 @@ class LegalLinks extends StatelessWidget {
     }
 
     /// Sheet sa loob ng app, o public page kapag naka-`true` ang flag.
+    ///
+    /// `push` (hindi `go`) ang gamit sa public page: nananatili sa stack ang
+    /// pinanggalingan (login page), kaya ang back button sa legal page ay
+    /// bumabalik sa tamang screen — /login man o /mobile-login.
     VoidCallback target(VoidCallback sheet, String route, bool useRoute) =>
-        useRoute ? () => context.go(route) : sheet;
+        useRoute ? () => context.push(route) : sheet;
 
     return Wrap(
       alignment: WrapAlignment.center,

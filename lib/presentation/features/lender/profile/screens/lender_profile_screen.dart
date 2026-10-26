@@ -327,9 +327,17 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
               // Kaparehong FAQ (dropdown/collapsible ang sagot) ng Help Center
               // sa mobile login screen.
               collapsible: true,
-              // Nakapako sa ibaba (hindi kasama sa scroll): pindutin para
-              // magpatuloy sa chat sa Messenger.
-              footer: _chatButton(),
+              // "Chat" button (hindi mapipindot) at sa ilalim nito ang email
+              // at numero ng Jireta.
+              footer: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _chatButton(),
+                  const SizedBox(height: 10),
+                  _supportContactInfo(context),
+                ],
+              ),
               sections: const [
                 ModernSheetSection(
                     title: 'How do I log in to the app?',
@@ -346,11 +354,11 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
                 ModernSheetSection(
                     title: 'What are the loan requirements?',
                     body:
-                        'You need a valid government-issued ID, proof of billing, selfie verification, and proof of income. All documents are subject to verification.'),
+                        'You need a valid government-issued ID, business permit, and face recognition verification. All documents are subject to verification.'),
                 ModernSheetSection(
                     title: 'How do I pay for my loan?',
                     body:
-                        'Payments can be made through GCash (via Xendit), office cash payment, or rider cash collection. A receipt is issued for every payment.'),
+                        'Payments can be made through GCash, office cash payment, or rider cash collection. A receipt is issued for every payment.'),
                 ModernSheetSection(
                     title: 'Is my personal data safe?',
                     body:
@@ -461,12 +469,12 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  /// "Chat" button sa dulo ng Help Center FAQ — dinidirekta sa Messenger
-  /// (`AppConstants.supportMessengerUrl`). Compact lang (hindi wide) para
-  /// mukhang link/action sa ilalim ng huling tanong.
+  /// "Chat" button sa dulo ng Help Center FAQ — HINDI mapipindot
+  /// (`onPressed: null`): hindi pa available ang chat sa Messenger, kaya nasa
+  /// ilalim nito ang email at numero ng Jireta.
   Widget _chatButton() {
     return ElevatedButton.icon(
-      onPressed: _openMessenger,
+      onPressed: null,
       icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
       label: const Text(
         'Chat',
@@ -475,6 +483,8 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.deepNavy,
         foregroundColor: Colors.white,
+        disabledBackgroundColor: const Color(0xFFE9EBF0),
+        disabledForegroundColor: AppColors.textTertiary,
         elevation: 0,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         minimumSize: const Size(0, 38),
@@ -486,20 +496,48 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
     );
   }
 
-  Future<void> _openMessenger() async {
-    final uri = Uri.parse(AppConstants.supportMessengerUrl);
+  /// Email at numero ng Jireta — nasa ilalim ng "Chat" button. Kapag pinindot,
+  /// direktang bubukas ang mail app (`mailto:`) o dialer (`tel:`) ng device.
+  Widget _supportContactInfo(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _SupportContactLine(
+          icon: Icons.mail_outline_rounded,
+          text: AppConstants.supportEmail,
+          onTap: () => _openContactApp(
+            context,
+            Uri(scheme: 'mailto', path: AppConstants.supportEmail),
+          ),
+        ),
+        const SizedBox(height: 6),
+        _SupportContactLine(
+          icon: Icons.phone_outlined,
+          text: AppConstants.supportPhone,
+          onTap: () => _openContactApp(
+            context,
+            Uri(scheme: 'tel', path: AppConstants.supportPhone),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Bubukas ng default na app ng device: mail app para sa email, dialer para
+  /// sa numero. May snackbar kapag walang app na kayang humawak sa link.
+  Future<void> _openContactApp(BuildContext context, Uri uri) async {
     try {
       final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
       if (opened) return;
     } catch (_) {
-      // Dadausan ng snackbar sa ibaba — walang crash kapag hindi available
-      // ang Messenger/browser sa device (hal. desktop build).
+      // Dadausan ng snackbar sa ibaba — walang crash kapag walang mail/dialer
+      // app sa device (hal. desktop browser na walang naka-set na handler).
     }
-    if (!mounted) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text(
-            'Could not open Messenger. You can reach us at ${AppConstants.supportMessengerUrl}'),
+      SnackBar(
+        content: Text('Could not open ${uri.scheme}: app on this device.'),
       ),
     );
   }
@@ -855,6 +893,48 @@ class _SkeletonCard extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Isang linya ng contact info (icon + text) sa ilalim ng "Chat" button ng
+/// Help Center — hindi clickable, basta nakalagay ang email/numero.
+class _SupportContactLine extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final VoidCallback? onTap;
+
+  const _SupportContactLine({
+    required this.icon,
+    required this.text,
+    this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: AppColors.textSecondary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                text,
+                style: const TextStyle(
+                  fontSize: 13,
+                  height: 1.4,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

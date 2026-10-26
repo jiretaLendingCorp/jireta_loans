@@ -11,10 +11,9 @@ class AppConstants {
   /// modal, kaya iisang lugar lang ang babaguhin kapag nagpalit ng number.
   static const String supportPhone = '09755849954';
 
-  /// Messenger chat link — binubuksan ng "Chat" button sa pinaka-baba ng
-  /// Help Center. Iisang lugar lang ito para madaling palitan kapag
-  /// nagbago ang official page ng Jireta.
-  static const String supportMessengerUrl = 'https://m.me/jireta';
+  /// Office email — ipinapakita sa ilalim ng "Chat" button ng Help Center
+  /// (hindi pinipindot ang chat) at pareho rin ng nasa "Contact Us" sheet.
+  static const String supportEmail = 'jiretalendingcorp@gmail.com';
 
   static const int connectTimeoutMs = 30000;
   static const int receiveTimeoutMs = 30000;

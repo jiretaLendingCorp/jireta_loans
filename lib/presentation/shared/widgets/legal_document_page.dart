@@ -7,8 +7,11 @@
 // `legal_links.dart`, kaya bukas ito kahit hindi pa naka-sign in at may
 // sariling URL (`/privacy-policy`, `/terms-and-conditions`) na puwedeng
 // gamitin sa Google OAuth verification at sa mga external na link.
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/route_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../features/lender/profile/screens/widgets/legal_info_sheet.dart';
 
@@ -30,6 +33,20 @@ class LegalDocumentPage extends StatelessWidget {
   /// `kTermsAndConditionsSections` (parehong text ng bottom sheet sa app).
   final List<LegalSection> sections;
 
+  /// Bumalik sa pinanggalingan (hal. login page na may link papunta dito).
+  ///
+  /// Kapag direktang binuksan ang URL — bagong tab, shared link, o refresh —
+  /// walang ma-po-pop, kaya sa login page ng platform babalik (web: /login,
+  /// mobile: /mobile-login, kung saan naroon ang mga legal link sa footer).
+  void _handleBack(BuildContext context) {
+    if (context.canPop()) {
+      context.pop();
+    } else {
+      context.go(
+          kIsWeb ? RouteConstants.webLogin : RouteConstants.mobileLogin);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,6 +60,28 @@ class LegalDocumentPage extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // ── Back ──
+                  // Nasa itaas ng brand: ito ang tanging paraan para
+                  // makalabas sa page sa loob ng app.
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Material(
+                      color: Colors.white,
+                      shape: const CircleBorder(),
+                      child: IconButton(
+                        key: const Key('legalBackButton'),
+                        tooltip: 'Back',
+                        onPressed: () => _handleBack(context),
+                        icon: const Icon(
+                          Icons.arrow_back_rounded,
+                          size: 20,
+                          color: AppColors.deepNavy,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
                   // ── Brand ──
                   const Text(
                     'Jireta Loans',

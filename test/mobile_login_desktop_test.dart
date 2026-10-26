@@ -12,6 +12,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:jireta_loans/core/constants/app_constants.dart';
 import 'package:jireta_loans/core/security/mpin_login_gate.dart';
 import 'package:jireta_loans/presentation/features/auth/screens/mobile_login_screen.dart';
 import 'package:jireta_loans/presentation/shared/providers/connectivity_provider.dart';
@@ -165,6 +166,31 @@ void main() {
 
     expect(find.text('Frequently Asked Questions'), findsOneWidget);
     expect(find.widgetWithText(ElevatedButton, 'Chat'), findsOneWidget);
+
+    // Hindi dapat mapindot ang "Chat" — nasa ilalim nito ang email at numero
+    // ng Jireta bilang tunay na paraan ng pakikipag-ugnayan.
+    final chat = tester
+        .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Chat'));
+    expect(chat.onPressed, isNull, reason: 'Pinipindot pa rin ang Chat');
+    expect(find.text(AppConstants.supportEmail), findsOneWidget);
+    expect(find.text(AppConstants.supportPhone), findsOneWidget);
+
+    // Mapipindot ang email at numero — direktang bubukas ang mail app / dialer.
+    for (final label in [
+      AppConstants.supportEmail,
+      AppConstants.supportPhone,
+    ]) {
+      final ink = tester.widget<InkWell>(
+        find
+            .ancestor(of: find.text(label), matching: find.byType(InkWell))
+            .first,
+      );
+      expect(ink.onTap, isNotNull, reason: 'Hindi mapindot ang $label');
+    }
+
+    // Walang crash kahit walang mail/dialer app sa environment ng test.
+    await tester.tap(find.text(AppConstants.supportEmail));
+    await tester.pumpAndSettle();
 
     final faqCard = tester.getSize(find.byType(Card).first);
     final faqCenter = tester.getCenter(find.byType(Card).first);
