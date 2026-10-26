@@ -19,6 +19,8 @@ import '../../presentation/features/auth/screens/otp_verify_screen.dart';
 import '../../presentation/features/auth/screens/reset_password_screen.dart';
 import '../../presentation/features/auth/screens/splash_screen.dart';
 import '../../presentation/features/auth/screens/terms_conditions_screen.dart';
+import '../../presentation/features/auth/screens/privacy_policy_screen.dart';
+import '../../presentation/features/auth/screens/terms_of_service_screen.dart';
 import '../../presentation/features/auth/screens/verify_email_screen.dart';
 import '../../presentation/features/auth/screens/web_login_screen.dart';
 import '../../presentation/features/auth/screens/web_register_screen.dart';
@@ -308,6 +310,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       // fetched from the backend).
       const offlineExempt = [
         RouteConstants.landing,
+        // Static na legal page — may sariling nilalaman, walang backend call.
+        RouteConstants.privacyPolicy,
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
         // Ang MFA screen ay may sariling offline/error handling — huwag itong
@@ -320,6 +324,10 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       final publicRoutes = [
         RouteConstants.splash,
         RouteConstants.landing,
+        // Public legal pages — kailangan itong mabuksan kahit hindi naka-log in
+        // (Google OAuth verification at external links).
+        RouteConstants.privacyPolicy,
+        RouteConstants.termsAndConditions,
         RouteConstants.webLogin,
         RouteConstants.webRegister,
         RouteConstants.mobileLogin,
@@ -445,6 +453,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // lalabas ang Verify Your Email screen.
         if (publicRoutes.contains(path) &&
             !resetFlowRoutes.contains(path) &&
+            // Legal pages: dapat mabuksan kahit naka-log in — hindi ito
+            // dapat i-bounce sa dashboard ng role. (Nananatili ang one-time
+            // Terms acceptance sa `/terms` — nasa setupRoutes iyon.)
+            path != RouteConstants.privacyPolicy &&
+            path != RouteConstants.termsAndConditions &&
             path != RouteConstants.verifyEmail &&
             // Ang "/reset-mpin/verify-otp" ay sariling handoff: hindi dapat
             // itulak sa dashboard habang nakabitin pa ang "Successfully Reset
@@ -479,6 +492,12 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.terms,
           builder: (ctx, s) => const TermsConditionsScreen()),
+      GoRoute(
+          path: RouteConstants.privacyPolicy,
+          builder: (ctx, s) => const PrivacyPolicyScreen()),
+      GoRoute(
+          path: RouteConstants.termsAndConditions,
+          builder: (ctx, s) => const TermsOfServiceScreen()),
       GoRoute(
           path: RouteConstants.verifyEmail,
           builder: (ctx, s) {

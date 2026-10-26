@@ -1,6 +1,8 @@
 // lib/presentation/shared/widgets/legal_links.dart
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../core/constants/route_constants.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../features/lender/profile/screens/widgets/legal_info_sheet.dart';
 
@@ -304,9 +306,24 @@ void showPrivacyPolicySheet(BuildContext context) {
 /// light-background screens. Tapping either link opens a bottom sheet with the
 /// full legal content.
 class LegalLinks extends StatelessWidget {
-  const LegalLinks({super.key, this.textColor = AppColors.textSecondary});
+  const LegalLinks({
+    super.key,
+    this.textColor = AppColors.textSecondary,
+    this.privacyUsesRoute = false,
+    this.termsUsesRoute = false,
+  });
 
   final Color textColor;
+
+  /// `true` → ang "Privacy Policy" ay bubukas ng PUBLIC page
+  /// (`/privacy-policy`) na may sariling URL, imbes na bottom sheet. Ito ang
+  /// gamit sa login page (kailangan din ito ng Google OAuth verification).
+  final bool privacyUsesRoute;
+
+  /// `true` → ang "Terms & Conditions" ay bubukas ng PUBLIC page (`/terms`)
+  /// imbes na bottom sheet. Default na sheet sa loob ng app para hindi
+  /// mawala ang user sa screen niya.
+  final bool termsUsesRoute;
 
   void _showTerms(BuildContext context) => showTermsAndConditionsSheet(context);
 
@@ -333,17 +350,27 @@ class LegalLinks extends StatelessWidget {
       );
     }
 
+    /// Sheet sa loob ng app, o public page kapag naka-`true` ang flag.
+    VoidCallback target(VoidCallback sheet, String route, bool useRoute) =>
+        useRoute ? () => context.go(route) : sheet;
+
     return Wrap(
       alignment: WrapAlignment.center,
       crossAxisAlignment: WrapCrossAlignment.center,
       spacing: 8,
       children: [
-        link('Terms & Conditions', () => _showTerms(context)),
+        link(
+            'Terms & Conditions',
+            target(() => _showTerms(context), RouteConstants.termsAndConditions,
+                termsUsesRoute)),
         Text(
           '·',
           style: TextStyle(fontSize: 12, color: textColor),
         ),
-        link('Privacy Policy', () => _showPrivacy(context)),
+        link(
+            'Privacy Policy',
+            target(() => _showPrivacy(context), RouteConstants.privacyPolicy,
+                privacyUsesRoute)),
       ],
     );
   }

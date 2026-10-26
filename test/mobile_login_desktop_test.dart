@@ -57,18 +57,32 @@ void main() {
       (tester) async {
     await pumpLogin(tester, 1280);
 
-    expect(find.text('Login'), findsOneWidget);
-    expect(find.text('Mobile Number or Email'), findsOneWidget);
+    expect(find.text('Login as'), findsOneWidget);
+    expect(find.text('Phone number'), findsOneWidget);
+    expect(find.text('Or'), findsOneWidget);
+    expect(find.text('Email'), findsOneWidget);
     expect(find.text('Send OTP'), findsOneWidget);
+    // Naka-unhide ang Google sign-in sa ilalim ng Send OTP.
+    expect(find.text('or continue with'), findsOneWidget);
+    expect(find.text('Continue with Google'), findsOneWidget);
 
-    final fieldWidth = tester.getSize(find.byType(TextFormField)).width;
-    final fieldCenter = tester.getCenter(find.byType(TextFormField));
+    final fieldWidth =
+        tester.getSize(find.byKey(const Key('loginPhoneField'))).width;
+    final fieldCenter =
+        tester.getCenter(find.byKey(const Key('loginPhoneField')));
     // Card = ≤480 (may 20px na padding sa gilid) — hindi nakaunat sa buong
     // 1280px na browser.
     expect(fieldWidth, lessThan(440),
         reason: 'Nakaunat pa rin ang form sa buong lapad ng desktop');
     expect(fieldCenter.dx, closeTo(640, 3),
         reason: 'Hindi naka-center ang login card sa desktop');
+
+    // Walang overlap: nasa ILALIM ng brand header ang simula ng card, kahit
+    // humaba ito dahil sa "Continue with Google" button.
+    final brand = tester.getRect(find.text('Jireta Loans'));
+    final heading = tester.getRect(find.text('Login as'));
+    expect(heading.top, greaterThan(brand.bottom),
+        reason: 'Naka-overlap ang brand header at ang login card');
 
     await disposeTree(tester);
   });
@@ -81,9 +95,11 @@ void main() {
       (tester) async {
     await pumpLogin(tester, 720);
 
-    expect(find.text('Login'), findsOneWidget);
-    final fieldWidth = tester.getSize(find.byType(TextFormField)).width;
-    final fieldCenter = tester.getCenter(find.byType(TextFormField));
+    expect(find.text('Login as'), findsOneWidget);
+    final fieldWidth =
+        tester.getSize(find.byKey(const Key('loginPhoneField'))).width;
+    final fieldCenter =
+        tester.getCenter(find.byKey(const Key('loginPhoneField')));
     // Buong lapad (may 20px padding sa gilid) — hindi naka-cap sa 480px.
     expect(fieldWidth, greaterThan(600));
     expect(fieldCenter.dx, closeTo(360, 3));
@@ -91,32 +107,41 @@ void main() {
     await disposeTree(tester);
   });
 
-  // Ang isang field ay tumatanggap ng mobile number O email (Gmail): ang numero
-  // ay naka-format pa rin, at ang email ay nakaka-enable ng Send OTP para doon
-  // ipadala ng server ang code.
-  testWidgets('email (Gmail) sa login field: naka-enable ang Send OTP',
+  // Dalawang field ngayon: "Phone number" at "Email" (may "Or" sa gitna). Ang
+  // email ang nagpapa-enable ng Send OTP, at isa lang ang aktibong identifier —
+  // kapag may nilagay sa isang field, nabubura ang laman ng isa pa.
+  testWidgets('email (Gmail) sa Email field: naka-enable ang Send OTP',
       (tester) async {
     await pumpLogin(tester, 720);
 
     await tester.enterText(
-        find.byType(TextFormField), '  Juan@Gmail.com ');
+        find.byKey(const Key('loginEmailField')), '  Juan@Gmail.com ');
     await tester.pump();
 
-    // Email mode: mail icon sa field (hindi ang +63 flag) at naka-enable ang CTA.
-    expect(find.byIcon(Icons.mail_outline_rounded), findsWidgets);
     final cta = tester.widget<ElevatedButton>(
         find.widgetWithText(ElevatedButton, 'Send OTP'));
     expect(cta.onPressed, isNotNull,
         reason: 'Hindi naka-enable ang Send OTP para sa email');
 
+    // Iisa lang ang aktibong identifier: nabubura ang email kapag may
+    // nilagay na numero sa phone field.
+    await tester.enterText(
+        find.byKey(const Key('loginPhoneField')), '9171234567');
+    await tester.pump();
+    final email = tester.widget<TextFormField>(
+        find.byKey(const Key('loginEmailField')));
+    expect(email.controller?.text, isEmpty,
+        reason: 'Hindi nabura ang email nang may nilagay na numero');
+
     await disposeTree(tester);
   });
 
-  testWidgets('mobile number sa parehong field: naka-format at naka-enable',
+  testWidgets('mobile number sa Phone number field: naka-format at naka-enable',
       (tester) async {
     await pumpLogin(tester, 720);
 
-    await tester.enterText(find.byType(TextFormField), '9171234567');
+    await tester.enterText(
+        find.byKey(const Key('loginPhoneField')), '9171234567');
     await tester.pump();
 
     expect(find.text('917 123 4567'), findsOneWidget);

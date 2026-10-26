@@ -49,14 +49,16 @@ class MobileLoginScreen extends ConsumerStatefulWidget {
 
 class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     with SingleTickerProviderStateMixin {
-  /// Isang field lang para sa mobile number O email (hal. Gmail). Ang numero ay
-  /// awtomatikong naka-format (`912 345 6789`); ang email ay malayang ita-type
-  /// (may `@`) at doon ipapadala ng server ang OTP.
-  final _identifierCtrl = TextEditingController();
+  /// Dalawang field: mobile number at email ("Login as"). Isa lang ang
+  /// pinupunan — kapag may tinype sa isa, binubura ang laman ng isa pa. Ang
+  /// numero ay awtomatikong naka-format (`912 345 6789`); ang email ay
+  /// malayang ita-type at doon ipapadala ng server ang OTP.
+  final _phoneCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
 
-  /// TEMP: hidden for now — flip back to `true` to restore the
-  /// "or continue with" divider and the "Continue with Google" button.
-  static const bool _showGoogleSignIn = false;
+  /// Nakalabas ang "or continue with" divider at ang "Continue with Google"
+  /// button sa ilalim ng Send OTP. I-flip sa `false` para itago muli.
+  static const bool _showGoogleSignIn = true;
 
   bool _loading = false;
   bool _googleLoading = false;
@@ -96,6 +98,12 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   /// Tagal bago kusang mawala ang mensahe ng maling MPIN.
   static const _mpinErrorDuration = Duration(seconds: 3);
+
+  /// Taas na nakareserba sa itaas ng card para sa brand header
+  /// ("Jireta Loans" + "& CREDIT CORP 1966"): 32 na offset mula sa itaas,
+  /// ~46 na taas ng brand, at ~18 na gap. Dahil dito hindi maaaring umabot ang
+  /// card sa brand kahit gaano ito kahaba.
+  static const double _brandReservedHeight = 96;
   final MpinPadController _padController = MpinPadController();
   late AnimationController _fadeController;
   late Animation<double> _fadeAnim;
@@ -146,7 +154,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
 
   @override
   void dispose() {
-    _identifierCtrl.dispose();
+    _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     _fadeController.dispose();
     _lockTimer?.cancel();
     _mpinLockTimer?.cancel();
@@ -466,48 +475,56 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     );
   }
 
-  /// Email ba ang nilalagay ng user? (may `@` o titik) — dito nakabatay ang
-  /// prefix icon, hint, at kung email o SMS ang hihingin sa server.
-  bool get _isEmailInput =>
-      _identifierCtrl.text.contains('@') ||
-      RegExp(r'[A-Za-z]').hasMatch(_identifierCtrl.text);
+  /// Ang lokal na 10-digit na naipasok sa phone field (hal. `9123456789`) —
+  /// walang spaces.
+  String get _rawPhone => _phoneCtrl.text.replaceAll(RegExp(r'\D'), '');
 
-  /// Ang lokal na 10-digit na naipasok (hal. `9123456789`) — walang spaces.
-  String get _rawPhone => _identifierCtrl.text.replaceAll(RegExp(r'\D'), '');
+  /// Naka-format na numero: `912 345 6789` (10 digit, `9` ang simula).
+  bool get _isPhoneValid =>
+      _rawPhone.length == 10 && _rawPhone.startsWith('9');
+
+  bool get _isEmailValid =>
+      AppValidators.isValidEmail(_emailCtrl.text.trim());
 
   /// Ang identifier na ipinapadala sa API: email (`juan@gmail.com`) O numero sa
-  /// system format (`09XXXXXXXXX` — 11 digit, kaya idinadagdag ang `0`).
+  /// system format (`09XXXXXXXXX` — 11 digit, kaya idinadagdag ang `0`). Ang
+  /// email ang may lamang field; kung wala, ang numero ang gagamitin.
   String get _apiIdentifier {
-    final text = _identifierCtrl.text.trim();
-    if (_isEmailInput) return text.toLowerCase();
+    final email = _emailCtrl.text.trim();
+    if (email.isNotEmpty) return email.toLowerCase();
     return '0$_rawPhone';
   }
 
-  bool get _isIdentifierValid =>
-      _isEmailInput
-          ? AppValidators.isValidEmail(_identifierCtrl.text)
-          : _rawPhone.length == 10 && _rawPhone.startsWith('9');
+  bool get _isIdentifierValid => _isEmailValid || _isPhoneValid;
 
   /// Awtomatikong naglalagay ng spaces sa mobile number (`912 345 6789`)
-  /// habang nagta-type — pero hinahayaang malayang i-type ang email.
-  void _onIdentifierChanged(String value) {
-    final looksLikeEmail =
-        value.contains('@') || RegExp(r'[A-Za-z]').hasMatch(value);
-    if (!looksLikeEmail) {
-      final digits = value.replaceAll(RegExp(r'\D'), '');
-      final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
-      final buffer = StringBuffer();
-      for (var i = 0; i < limited.length; i++) {
-        if (i == 3 || i == 6) buffer.write(' ');
-        buffer.write(limited[i]);
-      }
-      final formatted = buffer.toString();
-      if (formatted != value) {
-        _identifierCtrl.value = TextEditingValue(
-          text: formatted,
-          selection: TextSelection.collapsed(offset: formatted.length),
-        );
-      }
+  /// habang nagta-type. Iisa lang ang pwedeng punuan: kapag may nilagay sa
+  /// numero, binubura ang email (at kabaligtaran) para hindi malito kung alin
+  /// ang ipapadala sa server.
+  void _onPhoneChanged(String value) {
+    final digits = value.replaceAll(RegExp(r'\D'), '');
+    final limited = digits.length > 10 ? digits.substring(0, 10) : digits;
+    final buffer = StringBuffer();
+    for (var i = 0; i < limited.length; i++) {
+      if (i == 3 || i == 6) buffer.write(' ');
+      buffer.write(limited[i]);
+    }
+    final formatted = buffer.toString();
+    if (formatted != value) {
+      _phoneCtrl.value = TextEditingValue(
+        text: formatted,
+        selection: TextSelection.collapsed(offset: formatted.length),
+      );
+    }
+    if (formatted.isNotEmpty && _emailCtrl.text.isNotEmpty) {
+      _emailCtrl.clear();
+    }
+    setState(() {});
+  }
+
+  void _onEmailChanged(String value) {
+    if (value.isNotEmpty && _phoneCtrl.text.isNotEmpty) {
+      _phoneCtrl.clear();
     }
     setState(() {});
   }
@@ -1263,14 +1280,23 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                             MediaQuery.of(context).viewInsets.bottom;
                         return Stack(
                           children: [
-                            // Card centered in the full area (keyboard-aware)
+                            // Card centered sa area SA ILALIM ng brand.
+                            // Nakareserba ang taas ng brand (32 offset + ~46
+                            // na taas + gap) kaya hindi ito maaaring maabot o
+                            // ma-overlap ng card kahit humaba ito (hal. may
+                            // "Continue with Google" na button).
                             Positioned.fill(
-                              child: SingleChildScrollView(
-                                physics: const ClampingScrollPhysics(),
-                                child: ConstrainedBox(
-                                  constraints: BoxConstraints(
-                                    minHeight: constraints.maxHeight,
-                                  ),
+                              child: Padding(
+                                padding: const EdgeInsets.only(
+                                    top: _brandReservedHeight),
+                                child: SingleChildScrollView(
+                                  physics: const ClampingScrollPhysics(),
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      minHeight: (constraints.maxHeight -
+                                              _brandReservedHeight)
+                                          .clamp(0.0, double.infinity),
+                                    ),
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
@@ -1305,22 +1331,23 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                               crossAxisAlignment:
                                                   CrossAxisAlignment.stretch,
                                               children: [
-                                                // Handle
-                                                const SizedBox(height: 4),
+                                                // ── Header ──
                                                 const Text(
-                                                  'Login',
+                                                  'Login as',
                                                   style: TextStyle(
                                                     fontFamily:
                                                         'PlayfairDisplay',
-                                                    fontSize: 20,
+                                                    fontSize: 22,
                                                     fontWeight: FontWeight.w700,
                                                     color: AppColors.deepNavy,
                                                     height: 1.1,
                                                   ),
                                                 ),
                                                 const SizedBox(height: 22),
+
+                                                // ── Phone number ──
                                                 const Text(
-                                                  'Mobile Number or Email',
+                                                  'Phone number',
                                                   style: TextStyle(
                                                     fontSize: 12.5,
                                                     fontWeight: FontWeight.w700,
@@ -1328,13 +1355,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                     letterSpacing: 0.2,
                                                   ),
                                                 ),
-                                                const SizedBox(height: 10),
-                                                // Premium input — simple (no extra smooth anim)
+                                                const SizedBox(height: 6),
                                                 TextFormField(
-                                                  controller: _identifierCtrl,
-                                                  keyboardType: TextInputType
-                                                      .emailAddress,
-                                                  maxLength: 60,
+                                                  key: const Key(
+                                                      'loginPhoneField'),
+                                                  controller: _phoneCtrl,
+                                                  keyboardType:
+                                                      TextInputType.phone,
                                                   autocorrect: false,
                                                   enableSuggestions: false,
                                                   style: const TextStyle(
@@ -1343,12 +1370,9 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                     color: AppColors.deepNavy,
                                                     letterSpacing: 0.8,
                                                   ),
-                                                  onChanged:
-                                                      _onIdentifierChanged,
+                                                  onChanged: _onPhoneChanged,
                                                   decoration: InputDecoration(
-                                                    hintText: _isEmailInput
-                                                        ? 'you@gmail.com'
-                                                        : '912 345 6789',
+                                                    hintText: '912 345 6789',
                                                     hintStyle: TextStyle(
                                                       fontSize: 15,
                                                       fontWeight:
@@ -1359,37 +1383,17 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                               alpha: 0.7),
                                                       letterSpacing: 0.6,
                                                     ),
-                                                    counterText: '',
-                                                    filled: true,
-                                                    fillColor:
-                                                        const Color(0xFFF2F3F7),
+                                                    isDense: true,
                                                     contentPadding:
-                                                        const EdgeInsets
-                                                            .symmetric(
-                                                            horizontal: 14,
-                                                            vertical: 16),
+                                                        const EdgeInsets.only(
+                                                            top: 10,
+                                                            bottom: 10),
                                                     // +63 (Pilipinas) — lokal
                                                     // na 10-digit na numero
                                                     // (9XXX XXX XXX) ang type.
-                                                    prefixIcon: _isEmailInput
-                                                        ? const Padding(
-                                                            padding:
-                                                                EdgeInsets.only(
-                                                                    left: 14,
-                                                                    right: 10),
-                                                            child: Icon(
-                                                              Icons
-                                                                  .mail_outline_rounded,
-                                                              size: 20,
-                                                              color: AppColors
-                                                                  .deepNavy,
-                                                            ),
-                                                          )
-                                                        : const Padding(
-                                                      padding:
-                                                          EdgeInsets.only(
-                                                              left: 14,
-                                                              right: 6),
+                                                    prefixIcon: const Padding(
+                                                      padding: EdgeInsets.only(
+                                                          right: 6),
                                                       child: Row(
                                                         mainAxisSize:
                                                             MainAxisSize.min,
@@ -1411,15 +1415,14 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                             ),
                                                           ),
                                                           SizedBox(width: 8),
-                                                          // Manipis na
-                                                          // divider sa
-                                                          // pagitan ng
-                                                          // prefix at
-                                                          // numero.
+                                                          // Manipis na divider
+                                                          // sa pagitan ng prefix
+                                                          // at numero.
                                                           SizedBox(
                                                             width: 1,
                                                             height: 20,
-                                                            child: DecoratedBox(
+                                                            child:
+                                                                DecoratedBox(
                                                               decoration:
                                                                   BoxDecoration(
                                                                 color: Color(
@@ -1436,21 +1439,21 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                       minWidth: 0,
                                                       minHeight: 0,
                                                     ),
-                                                    suffixIcon: _identifierCtrl
-                                                            .text.isNotEmpty
+                                                    suffixIcon: _phoneCtrl.text
+                                                            .isNotEmpty
                                                         ? Padding(
                                                             padding:
                                                                 const EdgeInsets
                                                                     .only(
-                                                                    right: 12),
+                                                                    right: 4),
                                                             child: Icon(
-                                                              _isIdentifierValid
+                                                              _isPhoneValid
                                                                   ? Icons
                                                                       .check_circle_rounded
                                                                   : Icons
                                                                       .error_outline_rounded,
                                                               size: 20,
-                                                              color: _isIdentifierValid
+                                                              color: _isPhoneValid
                                                                   ? const Color(
                                                                       0xFF2E7D32)
                                                                   : AppColors
@@ -1466,31 +1469,127 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                                             minWidth: 0,
                                                             minHeight: 0),
                                                     enabledBorder:
-                                                        OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              14),
-                                                      borderSide:
-                                                          const BorderSide(
-                                                              color: Color(
-                                                                  0xFFE3E5EB)),
+                                                        const UnderlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                          color: Color(
+                                                              0xFFD9DCE4),
+                                                          width: 1.2),
                                                     ),
                                                     focusedBorder:
-                                                        OutlineInputBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              14),
-                                                      borderSide:
-                                                          const BorderSide(
-                                                              color: AppColors
-                                                                  .deepNavy,
-                                                              width: 1.6),
+                                                        const UnderlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                          color: AppColors
+                                                              .deepNavy,
+                                                          width: 1.6),
                                                     ),
                                                   ),
                                                 ),
-                                                const SizedBox(height: 8),
 
-                                                const SizedBox(height: 22),
+                                                // ── Or ──
+                                                const SizedBox(height: 24),
+                                                const Text(
+                                                  'Or',
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors
+                                                        .textSecondary,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 16),
+
+                                                // ── Email ──
+                                                const Text(
+                                                  'Email',
+                                                  style: TextStyle(
+                                                    fontSize: 12.5,
+                                                    fontWeight: FontWeight.w700,
+                                                    color: AppColors.deepNavy,
+                                                    letterSpacing: 0.2,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 6),
+                                                TextFormField(
+                                                  key: const Key(
+                                                      'loginEmailField'),
+                                                  controller: _emailCtrl,
+                                                  keyboardType: TextInputType
+                                                      .emailAddress,
+                                                  maxLength: 60,
+                                                  autocorrect: false,
+                                                  enableSuggestions: false,
+                                                  style: const TextStyle(
+                                                    fontSize: 16,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.deepNavy,
+                                                    letterSpacing: 0.4,
+                                                  ),
+                                                  onChanged: _onEmailChanged,
+                                                  decoration: InputDecoration(
+                                                    hintText: 'you@gmail.com',
+                                                    hintStyle: TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w500,
+                                                      color: AppColors
+                                                          .textTertiary
+                                                          .withValues(
+                                                              alpha: 0.7),
+                                                      letterSpacing: 0.4,
+                                                    ),
+                                                    counterText: '',
+                                                    isDense: true,
+                                                    contentPadding:
+                                                        const EdgeInsets.only(
+                                                            top: 10,
+                                                            bottom: 10),
+                                                    suffixIcon: _emailCtrl.text
+                                                            .isNotEmpty
+                                                        ? Padding(
+                                                            padding:
+                                                                const EdgeInsets
+                                                                    .only(
+                                                                    right: 4),
+                                                            child: Icon(
+                                                              _isEmailValid
+                                                                  ? Icons
+                                                                      .check_circle_rounded
+                                                                  : Icons
+                                                                      .error_outline_rounded,
+                                                              size: 20,
+                                                              color: _isEmailValid
+                                                                  ? const Color(
+                                                                      0xFF2E7D32)
+                                                                  : AppColors
+                                                                      .textTertiary
+                                                                      .withValues(
+                                                                          alpha:
+                                                                              0.6),
+                                                            ),
+                                                          )
+                                                        : null,
+                                                    suffixIconConstraints:
+                                                        const BoxConstraints(
+                                                            minWidth: 0,
+                                                            minHeight: 0),
+                                                    enabledBorder:
+                                                        const UnderlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                          color: Color(
+                                                              0xFFD9DCE4),
+                                                          width: 1.2),
+                                                    ),
+                                                    focusedBorder:
+                                                        const UnderlineInputBorder(
+                                                      borderSide: BorderSide(
+                                                          color: AppColors
+                                                              .deepNavy,
+                                                          width: 1.6),
+                                                    ),
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 28),
 
                                                 // ── Lock countdown inline ──
                                                 if (_lockSecondsLeft > 0)
@@ -1858,6 +1957,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                     ],
                                   ),
                                 ),
+                                ),
                               ),
                             ),
                             // Brand text floating at a fixed offset — its height
@@ -1911,7 +2011,8 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           // Terms & Conditions · Privacy Policy (text links)
-                          const LegalLinks(),
+                          const LegalLinks(
+                            privacyUsesRoute: true, termsUsesRoute: true),
                           const SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.center,

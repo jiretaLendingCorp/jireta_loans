@@ -8,6 +8,16 @@ class RouteConstants {
   /// Purely presentational — it hands off to the routes below.
   static const String landing = '/landing';
   static const String terms = '/terms';
+
+  /// Public na Privacy Policy page — kailangan ito ng Google OAuth
+  /// verification bilang "Application privacy policy link". Walang login:
+  /// static content lang, mula sa `kPrivacyPolicySections`.
+  static const String privacyPolicy = '/privacy-policy';
+
+  /// Public na Terms & Conditions page (parehong design at sariling URL gaya
+  /// ng privacy policy). Hiwalay ito sa `/terms` — iyon ang one-time
+  /// acceptance step pagkatapos mag-login.
+  static const String termsAndConditions = '/terms-and-conditions';
   static const String webLogin = '/login';
   static const String webRegister = '/register';
   static const String mobileLogin = '/mobile-login';

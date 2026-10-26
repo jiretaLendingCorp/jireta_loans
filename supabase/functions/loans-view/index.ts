@@ -338,8 +338,8 @@ async function handleGetDetails(req: Request) {
       .order('created_at');
 
     // Resolve signed URLs for each co-maker document (service role can sign
-    // any bucket regardless of RLS).
-    const coMakers = await Promise.all((coMakerLinks ?? []).map(async (link) => {
+    // any bucket regardless of RLS). Ginagamit din ito ng fallback sa ibaba.
+    const mapCoMakerLink = async (link: any) => {
       const cm = (link.co_maker ?? {}) as unknown as Record<string, unknown>;
       const docs = (cm.co_maker_documents as any[]) ?? [];
       const docsWithUrl = await Promise.all(docs.map(async (d) => {
@@ -361,7 +361,42 @@ async function handleGetDetails(req: Request) {
         relationship: link.relationship,
         co_maker_documents: docsWithUrl,
       };
-    }));
+    };
+
+    const coMakers = await Promise.all((coMakerLinks ?? []).map(mapCoMakerLink));
+
+    // ── Fallback: co-maker ng HULING application ng lender ────────────────
+    // Ang 2-step quick re-apply (2nd/3rd loan at pataas) ay hindi na
+    // nagtatanong ng co-maker, kaya blangko ang "Co-Maker" card kahit may
+    // naka-file nang co-maker ang lender sa naunang application. Kung wala sa
+    // loan na ito, ipakita ang co-maker ng pinakabagong naunang loan ng
+    // parehong lender na may naka-file. Read-only — hindi ginagalaw ang loan
+    // record.
+    let resolvedCoMakers = coMakers;
+    if (resolvedCoMakers.length === 0 && loan?.lender_id && loan?.created_at) {
+      const { data: earlierLoans } = await db
+        .from('loans')
+        .select('id, created_at')
+        .eq('lender_id', loan.lender_id)
+        .lt('created_at', loan.created_at)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      const earlierIds = (earlierLoans ?? []).map((l: { id: string }) => l.id);
+      if (earlierIds.length > 0) {
+        const { data: prevLinks } = await db
+          .from('loan_co_makers')
+          .select('loan_id, relationship, co_maker:co_makers(*, co_maker_documents(*))')
+          .in('loan_id', earlierIds)
+          .order('created_at', { ascending: false });
+        const links = (prevLinks ?? []) as any[];
+        const sourceLoanId = links[0]?.loan_id;
+        if (sourceLoanId) {
+          resolvedCoMakers = await Promise.all(
+            links.filter((l) => l.loan_id === sourceLoanId).map(mapCoMakerLink),
+          );
+        }
+      }
+    }
 
     const [financials, disbursement, penaltyApplied, disbPref] = await Promise.all([
       getLoanFinancials(db, loanId),
@@ -389,6 +424,33 @@ async function handleGetDetails(req: Request) {
     const loanSnapshot: Record<string, unknown> = {};
     for (const k of ['employment_type', 'employment_type_id', 'employer_name', 'monthly_income', 'source_of_funds']) {
       if (loan?.[k] !== undefined && loan?.[k] !== null) loanSnapshot[k] = loan[k];
+    }
+    // ── Fallback para sa re-applied loans na walang snapshot ─────────────
+    // Ang 2-step quick re-apply (Purpose → Amount → Submit) ay hindi na
+    // nagtatanong ng employment/employer/income — kaya ang 2nd/3rd loan ng
+    // lumang flow ay walang naka-save na declaration at blangko (`-`) ang
+    // Employment / Employer / Monthly Income sa "Lender Information".
+    // Read-only fallback: kung wala sa LOAN na ito, ipakita ang HULING
+    // declaration ng lender mismo (pinakabagong naunang loan na may
+    // snapshot). Hindi nito ginagalaw o sinusulatan ang loan record.
+    if (!loanSnapshot.employment_type && loan?.lender_id && loan?.created_at) {
+      const keys = ['employment_type', 'employment_type_id', 'employer_name', 'monthly_income', 'source_of_funds'];
+      const { data: previous } = await db
+        .from('loans')
+        .select(keys.join(', '))
+        .eq('lender_id', loan.lender_id)
+        .not('employment_type', 'is', null)
+        .lt('created_at', loan.created_at)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      const prevRow = previous as unknown as Record<string, unknown> | null;
+      if (prevRow) {
+        for (const k of keys) {
+          const value = prevRow[k];
+          if (value !== undefined && value !== null) loanSnapshot[k] = value;
+        }
+      }
     }
     const lenderProfileWithSnapshot = lp
       ? {
@@ -422,7 +484,7 @@ async function handleGetDetails(req: Request) {
       rider_delivery_assigned: (disbursements ?? []).some(
         (d) => d?.method === 'rider_delivery'),
       penalties: penalties ?? [],
-      co_makers: coMakers ?? [],
+      co_makers: resolvedCoMakers,
     };
 
     return jsonResponse(loanOut);
