@@ -16,7 +16,7 @@ import 'secure_storage.dart';
 /// another device."
 ///
 /// Manual logout already posts `auth-logout` through the API client, but the
-/// AUTO logout paths (10-minute idle expiry / dead refresh token) only cleared
+/// AUTO logout paths (3-minute idle expiry / dead refresh token) only cleared
 /// local storage — leaving the stale row behind and blocking the immediate
 /// re-login. This helper closes that gap and is safe to call from core
 /// security code (own Dio, no auth interceptor, never throws).

@@ -115,7 +115,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// transient — hindi ginagalaw ang session.
   Future<void> _heartbeat() async {
     if (!state.isAuthenticated) return;
-    // HUWAG mag-ping kapag lumipas na ang idle window (10 minutong walang
+    // HUWAG mag-ping kapag lumipas na ang idle window (3 minutong walang
     // tunay na interaction). Ang ping ang nagpapanatiling "fresh"
     // (`last_seen_at`) ng active_sessions row, at ang fresh na row na may
     // IBANG session id ang tumatanggi sa susunod na login (first-login-wins).
@@ -139,9 +139,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Called by [SessionIdleDetector] and [AuthInterceptor] on any user
-  /// gesture or authenticated API call.  Throttled to once per 10s and
-  /// bumps `last_activity_at` forward, resetting the 10-minute idle window.
+  /// Called by [SessionIdleDetector] on any user gesture. Throttled to once
+  /// per 10s and bumps `last_activity_at` forward, resetting the 3-minute
+  /// idle window.
   Future<void> notifyActivity() async {
     if (!state.isAuthenticated) return;
     final now = DateTime.now().toUtc();
@@ -156,13 +156,21 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _scheduleExpiryCheck();
   }
 
+  /// Re-evaluates the idle deadline agad — ginagamit kapag nag-resume ang app
+  /// mula sa background, kung saan maaaring hindi tumakbo ang Dart timer.
+  /// Nasa [_checkTokenExpiry] ang desisyon (expired → lock/logout, o re-arm).
+  Future<void> checkIdleNow() async {
+    if (!state.isAuthenticated) return;
+    _scheduleExpiryCheck();
+  }
+
   /// [unlockedByMpin] = tinawag ito pagkatapos ng tamang MPIN sa login page,
   /// kaya hindi na kailangang humingi muli ng MPIN.
   Future<void> initialize({bool unlockedByMpin = false}) async {
     final revision = _authRevision;
     state = state.copyWith(isLoading: true);
     try {
-      // ── 10-minute idle session check ───────────────────────────────────
+      // ── 3-minute idle session check ────────────────────────────────────
       // hasValidSession now checks both token existence AND idle expiry.
       final hasSession = await SecureStorage.hasValidSession();
       if (kDebugMode) {
@@ -196,10 +204,10 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           if (remaining != null && remaining.inSeconds <= -10) {
             if (kDebugMode) {
               debugPrint(
-                  '[JWT] initialize: idle 10m expired → hard logout, require re-login');
+                  '[JWT] initialize: idle 3m expired → hard logout, require re-login');
             }
             AppLogger.debug(
-                '[JWT] initialize: idle 10m expired → clear for re-login');
+                '[JWT] initialize: idle 3m expired → clear for re-login');
             await SecureStorage.clearAll();
             try {
               await Supabase.instance.client.auth.signOut();
@@ -360,7 +368,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
               createdAt: DateTime.now(),
             ),
           );
-          // Schedule idle 10m expiry (or soft JWT refresh if JWT sooner)
+          // Schedule idle 3m expiry (or soft JWT refresh if JWT sooner)
           _scheduleExpiryCheck();
           return;
         }
@@ -502,8 +510,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Schedules idle logout at 10-minute inactivity expiry.
-  /// Within the 10-minute window, if JWT soft-expires before idle, we do a
+  /// Schedules idle logout at 3-minute inactivity expiry.
+  /// Within the 3-minute window, if JWT soft-expires before idle, we do a
   /// soft refresh that does NOT extend the idle deadline.
   void _scheduleExpiryCheck() {
     _expiryTimer?.cancel();
@@ -549,9 +557,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       // 10s grace prevents immediate logout due to event-loop lag.
       if (remaining.inSeconds <= -10) {
         if (kDebugMode) {
-          debugPrint('[JWT] idle 10m expired → hard logout immediately');
+          debugPrint('[JWT] idle 3m expired → hard logout immediately');
         }
-        AppLogger.debug('[JWT] idle 10m expired, hard logout');
+        AppLogger.debug('[JWT] idle 3m expired, hard logout');
         _onIdleExpired();
         return;
       }
@@ -610,7 +618,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
 
         if (kDebugMode) {
           debugPrint(
-              '[JWT] next timer in ${nextDelay.inSeconds}s → ${isJwtSooner ? "soft JWT refresh" : "idle 10m logout"}');
+              '[JWT] next timer in ${nextDelay.inSeconds}s → ${isJwtSooner ? "soft JWT refresh" : "idle 3m logout"}');
         }
         AppLogger.debug(
             '[JWT] schedule next in ${nextDelay.inSeconds}s isJwtSooner=$isJwtSooner');
@@ -633,7 +641,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
   }
 
-  /// Idle 10-minute expiry.
+  /// Idle 3-minute expiry.
   ///
   /// Rider / lender na MAY naka-set nang 4-digit MPIN: i-LOCK lang ang app
   /// sa halip na tuluyang i-logout — hindi binubura ang tokens at userId, at
@@ -643,6 +651,18 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// Walang MPIN (o staff role) → dating behavior: hard logout at kailangan
   /// ng OTP/password muli.
   Future<void> _onIdleExpired() async {
+    // Ang timer ay na-schedule nang mas maaga. Kung nailipat pala ang idle
+    // deadline (may totoong interaksyon sa katiting na oras bago ito
+    // mag-fire), huwag mag-lock/logout — i-re-arm para sa natitirang oras.
+    // Kung hindi ito gagawin, naiiwang walang idle timer ang session nang
+    // tahimik at hindi na ito nag-a-auto logout.
+    final remaining = await SecureStorage.getRemainingIdleTime();
+    if (remaining != null && remaining > Duration.zero) {
+      if (!mounted) return;
+      _expiryTimer?.cancel();
+      _expiryTimer = Timer(remaining, _onIdleExpired);
+      return;
+    }
     if (await _hasMpinLock()) {
       // Natapos ang session pero may MPIN: i-lock lang (hindi i-logout) at
       // ipakita ang "Session Ended / please log in again" na modal bago ang
@@ -652,9 +672,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
     if (kDebugMode) {
       debugPrint(
-          '[JWT] idle 10m session expired → hard logout, require re-login');
+          '[JWT] idle 3m session expired → hard logout, require re-login');
     }
-    AppLogger.debug('[JWT] idle 10m expired → hard logout');
+    AppLogger.debug('[JWT] idle 3m expired → hard logout');
     await _onSessionExpired();
   }
 
@@ -716,10 +736,10 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   /// Ginagamit ito ng [AuthNotifier.logout]: para sa kanila, ang "Logout" ay
   /// LOCK lang (hindi tinatapos ang session) — kaya pagkatapos mag-logout ay
   /// hindi lang basta "Enter MPIN" ang lalabas, kundi **gagana** rin agad ito
-  /// nang walang "session expired" at walang hintay na 10 minuto.
+  /// nang walang "session expired" at walang hintay na 3 minuto.
   Future<bool> hasMpinLockForCurrentUser() => _hasMpinLock();
 
-  /// [notify] = `true` kapag NATAPOS talaga ang session (10-minute idle limit),
+  /// [notify] = `true` kapag NATAPOS talaga ang session (3-minute idle limit),
   /// kaya dapat may "Session Ended" na modal bago ang MPIN screen. Mananatiling
   /// `false` sa pagbukas lang ng app at pagkatapos ng MPIN setup — doon ay
   /// tahimik lang na naka-lock.
@@ -727,9 +747,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     _expiryTimer?.cancel();
     _isRefreshing = false;
     if (!mounted) return;
-    AppLogger.debug('[JWT] idle 10m expired → locked for MPIN unlock');
+    AppLogger.debug('[JWT] idle 3m expired → locked for MPIN unlock');
     if (kDebugMode) {
-      debugPrint('[JWT] idle 10m expired → MPIN lock (session kept)');
+      debugPrint('[JWT] idle 3m expired → MPIN lock (session kept)');
     }
     // Sinasariwa rin ang `isLoggingOut`: kapag LOCK lang ang nangyari (logout
     // ng rider / lender na may MPIN), hindi dumadaan sa hard-logout path na
@@ -767,7 +787,7 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
           '[JWT] JWT soft expired → attempting soft refresh (idle ${remaining?.inSeconds}s left)...');
     }
     AppLogger.debug(
-        '[JWT] soft JWT expired, attempting refresh within 10m idle window');
+        '[JWT] soft JWT expired, attempting refresh within 3m idle window');
     try {
       final result = await _tryRefreshSession();
       if (!mounted) return;

@@ -173,7 +173,7 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         userId: userData['id'],
         role: userData['role'],
       );
-      // ── 10-minute idle session: store login start time ─────────────────
+      // ── 3-minute idle session: store login start time ──────────────────
       // Use JWT iat/exp (server time) instead of client now to avoid clock-skew
       // causing immediate "expired" on web when device clock is off.
       // saveSessionStartedAt also sets last_activity_at so idle window starts now.

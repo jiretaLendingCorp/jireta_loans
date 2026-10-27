@@ -26,7 +26,7 @@ class SessionRefresher {
 
   static Future<SessionRefreshResult> _refreshOnce() async {
     // ── ABSOLUTE session lifetime (3 buwan) ────────────────────────────────
-    // Ang 10-minutong idle window ay PAG-LOCK lang (MPIN ang mag-u-unlock) at
+    // Ang 3-minutong idle window ay PAG-LOCK lang (MPIN ang mag-u-unlock) at
     // HINDI dapat magpatalsik ng valid na refresh token. Dati, kapag lumampas
     // ang idle ay `authRejected` agad dito — kaya binubura ang session at
     // bumabalik ang rider/lender sa mobile-number (OTP) form makalipas lang

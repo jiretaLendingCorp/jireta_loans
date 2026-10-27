@@ -188,7 +188,7 @@ class SecureStorage {
     }
   }
 
-  // ── Idle-tracking (10-minute inactivity) ─────────────────────────────────
+  // ── Idle-tracking (3-minute inactivity) ──────────────────────────────────
   static Future<void> saveLastActivity(DateTime time) => _withQueue(() async {
         try {
           await _storage.write(
@@ -219,7 +219,7 @@ class SecureStorage {
     }
   }
 
-  /// Remaining time before idle expiry (10 min). Prefers lastActivity; falls
+  /// Remaining time before idle expiry (3 min). Prefers lastActivity; falls
   /// back to sessionStartedAt for fresh logins before first bump.
   static Future<Duration?> getRemainingIdleTime() async {
     DateTime? last = await getLastActivity();
@@ -502,7 +502,7 @@ class SecureStorage {
     try {
       final token = await getAccessToken();
       if (token == null || token.isEmpty) return false;
-      // Idle 10-minute check: if last activity expired → no valid session
+      // Idle 3-minute check: if last activity expired → no valid session
       final remaining = await getRemainingIdleTime();
       if (remaining != null &&
           (remaining.isNegative || remaining.inSeconds <= 0)) {

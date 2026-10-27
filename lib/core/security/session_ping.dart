@@ -14,7 +14,7 @@ enum SessionPingResult {
   revoked,
 
   /// Hindi na ma-repair ang session (expired/invalid na refresh token, o
-  /// naabot ang 10-minutong idle limit) — kailangang mag-login muli, pero
+  /// naabot ang 3-minutong idle limit) — kailangang mag-login muli, pero
   /// HINDI "may gumamit ng account sa ibang device".
   expired,
 

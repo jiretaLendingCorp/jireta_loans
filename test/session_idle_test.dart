@@ -1,11 +1,11 @@
 // test/session_idle_test.dart
-// Verifies the 10-minute idle session contract AND the absolute (3-month)
+// Verifies the 3-minute idle session contract AND the absolute (3-month)
 // session lifetime:
-// - AppConstants.sessionDuration is 10 minutes (idle → MPIN LOCK only)
+// - AppConstants.sessionDuration is 3 minutes (idle → MPIN LOCK only)
 // - AppConstants.absoluteSessionDuration is 3 months (number re-entry only)
 // - SecureStorage idle helpers exist and behave
 //
-// BUG na sinasaklaw ng absolute-session tests: ang 10-minutong idle ay dati
+// BUG na sinasaklaw ng absolute-session tests: ang 3-minutong idle ay dati
 // nag-hahard-logout (binubura ang session) kaya ilang minuto/oras lang ay
 // kailangan nang mag-enter muli ng numero. Dapat LOCK lang ito (MPIN ang
 // mag-u-unlock) at ang numero ay hihilingin muli pagkalipas ng 3 buwan.
@@ -16,12 +16,12 @@ import 'package:jireta_loans/core/constants/app_constants.dart';
 import 'package:jireta_loans/core/security/secure_storage.dart';
 
 void main() {
-  group('Session idle (10 minutes)', () {
-    test('AppConstants.sessionDuration is 10 minutes', () {
-      expect(AppConstants.sessionDuration, const Duration(minutes: 10));
-      expect(AppConstants.sessionDuration.inSeconds, 600);
-      expect(AppConstants.sessionDurationMs, 600000);
-      expect(AppConstants.sessionDurationSeconds, 600);
+  group('Session idle (3 minutes)', () {
+    test('AppConstants.sessionDuration is 3 minutes', () {
+      expect(AppConstants.sessionDuration, const Duration(minutes: 3));
+      expect(AppConstants.sessionDuration.inSeconds, 180);
+      expect(AppConstants.sessionDurationMs, 180000);
+      expect(AppConstants.sessionDurationSeconds, 180);
     });
 
     test('AppConstants.absoluteSessionDuration is 3 months (90 days)', () {
@@ -54,7 +54,7 @@ void main() {
         () async {
       final src = await File('lib/core/security/session_refresher.dart').readAsString();
       // Hindi na ito dapat mag-drop ng valid refresh token dahil lang lumampas
-      // ang 10-minutong idle — iyon ang nagpapabalik sa number/OTP form.
+      // ang 3-minutong idle — iyon ang nagpapabalik sa number/OTP form.
       expect(src.contains('isIdleExpired'), isFalse,
           reason: 'Ang idle ay pag-lock lang (MPIN), hindi session kill.');
       expect(src.contains('getRemainingIdleTime'), isFalse);
@@ -84,6 +84,43 @@ void main() {
                 src.indexOf('initialize(unlockedByMpin'),
         isTrue,
       );
+    });
+
+    test('Automatic polling requests hindi nagpapahaba ng idle', () async {
+      // BUG: ang HM / employee dashboard ay nagpo-poll kada 30s at ang rider
+      // location kada 30s. Kung binubump ng mga authenticated request na iyon
+      // ang `last_activity_at`, hindi umaabot sa 3 minuto ang idle window at
+      // hindi nag-a-auto logout kahit walang tao na gumagamit.
+      final src = await File(
+              'lib/core/network/interceptors/auth_interceptor.dart')
+          .readAsString();
+      expect(src.contains('bumpActivity'), isFalse,
+          reason: 'Automatic polling ay hindi user activity.');
+    });
+
+    test('Idle timer ay nagre-re-arm kung maaga itong nag-fire', () async {
+      final src = await File(
+              'lib/presentation/shared/providers/auth_state_provider.dart')
+          .readAsString();
+      final start = src.indexOf('Future<void> _onIdleExpired()');
+      final end = src.indexOf('Future<bool> _hasMpinLock');
+      expect(start >= 0 && end > start, isTrue,
+          reason: 'Dapat may _onIdleExpired() bago ang _hasMpinLock().');
+      final body = src.substring(start, end);
+      expect(body.contains('getRemainingIdleTime'), isTrue,
+          reason: 'Dapat tsekan kung tapos na nga ang idle window.');
+      expect(body.contains('Timer(remaining, _onIdleExpired)'), isTrue,
+          reason: 'Kung maaga ang fire, i-re-arm — huwag iwanang walang '
+              'idle timer.');
+    });
+
+    test('Pag-resume ng app ay nagsusuri muli ng idle', () async {
+      final src =
+          await File('lib/core/security/session_idle_detector.dart')
+              .readAsString();
+      expect(src.contains('WidgetsBindingObserver'), isTrue);
+      expect(src.contains('AppLifecycleState.resumed'), isTrue);
+      expect(src.contains('checkIdleNow'), isTrue);
     });
 
     test('Heartbeat hindi nagpi-ping habang idle', () async {

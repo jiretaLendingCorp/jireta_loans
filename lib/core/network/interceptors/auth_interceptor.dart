@@ -53,7 +53,7 @@ class AuthInterceptor extends Interceptor {
     final ownsNoSession = _noRefreshPaths.contains(path);
 
     // ── ABSOLUTE session lifetime (3 buwan) ───────────────────────────────
-    // Ang 10-minutong idle window ay PAG-LOCK lang ng app (MPIN ang mag-u-unlock)
+    // Ang 3-minutong idle window ay PAG-LOCK lang ng app (MPIN ang mag-u-unlock)
     // — HINDI ito nagtatapos ng session, kaya HINDI na binubura dito ang tokens
     // (iyon ang dating dahilan ng paulit-ulit na "re-enter ng number"). Ang
     // ABSOLUTE na tagal lang (3 buwan) ang nagpapatalsik para sa muling login.
@@ -75,7 +75,7 @@ class AuthInterceptor extends Interceptor {
         token.isNotEmpty &&
         !ownsNoSession &&
         (JwtParser.isExpired(token) || JwtParser.isExpiringSoon(token))) {
-      // Soft JWT expiry within idle 10m window → try refresh without extending idle deadline
+      // Soft JWT expiry within idle 3m window → try refresh without extending idle deadline
       try {
         final refreshResult = await SessionRefresher.refresh();
         if (refreshResult == SessionRefreshResult.success) {
@@ -91,16 +91,13 @@ class AuthInterceptor extends Interceptor {
       } catch (_) {}
     }
 
-    // Any authenticated request counts as user activity → bump idle timer.
-    // Do it after idle/refresh checks but before attaching the header so
-    // the next 10-minute window starts now.  Fire-and-forget, never block.
-    if (token != null && token.isNotEmpty && !ownsNoSession && !isRefreshPath) {
-      try {
-        // Intentionally not awaited with long timeout; just queue a write.
-        // ignore: unawaited_futures
-        SecureStorage.bumpActivity();
-      } catch (_) {}
-    }
+    // HINDI dito binubump ang idle window. Ang authenticated request ay hindi
+    // katumbas ng "gumagamit ang tao": ang HM / employee dashboard ay
+    // nagpo-poll kada 30s, ang rider location kada 30s, at ang lender tracking
+    // kada 60s — dati, pinapasariwa ng mga iyon ang `last_activity_at` kaya
+    // hindi umaabot sa 3 minuto ang idle at hindi nag-a-auto logout.
+    // Ang [SessionIdleDetector] (totoong tap / scroll / key press) lang ang
+    // dapat magpahaba ng idle window.
 
     if (token != null && token.isNotEmpty && !ownsNoSession) {
       // Authenticated request: use the stored user JWT.
@@ -216,7 +213,7 @@ class AuthInterceptor extends Interceptor {
       } catch (_) {}
 
       // ── ABSOLUTE session lifetime (3 buwan) → hard logout, number muli ──
-      // Ang 10-minutong idle ay HINDI humaharang sa refresh (pag-lock lang ito
+      // Ang 3-minutong idle ay HINDI humaharang sa refresh (pag-lock lang ito
       // ng app para sa MPIN). Tanging ang absolute na tagal (3 buwan) ang
       // nagpapatalsik — kasama na ang tunay na SESSION_REVOKED na nauna nang
       // hinawakan sa itaas.

@@ -13,7 +13,7 @@ const kSessionRevokedMessage =
 const kSessionExpiredMessage =
     'Your session has expired. Please sign in again.';
 
-/// Kapag NATAPOS ang session dahil sa 10-minute idle limit para sa rider /
+/// Kapag NATAPOS ang session dahil sa 3-minute idle limit para sa rider /
 /// lender na may MPIN: hindi tuluyang nagla-log out ang app (naka-lock lang),
 /// pero ipinapaalam pa rin sa user na kailangang mag-log in muli — gamit na
 /// ngayon ang MPIN screen na may numero.

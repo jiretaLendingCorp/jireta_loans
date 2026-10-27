@@ -84,15 +84,15 @@ class AppConstants {
   /// Session heartbeat: validates + bumps last_seen_at while the app is open.
   static const String authPingPath = 'auth-session?fn=ping';
 
-  /// Idle session timeout: 10 minutes of inactivity → auto logout.
-  /// Any user interaction (tap, scroll, typing) or authenticated API call
-  /// bumps the idle deadline forward by 10 minutes.
-  static const Duration sessionDuration = Duration(minutes: 10);
-  static const int sessionDurationMs = 600000;
-  static const int sessionDurationSeconds = 600;
+  /// Idle session timeout: 3 minutes of inactivity → auto logout.
+  /// Any user interaction (tap, scroll, typing) bumps the idle deadline
+  /// forward by 3 minutes.
+  static const Duration sessionDuration = Duration(minutes: 3);
+  static const int sessionDurationMs = 180000;
+  static const int sessionDurationSeconds = 180;
 
   /// ABSOLUTE session lifetime: gaano katagal mananatiling wasto ang isang
-  /// login bago hilingin muli ang mobile number (OTP). Ang 10-minutong idle
+  /// login bago hilingin muli ang mobile number (OTP). Ang 3-minutong idle
   /// window ay pag-lock lang ng app (MPIN ang mag-u-unlock) — HINDI ito
   /// nagtatapos ng session. Dito lang (3 buwan) kailangan mag-login muli ng
   /// numero ng rider / lender.

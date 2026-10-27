@@ -5,12 +5,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/shared/providers/auth_state_provider.dart';
 import 'secure_storage.dart';
 
-/// Wraps the whole app and resets the 10-minute idle timer on ANY user
-/// interaction (tap, drag, key press, scroll).  Also bumps on authenticated
-/// API calls via [AuthInterceptor].
+/// Wraps the whole app and resets the 3-minute idle timer on ANY user
+/// interaction (tap, drag, key press, scroll). Programmatic/animated scrolls
+/// (auto-play carousels) ay HINDI activity — tingnan ang
+/// [isUserDrivenScroll].
 ///
+/// Sa pag-resume mula sa background, muling sinusuri ang idle deadline: doon
+/// hindi garantisadong tumakbo ang Dart timer (o natigil ang app), kaya kung
+/// lumampas na ang 3 minuto ay magla-lock/logout ito agad sa pagbalik.
+///
+/// Totoong scroll ng user lang ang activity. Ang auto-play carousel
+/// (`PageController.animateToPage`) at iba pang programmatic scroll ay
+/// naglalabas din ng [ScrollNotification] pero WALANG drag — kung bubump ang
+/// mga iyon, hindi umaabot sa idle timeout ang session (ito ang dahilan ng
+/// "hindi nag-a-auto logout" sa lender dashboard, kung saan may 4-second
+/// auto-play na promo carousel).
+@visibleForTesting
+bool isUserDrivenScroll(ScrollNotification n) {
+  if (n is ScrollStartNotification) return n.dragDetails != null;
+  if (n is ScrollUpdateNotification) return n.dragDetails != null;
+  if (n is OverscrollNotification) return n.dragDetails != null;
+  if (n is ScrollEndNotification) return n.dragDetails != null;
+  return false;
+}
+
 /// Throttled to once per 10 seconds so a fling-scroll storm does not flood
-/// SecureStorage writes; the throttle error (≤10s) is negligible for a 10-min
+/// SecureStorage writes; the throttle error (≤10s) is negligible for a 3-min
 /// window and keeps storage / event-loop pressure low.
 class SessionIdleDetector extends ConsumerStatefulWidget {
   final Widget child;
@@ -21,9 +41,27 @@ class SessionIdleDetector extends ConsumerStatefulWidget {
       _SessionIdleDetectorState();
 }
 
-class _SessionIdleDetectorState extends ConsumerState<SessionIdleDetector> {
+class _SessionIdleDetectorState extends ConsumerState<SessionIdleDetector>
+    with WidgetsBindingObserver {
   DateTime? _lastBump;
   Timer? _debounce;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Walang dumaan na gesture habang naka-background ang app, kaya dito
+    // na kapag bumalik ito: expired na ba ang 3-minutong idle window?
+    if (state == AppLifecycleState.resumed) {
+      try {
+        unawaited(ref.read(authStateProvider.notifier).checkIdleNow());
+      } catch (_) {}
+    }
+  }
 
   void _onActivity([_]) {
     final now = DateTime.now().toUtc();
@@ -45,6 +83,7 @@ class _SessionIdleDetectorState extends ConsumerState<SessionIdleDetector> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debounce?.cancel();
     super.dispose();
   }
@@ -63,6 +102,7 @@ class _SessionIdleDetectorState extends ConsumerState<SessionIdleDetector> {
       onPointerPanZoomUpdate: (_) => _schedDebounce(),
       child: NotificationListener<ScrollNotification>(
         onNotification: (n) {
+          if (!isUserDrivenScroll(n)) return false;
           _schedDebounce();
           return false;
         },
