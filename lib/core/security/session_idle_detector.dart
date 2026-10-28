@@ -5,14 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../presentation/shared/providers/auth_state_provider.dart';
 import 'secure_storage.dart';
 
-/// Wraps the whole app and resets the 3-minute idle timer on ANY user
-/// interaction (tap, drag, key press, scroll). Programmatic/animated scrolls
+/// Wraps the whole app and resets the idle timer on ANY user
+/// interaction (tap, drag, key press, scroll). Ang haba ng idle window ay
+/// nakabatay sa role: 15 minuto para sa head manager / employee (auto logout),
+/// 3 minuto para sa rider / lender (MPIN lock). Programmatic/animated scrolls
 /// (auto-play carousels) ay HINDI activity — tingnan ang
 /// [isUserDrivenScroll].
 ///
 /// Sa pag-resume mula sa background, muling sinusuri ang idle deadline: doon
 /// hindi garantisadong tumakbo ang Dart timer (o natigil ang app), kaya kung
-/// lumampas na ang 3 minuto ay magla-lock/logout ito agad sa pagbalik.
+/// lumampas na ang idle window ay magla-lock/logout ito agad sa pagbalik.
 ///
 /// Totoong scroll ng user lang ang activity. Ang auto-play carousel
 /// (`PageController.animateToPage`) at iba pang programmatic scroll ay
@@ -30,7 +32,7 @@ bool isUserDrivenScroll(ScrollNotification n) {
 }
 
 /// Throttled to once per 10 seconds so a fling-scroll storm does not flood
-/// SecureStorage writes; the throttle error (≤10s) is negligible for a 3-min
+/// SecureStorage writes; the throttle error (≤10s) is negligible for the idle
 /// window and keeps storage / event-loop pressure low.
 class SessionIdleDetector extends ConsumerStatefulWidget {
   final Widget child;
@@ -55,7 +57,7 @@ class _SessionIdleDetectorState extends ConsumerState<SessionIdleDetector>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     // Walang dumaan na gesture habang naka-background ang app, kaya dito
-    // na kapag bumalik ito: expired na ba ang 3-minutong idle window?
+    // na kapag bumalik ito: expired na ba ang idle window?
     if (state == AppLifecycleState.resumed) {
       try {
         unawaited(ref.read(authStateProvider.notifier).checkIdleNow());

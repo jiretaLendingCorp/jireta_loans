@@ -2138,42 +2138,72 @@ class _FaqItem {
   const _FaqItem({required this.question, required this.answer});
 }
 
-/// Isang linya ng contact info (icon + text) sa ilalim ng "Chat" button ng
-/// Help Center. Mapipindot ito — direktang nagbubukas ng mail app (`mailto:`)
-/// o dialer (`tel:`) depende sa linya.
+/// Isang linya ng contact channel (icon + text) sa Help Center. Pare-pareho
+/// ang sukat ng icon at gap ng lahat ng linya, kaya pantay-pantay ang icon
+/// column at text column mula Chat hanggang email at numero.
 class _SupportContactLine extends StatelessWidget {
   final IconData icon;
   final String text;
   final VoidCallback? onTap;
 
+  /// Gray ang icon/text para sa channel na hindi pa available (Chat).
+  final bool muted;
+
+  /// Maliit na label sa dulo ng linya (hal. "Coming soon").
+  final String? badge;
+
   const _SupportContactLine({
     required this.icon,
     required this.text,
     this.onTap,
+    this.muted = false,
+    this.badge,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = muted ? AppColors.textTertiary : AppColors.textSecondary;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(8),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 15, color: AppColors.textSecondary),
+            Icon(icon, size: 16, color: color),
             const SizedBox(width: 8),
             Flexible(
               child: Text(
                 text,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   height: 1.4,
-                  color: AppColors.textSecondary,
+                  color: color,
+                  fontWeight: muted ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ),
+            if (badge != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE9EBF0),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  badge!,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    height: 1.3,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textTertiary,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -2253,12 +2283,7 @@ class _InfoPage extends StatelessWidget {
                       const SizedBox(height: 16),
                       for (final f in faq) _buildFaqTile(f),
                       if (showChat) ...[
-                        const SizedBox(height: 8),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _chatButton(context),
-                        ),
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 12),
                         _supportContactInfo(context),
                       ],
                       const SizedBox(height: 8),
@@ -2290,11 +2315,6 @@ class _InfoPage extends StatelessWidget {
                       ],
                       if (showChat) ...[
                         const SizedBox(height: 20),
-                        Align(
-                          alignment: Alignment.centerLeft,
-                          child: _chatButton(context),
-                        ),
-                        const SizedBox(height: 10),
                         _supportContactInfo(context),
                       ],
                       const SizedBox(height: 24),
@@ -2306,42 +2326,21 @@ class _InfoPage extends StatelessWidget {
     );
   }
 
-  /// "Chat" button — HINDI mapipindot (`onPressed: null`): hindi pa available
-  /// ang chat sa Messenger, kaya nasa ilalim na lang ang email at numero ng
-  /// Jireta bilang tunay na paraan ng pakikipag-ugnayan.
-  Widget _chatButton(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: null,
-      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 16),
-      label: const Text(
-        'Chat',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-      ),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: AppColors.deepNavy,
-        foregroundColor: Colors.white,
-        disabledBackgroundColor: const Color(0xFFE9EBF0),
-        disabledForegroundColor: AppColors.textTertiary,
-        elevation: 0,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        minimumSize: const Size(0, 38),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
-    );
-  }
-
-  /// Email at numero ng Jireta — nakalagay sa ibaba ng "Chat" button para may
-  /// malinaw na paraan pa rin makipag-ugnayan kahit hindi mapindot ang chat.
-  /// Kapag pinindot, direktang bubukas ang mail app (`mailto:`) o dialer
-  /// (`tel:`) ng device.
+  /// Mga channel ng suporta — Chat, email, at numero. Iisa ang icon at text
+  /// alignment ng tatlo para pantay ang hanay. Kapag pinindot ang email o
+  /// numero, direktang bubukas ang mail app (`mailto:`) o dialer (`tel:`).
   Widget _supportContactInfo(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        const _SupportContactLine(
+          icon: Icons.chat_bubble_outline_rounded,
+          text: 'Chat',
+          muted: true,
+          badge: 'Coming soon',
+        ),
+        const SizedBox(height: 2),
         _SupportContactLine(
           icon: Icons.mail_outline_rounded,
           text: AppConstants.supportEmail,
@@ -2350,7 +2349,7 @@ class _InfoPage extends StatelessWidget {
             Uri(scheme: 'mailto', path: AppConstants.supportEmail),
           ),
         ),
-        const SizedBox(height: 6),
+        const SizedBox(height: 2),
         _SupportContactLine(
           icon: Icons.phone_outlined,
           text: AppConstants.supportPhone,

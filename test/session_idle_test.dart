@@ -11,11 +11,14 @@
 // mag-u-unlock) at ang numero ay hihilingin muli pagkalipas ng 3 buwan.
 import 'dart:io';
 
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:jireta_loans/core/constants/app_constants.dart';
 import 'package:jireta_loans/core/security/secure_storage.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Session idle (3 minutes)', () {
     test('AppConstants.sessionDuration is 3 minutes', () {
       expect(AppConstants.sessionDuration, const Duration(minutes: 3));
@@ -46,6 +49,71 @@ void main() {
       expect(AppConstants.lastActivityKey, isNotEmpty);
       expect(AppConstants.lastActivityKey, isNot('session_started_at'));
       expect(AppConstants.sessionStartedAtKey, isNotEmpty);
+    });
+  });
+
+  group('Role-based idle window (staff auto logout)', () {
+    setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+
+    test('head manager at employee = 15 minutes', () {
+      expect(AppConstants.staffSessionDuration, const Duration(minutes: 15));
+      expect(AppConstants.staffSessionDurationMs, 900000);
+      expect(AppConstants.staffSessionDurationSeconds, 900);
+      expect(AppConstants.idleTimeoutForRole(AppConstants.roleHeadManager),
+          const Duration(minutes: 15));
+      expect(AppConstants.idleTimeoutForRole(AppConstants.roleEmployee),
+          const Duration(minutes: 15));
+    });
+
+    test('rider at lender = 3 minutes (MPIN lock lang)', () {
+      expect(AppConstants.idleTimeoutForRole(AppConstants.roleRider),
+          AppConstants.sessionDuration);
+      expect(AppConstants.idleTimeoutForRole(AppConstants.roleLender),
+          AppConstants.sessionDuration);
+      expect(AppConstants.idleTimeoutForRole(null),
+          AppConstants.sessionDuration);
+    });
+
+    test('SecureStorage.getIdleTimeout sumusunod sa role', () async {
+      await SecureStorage.saveUserInfo(
+          userId: 'u-hm', role: AppConstants.roleHeadManager);
+      expect(await SecureStorage.getIdleTimeout(),
+          const Duration(minutes: 15));
+
+      await SecureStorage.saveUserInfo(
+          userId: 'u-emp', role: AppConstants.roleEmployee);
+      expect(await SecureStorage.getIdleTimeout(),
+          const Duration(minutes: 15));
+
+      await SecureStorage.saveUserInfo(
+          userId: 'u-rider', role: AppConstants.roleRider);
+      expect(await SecureStorage.getIdleTimeout(), AppConstants.sessionDuration);
+    });
+
+    test('10 minutes idle: staff session still alive, rider expired', () async {
+      final tenMinutesAgo =
+          DateTime.now().toUtc().subtract(const Duration(minutes: 10));
+
+      await SecureStorage.saveUserInfo(
+          userId: 'u-hm', role: AppConstants.roleHeadManager);
+      await SecureStorage.saveLastActivity(tenMinutesAgo);
+      final staffRemaining = await SecureStorage.getRemainingIdleTime();
+      expect(staffRemaining, isNotNull);
+      expect(staffRemaining!.inMinutes, inInclusiveRange(4, 5));
+      expect(await SecureStorage.isIdleExpired(), isFalse);
+
+      await SecureStorage.saveUserInfo(
+          userId: 'u-rider', role: AppConstants.roleRider);
+      await SecureStorage.saveLastActivity(tenMinutesAgo);
+      expect(await SecureStorage.isIdleExpired(), isTrue);
+    });
+
+    test('15 minutes idle: staff session expired → auto logout path', () async {
+      await SecureStorage.saveUserInfo(
+          userId: 'u-emp', role: AppConstants.roleEmployee);
+      await SecureStorage.saveLastActivity(
+          DateTime.now().toUtc().subtract(const Duration(minutes: 16)));
+      expect(await SecureStorage.isIdleExpired(), isTrue);
     });
   });
 

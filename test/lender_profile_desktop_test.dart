@@ -18,6 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:get_it/get_it.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:jireta_loans/core/constants/app_constants.dart';
 import 'package:jireta_loans/data/datasources/remote/notification_remote_datasource.dart';
 import 'package:jireta_loans/data/datasources/remote/user_remote_datasource.dart';
 import 'package:jireta_loans/presentation/features/lender/profile/screens/lender_profile_screen.dart';
@@ -146,6 +147,52 @@ void main() {
       expect(sections.dx, greaterThan(header.dx + 300));
     });
 
+    // Help Center: pantay ang icon at text column ng Chat, email, at numero —
+    // dating pill button ang Chat kaya hindi naka-line up sa dalawang linya.
+    testWidgets('Help Center: pantay ang Chat, email, at numero',
+        (tester) async {
+      await pumpProfile(tester, 1280);
+
+      // Nasa ibaba ng profile ang Help Center — i-scroll muna bago pindutin.
+      await tester.ensureVisible(find.text('Help Center'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Help Center'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Frequently Asked Questions'), findsNothing);
+      expect(find.text('Chat'), findsOneWidget);
+      expect(find.text('Coming soon'), findsOneWidget);
+      expect(find.text(AppConstants.supportEmail), findsOneWidget);
+      expect(find.text(AppConstants.supportPhone), findsOneWidget);
+
+      // Chat ay hindi pa available — walang onTap (disabled).
+      final chat = tester.widget<InkWell>(
+        find
+            .ancestor(of: find.text('Chat'), matching: find.byType(InkWell))
+            .first,
+      );
+      expect(chat.onTap, isNull);
+
+      final chatIconX =
+          tester.getTopLeft(find.byIcon(Icons.chat_bubble_outline_rounded)).dx;
+      final mailIconX =
+          tester.getTopLeft(find.byIcon(Icons.mail_outline_rounded)).dx;
+      final phoneIconX =
+          tester.getTopLeft(find.byIcon(Icons.phone_outlined)).dx;
+      expect(mailIconX, closeTo(chatIconX, 0.5));
+      expect(phoneIconX, closeTo(chatIconX, 0.5));
+
+      final chatTextX = tester.getTopLeft(find.text('Chat')).dx;
+      final mailTextX =
+          tester.getTopLeft(find.text(AppConstants.supportEmail)).dx;
+      final phoneTextX =
+          tester.getTopLeft(find.text(AppConstants.supportPhone)).dx;
+      expect(mailTextX, closeTo(chatTextX, 0.5));
+      expect(phoneTextX, closeTo(chatTextX, 0.5));
+
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('390px: isang column pa rin (walang binago sa phone)',
         (tester) async {
       await pumpProfile(tester, 390);
@@ -211,7 +258,8 @@ void main() {
       await openAndClose('Personal Details',
           ['First Name', 'Gender', 'Date of Birth'], ['Blake', 'Male']);
       await openAndClose('Email', ['Email Address'], ['blake@example.com']);
-      await openAndClose('Residence Address',
+      await openAndClose(
+          'Residence Address',
           ['Street Address', 'Barangay', 'City / Municipality'],
           ['12 Mabini St', 'Poblacion', 'Makati']);
 

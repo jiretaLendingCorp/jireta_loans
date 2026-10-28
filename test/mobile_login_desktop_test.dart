@@ -128,8 +128,8 @@ void main() {
     await tester.enterText(
         find.byKey(const Key('loginPhoneField')), '9171234567');
     await tester.pump();
-    final email = tester.widget<TextFormField>(
-        find.byKey(const Key('loginEmailField')));
+    final email =
+        tester.widget<TextFormField>(find.byKey(const Key('loginEmailField')));
     expect(email.controller?.text, isEmpty,
         reason: 'Hindi nabura ang email nang may nilagay na numero');
 
@@ -154,9 +154,10 @@ void main() {
 
   // Help Center ng mobile login: dating nakaunat sa buong browser at walang
   // paraan para makipag-chat. Ngayon naka-center/capped ang content sa
-  // desktop at may "Chat" button sa dulo ng FAQ.
-  testWidgets('desktop (1280px) Help Center: capped ang lapad at may Chat',
-      (tester) async {
+  // desktop at may Chat + email + numero sa dulo ng FAQ.
+  testWidgets(
+      'desktop (1280px) Help Center: capped ang lapad at pantay ang '
+      'Chat/email/numero', (tester) async {
     await pumpLogin(tester, 1280);
 
     await tester.tap(find.byIcon(Icons.more_horiz_rounded));
@@ -165,15 +166,37 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Frequently Asked Questions'), findsOneWidget);
-    expect(find.widgetWithText(ElevatedButton, 'Chat'), findsOneWidget);
+    expect(find.text('Chat'), findsOneWidget);
+    expect(find.text('Coming soon'), findsOneWidget);
 
     // Hindi dapat mapindot ang "Chat" — nasa ilalim nito ang email at numero
     // ng Jireta bilang tunay na paraan ng pakikipag-ugnayan.
-    final chat = tester
-        .widget<ElevatedButton>(find.widgetWithText(ElevatedButton, 'Chat'));
-    expect(chat.onPressed, isNull, reason: 'Pinipindot pa rin ang Chat');
+    final chat = tester.widget<InkWell>(
+      find
+          .ancestor(of: find.text('Chat'), matching: find.byType(InkWell))
+          .first,
+    );
+    expect(chat.onTap, isNull, reason: 'Pinipindot pa rin ang Chat');
     expect(find.text(AppConstants.supportEmail), findsOneWidget);
     expect(find.text(AppConstants.supportPhone), findsOneWidget);
+
+    // Pantay ang tatlong linya: parehong x ang icon column at pareho rin ang
+    // x ng text column (Chat, email, numero).
+    final chatIconX =
+        tester.getTopLeft(find.byIcon(Icons.chat_bubble_outline_rounded)).dx;
+    final mailIconX =
+        tester.getTopLeft(find.byIcon(Icons.mail_outline_rounded)).dx;
+    final phoneIconX = tester.getTopLeft(find.byIcon(Icons.phone_outlined)).dx;
+    expect(mailIconX, closeTo(chatIconX, 0.5));
+    expect(phoneIconX, closeTo(chatIconX, 0.5));
+
+    final chatTextX = tester.getTopLeft(find.text('Chat')).dx;
+    final mailTextX =
+        tester.getTopLeft(find.text(AppConstants.supportEmail)).dx;
+    final phoneTextX =
+        tester.getTopLeft(find.text(AppConstants.supportPhone)).dx;
+    expect(mailTextX, closeTo(chatTextX, 0.5));
+    expect(phoneTextX, closeTo(chatTextX, 0.5));
 
     // Mapipindot ang email at numero — direktang bubukas ang mail app / dialer.
     for (final label in [

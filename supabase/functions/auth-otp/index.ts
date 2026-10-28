@@ -25,8 +25,10 @@ import {
 } from '../_shared/sms.ts';
 import { sendLoginOtpEmail, sendMpinResetOtpEmail } from '../_shared/email.ts';
 import {
+  emailOtpKey,
   generateOtpCode,
   hashOtpCode,
+  isEmailOtpKey,
   normalizeOtpPurpose,
   otpRejectionReason,
   otpSmsBodyTemplate,
@@ -254,6 +256,123 @@ async function selfRegisterLender(db: DbClient, phone: string) {
   return singleWithObjectEmbeds(newUser);
 }
 
+/**
+ * Hanapin ang auth user sa email kapag may ORPHAN na GoTrue account (na-create
+ * dati pero walang `public.users` row — hal. nabigo ang registration pagkatapos
+ * ng `createUser`).
+ *
+ * Fallback lang ito kapag tumanggi ang `createUser` (existing email), kaya
+ * bihira ang tawag. 100 kada page at may cap para hindi maging unbounded.
+ * LENDER lang ang ia-adopt — hindi natin gagawing lender ang staff account na
+ * may parehong email.
+ */
+async function findOrphanLenderAuthUserId(
+  db: DbClient,
+  email: string,
+): Promise<string | null> {
+  const normalized = email.trim().toLowerCase();
+  const pageSize = 100;
+  const maxPages = 50; // hanggang 5,000 auth users
+
+  for (let page = 1; page <= maxPages; page++) {
+    const { data, error } = await db.auth.admin.listUsers({
+      page,
+      perPage: pageSize,
+    });
+    if (error) {
+      console.error(
+        '[auth-otp] listUsers para sa orphan auth user:',
+        error.message,
+      );
+      return null;
+    }
+    const users = data?.users ?? [];
+    const match = users.find((u) =>
+      (u.email ?? '').trim().toLowerCase() === normalized
+    );
+    if (match) {
+      const meta = (match.app_metadata ?? {}) as { role?: string | null };
+      return meta.role === 'lender' ? match.id : null;
+    }
+    if (users.length < pageSize) break;
+  }
+  return null;
+}
+
+/**
+ * Self-registration para sa LENDER na EMAIL lang ang identifier.
+ *
+ * Kapareho ng phone flow: walang placeholder na pangalan (Account Upgrade ang
+ * kukuha ng tunay na identity) at active agad pagkatapos ma-verify ang OTP.
+ * Ang pagkakaiba, ang email mismo ang GoTrue credential at ang
+ * `public.users.email` — walang `${phone}@jireta.temp`, at mananatiling NULL
+ * ang `phone_number` hanggang magdagdag ang user ng numero sa profile.
+ */
+async function selfRegisterLenderByEmail(db: DbClient, email: string) {
+  const { data: roleData } = await db.from('roles').select('id, is_archived').eq('name', 'lender').single();
+  if (!roleData) return null;
+  // deno-lint-ignore no-explicit-any
+  if ((roleData as any).is_archived === true) return null;
+
+  const { data: authUser, error: authErr } = await db.auth.admin.createUser({
+    email,
+    password: OTP_PASSWORD(await emailOtpKey(email)),
+    email_confirm: true,
+    app_metadata: { role: 'lender' },
+    user_metadata: authDisplayMetadata({}),
+  });
+
+  let authUserId: string | null = null;
+  // TRUE lang kapag TAYO ang gumawa ng auth user — para hindi natin i-delete
+  // ang lumang/orphan na account kapag na-adopt lang ito.
+  let createdAuthUser = false;
+  if (authErr || !authUser?.user) {
+    authUserId = await findOrphanLenderAuthUserId(db, email);
+  } else {
+    authUserId = authUser.user.id;
+    createdAuthUser = true;
+  }
+  if (!authUserId) return null;
+
+  // INSERT lang, hindi upsert: kapag may public.users row na para sa auth id
+  // na ito (kahit ibang email), huwag itong i-overwrite ng bagong blank na
+  // lender. Mas ligtas na mabigo kaysa mabura ang existing na account.
+  const { data: newUser, error: userErr } = await db.from('users').insert({
+    id: authUserId,
+    role_id: roleData.id,
+    email,
+    phone_number: null,
+    // No placeholder name — the real identity is captured later via
+    // Account Upgrade / profile edit, not auto-filled here.
+    first_name: '',
+    last_name: '',
+    account_status: 'active',
+    force_password_change: false,
+    created_by: null,
+  }).select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles!users_role_id_fkey(name)').single();
+
+  if (userErr || !newUser) {
+    if (createdAuthUser) {
+      await db.auth.admin.deleteUser(authUserId).catch(() => {});
+    }
+    return null;
+  }
+
+  const { error: profileErr } = await db.from('lender_profiles').insert({
+    id: newUser.id,
+    account_upgrade_status: 'not_submitted',
+  });
+  if (profileErr) {
+    if (createdAuthUser) {
+      await db.auth.admin.deleteUser(authUserId).catch(() => {});
+    }
+    await Promise.resolve(db.from('users').delete().eq('id', newUser.id)).catch(() => {});
+    return null;
+  }
+
+  return singleWithObjectEmbeds(newUser);
+}
+
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
 const DEFAULT_ACTION = 'send-otp';
 
@@ -372,14 +491,15 @@ async function handleSendOtp(req: Request) {
     );
   }
 
-  // ── Email identifier → account phone ────────────────────────────────────
-  // Ang OTP ay naka-key pa rin sa numero ng account (`otp_codes.phone_number`
-  // at ang hash salt), kaya ang email ay binabago lang sa numerong iyon — ang
-  // VERIFY sa ibaba ay gumagawa rin ng parehong resolution.
+  // ── Email identifier → account phone (o email OTP key) ──────────────────
+  // Ang OTP ay naka-key sa `otp_codes.phone_number` at doon naka-salt ang hash.
+  // Kapag may numero ang account, iyon ang gamit (tulad ng dati). Kapag
+  // email-only ang account o wala pang account, isang stable na synthetic na
+  // key mula sa email ang gamit — pareho rin iyon sa VERIFY sa ibaba.
   //
-  // Sadyang HINDI ito nagbibigay-daan sa self-registration: kailangan pa ring
-  // may existing na account na may ganitong email (ang numero ang nagpapatunay
-  // ng account sa unang login).
+  // Pinapayagan na ang BAGONG email na makakuha ng code: ang account ay
+  // gagawin lang sa verify-otp, pagkatapos mapatunayan na pag-aari niya ang
+  // email. Kaya walang account na nagagawa kapag mali/expired ang code.
   if (viaEmail) {
     const { data: emailAccount } = await db
       .from('users')
@@ -387,18 +507,15 @@ async function handleSendOtp(req: Request) {
       .eq('email', emailInput)
       .maybeSingle();
     const accountPhone = normalizePhMobile(emailAccount?.phone_number ?? '');
-    if (!emailAccount || accountPhone === '') {
-      // Generic pa rin sa reset flow (enumeration protection), pero malinaw sa
-      // login: kung hindi sasabihin, maghihintay ang user ng code na wala namang
-      // ipapadala.
-      if (purpose === MPIN_RESET_PURPOSE) return sentResponse();
-      return errorResponse(
-        'No Jireta Loans account uses this email address.',
-        404,
-        'ACCOUNT_NOT_FOUND',
-      );
+    if (accountPhone !== '') {
+      phone = accountPhone;
+    } else {
+      // Generic pa rin sa reset flow kapag WALANG account (enumeration
+      // protection). Ang email-only account na may record ay pinapayagan,
+      // dahil kailangan nila ng paraan para makapag-reset ng MPIN.
+      if (!emailAccount && purpose === MPIN_RESET_PURPOSE) return sentResponse();
+      phone = await emailOtpKey(emailInput);
     }
-    phone = accountPhone;
   }
 
   // Lenders may self-register via OTP: an unregistered phone is allowed to
@@ -430,7 +547,19 @@ async function handleSendOtp(req: Request) {
       .eq('phone_number', phone)
       .gte('created_at', windowStart),
   ]);
-  const user = singleWithObjectEmbeds(userLookup.data);
+  let user = singleWithObjectEmbeds(userLookup.data);
+
+  // Email-only account (phone_number NULL) ay hindi mahahanap ng phone lookup
+  // sa itaas — hanapin sa email. Hindi ito gumagawa ng bagong account; ang
+  // verify-otp lang ang gumagawa niyon pagkatapos ma-verify ang code.
+  if (viaEmail && !user) {
+    const { data: emailUserRow } = await db
+      .from('users')
+      .select('id, account_status, first_name, last_name, email, roles!users_role_id_fkey(name)')
+      .eq('email', emailInput)
+      .maybeSingle();
+    user = singleWithObjectEmbeds(emailUserRow);
+  }
 
   let userId: string | null = null;
   if (user) {
@@ -694,11 +823,13 @@ async function handleVerifyOtp(req: Request) {
 
   const db = getAdminClient();
 
-  // ── Email identifier → account phone ────────────────────────────────────
-  // Ang OTP row at ang lockout ay naka-key sa NUMERO ng account (gayon din ang
-  // hash salt sa send-otp), kaya dito lang ito iko-convert. Kapag walang
-  // account ang email, generic na sagot — walang dapat ibigay na clue kung
-  // registered ang address o hindi.
+  // ── Email identifier → account phone (o email OTP key) ──────────────────
+  // Ang OTP row at ang lockout ay naka-key sa numero (gayon din ang hash salt
+  // sa send-otp), kaya dito lang ito iko-convert. Para sa email-only account
+  // o bagong email, parehong synthetic key ang ginagamit ng send-otp.
+  //
+  // Hindi pa nagdudulot ng account ang pagkakaroon ng key: ang row ay gagawin
+  // lang pagkatapos ma-verify ang code sa ibaba.
   if (emailInput !== '') {
     const { data: emailAccount } = await db
       .from('users')
@@ -706,14 +837,7 @@ async function handleVerifyOtp(req: Request) {
       .eq('email', emailInput)
       .maybeSingle();
     const accountPhone = normalizePhMobile(emailAccount?.phone_number ?? '');
-    if (!emailAccount || accountPhone === '') {
-      return errorResponse(
-        'Invalid or expired code. Please request a new one.',
-        401,
-        'INVALID_OTP',
-      );
-    }
-    phone = accountPhone;
+    phone = accountPhone !== '' ? accountPhone : await emailOtpKey(emailInput);
   }
 
   // ── Persistent lockout check ────────────────────────────────────────────
@@ -838,6 +962,17 @@ async function handleVerifyOtp(req: Request) {
     .maybeSingle();
   let user = singleWithObjectEmbeds(userRow);
 
+  // Email-only account: ang public.users row ay naka-key sa email, hindi sa
+  // numero, kaya hindi ito nakita ng phone lookup sa itaas.
+  if (emailInput !== '' && !user) {
+    const { data: emailUserRow } = await db
+      .from('users')
+      .select('id, account_status, email, first_name, last_name, phone_number, force_password_change, roles!users_role_id_fkey(name)')
+      .eq('email', emailInput)
+      .maybeSingle();
+    user = singleWithObjectEmbeds(emailUserRow);
+  }
+
   if (purpose === MPIN_RESET_PURPOSE) {
     // Reset ng MPIN: dapat existing rider/lender ang account. HINDI ito
     // nagse-self-register at hindi nagbibigay ng bagong account.
@@ -849,9 +984,13 @@ async function handleVerifyOtp(req: Request) {
       );
     }
   } else if (!user) {
-    // Self-registration: an unregistered phone that passes OTP becomes a
-    // lender automatically (head-manager pre-registration no longer required).
-    user = singleWithObjectEmbeds(await selfRegisterLender(db, phone));
+    // Self-registration: an unregistered phone O EMAIL that passes OTP becomes
+    // a lender automatically (head-manager pre-registration no longer needed).
+    user = singleWithObjectEmbeds(
+      emailInput !== ''
+        ? await selfRegisterLenderByEmail(db, emailInput)
+        : await selfRegisterLender(db, phone),
+    );
     if (!user) return errorResponse('Failed to create account', 500, 'SERVER_ERROR');
   }
 
@@ -867,7 +1006,8 @@ async function handleVerifyOtp(req: Request) {
 
   // Build the session using PHONE + password — never a synthetic email in
   // public.users. Self-registered lenders use OTP_<phone>_SECURE; riders and
-  // lenders created by staff use the shared staff default password.
+  // lenders created by staff use the shared staff default password. Ang
+  // email-only account ay email + password (walang phone credential).
   //
   // NOTE: some GoTrue installs (notably local dev) reject phone+password
   // sign-in unless SMS auth is fully provisioned. The temp email
@@ -876,6 +1016,9 @@ async function handleVerifyOtp(req: Request) {
   // phone). Trying phone first, then email, keeps both local & prod working.
   const phoneE164 = toE164(phone);
   const tempEmail = `${phone}@jireta.temp`;
+  // Email-only login: walang tunay na numero, kaya ang email mismo ang GoTrue
+  // credential. Huwag subukan ang phone sign-in o ang `@jireta.temp` email.
+  const emailOnlyLogin = isEmailOtpKey(phone);
 
   // ── Mga email na susubukang credential ────────────────────────────────────
   // Panimula: ang synthetic credential ng account na `${phone}@jireta.temp`.
@@ -886,7 +1029,10 @@ async function handleVerifyOtp(req: Request) {
   // lang ang tanging paraan ng pagpasok, kaya hindi puwedeng laging
   // `${phone}@jireta.temp` lang ang sinusubukan.
   const credentialEmails = new Set<string>();
-  if (tempEmail) credentialEmails.add(tempEmail);
+  if (!emailOnlyLogin) credentialEmails.add(tempEmail);
+  // Sa email login, ang email mismo ang credential — ito lang ang paraan ng
+  // pagpasok para sa email-only account (walang numero).
+  if (emailInput !== '') credentialEmails.add(emailInput);
 
   // ── HIWALAY na client para sa sign-in ────────────────────────────────────
   // Ang `db` ay SERVICE-ROLE client. Kapag dito nag-`signInWithPassword`, itinatabi
@@ -899,11 +1045,17 @@ async function handleVerifyOtp(req: Request) {
   const signInClient = getAnonClient();
 
   const trySignIn = async (password: string) => {
-    const attempts = [
-      () => signInClient.auth.signInWithPassword({ phone: phoneE164, password }),
-      ...[...credentialEmails].map((email) => () =>
-        signInClient.auth.signInWithPassword({ email, password })),
-    ];
+    const attempts: Array<
+      () => ReturnType<typeof signInClient.auth.signInWithPassword>
+    > = [];
+    if (!emailOnlyLogin) {
+      attempts.push(() =>
+        signInClient.auth.signInWithPassword({ phone: phoneE164, password }));
+    }
+    for (const email of credentialEmails) {
+      attempts.push(() =>
+        signInClient.auth.signInWithPassword({ email, password }));
+    }
     for (const attempt of attempts) {
       const { data, error } = await attempt().catch((e) => {
         console.error('[auth-verify-otp] signInWithPassword error:', e?.message ?? e);
@@ -969,8 +1121,8 @@ async function handleVerifyOtp(req: Request) {
       const hasRealEmail = realEmail !== '' &&
         !realEmail.endsWith('@jireta.temp');
       const identity = await syncAuthUserIdentity(db, adminUserId, {
-        email: hasRealEmail ? realEmail : tempEmail,
-        phone,
+        email: hasRealEmail ? realEmail : (emailOnlyLogin ? null : tempEmail),
+        phone: emailOnlyLogin ? null : phone,
         firstName: (user as { first_name?: string })?.first_name,
         lastName: (user as { last_name?: string })?.last_name,
       });
@@ -980,7 +1132,7 @@ async function handleVerifyOtp(req: Request) {
           { userId: adminUserId, duplicate: identity.duplicate, msg: identity.error },
         );
         phoneCredentialConflict = identity.phoneDuplicate === true;
-        if (!hasRealEmail) {
+        if (!hasRealEmail && !emailOnlyLogin) {
           // Luma at ligtas na garantiya pa rin ito: kapag WALANG totoong email
           // na dapat protektahan, siguradong may email credential ang account
           // para gumana rin ang email fallback ng `signInWithPassword` sa mga
@@ -1013,8 +1165,9 @@ async function handleVerifyOtp(req: Request) {
       }
     }
 
-    // 2) No auth user at all yet — create one, then sign in.
-    if (!session) {
+    // 2) No auth user at all yet — create one, then sign in. (Ang email-only
+    //    account ay may auth user na mula sa selfRegisterLenderByEmail.)
+    if (!session && !emailOnlyLogin) {
       const { data: created, error: createErr } = await db.auth.admin
         .createUser({
           phone: phoneE164,
@@ -1160,11 +1313,13 @@ async function handleVerifyOtp(req: Request) {
       : {}),
     user: {
       id: user.id,
-      phone,
+      // Ang synthetic na email OTP key ay panloob lang — hindi ito numero at
+      // hindi dapat lumabas sa app. Ang client ay may identifier (email) na.
+      phone: emailOnlyLogin ? null : phone,
       role: user?.roles?.name,
       first_name: user?.first_name ?? '',
       last_name: user?.last_name ?? '',
-      phone_number: user?.phone_number ?? phone,
+      phone_number: user?.phone_number ?? (emailOnlyLogin ? null : phone),
       force_password_change: user?.force_password_change,
     },
     // Non-secret na metadata lang (id + pangalan) — walang TOTP secret, walang

@@ -44,6 +44,26 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
   final _emailCtrl = TextEditingController();
   bool _savingName = false;
 
+  /// Ang identifier na ginamit sa OTP login (numero O email). Kapag email ito,
+  /// VERIFIED na ang address — hindi na ito muling hihingin sa "Fill In
+  /// Information", at hindi na dadaan sa Verify Your Email.
+  String? _loginIdentifier;
+
+  bool get _emailVerifiedByLogin =>
+      (_loginIdentifier ?? '').contains('@');
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_loadLoginIdentifier());
+  }
+
+  Future<void> _loadLoginIdentifier() async {
+    final identifier = await SecureStorage.getLoginIdentifier();
+    if (!mounted) return;
+    setState(() => _loginIdentifier = identifier);
+  }
+
   @override
   void dispose() {
     _firstNameCtrl.dispose();
@@ -70,6 +90,10 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     // Instead of leaving right away, collect the full legal name so the
     // Account Upgrade form can be auto-filled, then go straight home.
     if (ref.read(authStateProvider).isAuthenticated) {
+      // Tiyakin munang alam kung email ang login identifier bago ipakita ang
+      // modal — para hindi lumitaw ang Email Address field kahit isang frame.
+      await _loadLoginIdentifier();
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _showNameForm = true;
@@ -107,7 +131,13 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
     final middleName = _middleNameCtrl.text.trim();
     final lastName = _lastNameCtrl.text.trim();
     final suffixName = _suffixCtrl.text.trim();
-    final email = _emailCtrl.text.trim();
+    // Kapag email ang ginamit sa login (at sa paggawa ng account), verified na
+    // ito sa OTP — iyon na ang email ng account, kaya hindi na hinihingi o
+    // ipinapadala muli.
+    final emailVerifiedByLogin = _emailVerifiedByLogin;
+    final email = emailVerifiedByLogin
+        ? (_loginIdentifier ?? '').trim()
+        : _emailCtrl.text.trim();
     // Local acceptance flags — written here, ONLY after the modal info is
     // valid. Per-account key so the one-time prompt shows exactly once per
     // lender, even on a shared device.
@@ -151,7 +181,7 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
       if (suffixName.isNotEmpty) 'suffix': suffixName,
     });
     var emailOk = false;
-    if (email.isNotEmpty) {
+    if (!emailVerifiedByLogin && email.isNotEmpty) {
       emailOk = await ref.read(lenderProfileProvider.notifier).updateProfile(
             {'email': email},
           );
@@ -165,6 +195,13 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
           platform: platform,
           appVersion: AppConstants.appVersion,
         );
+    if (!mounted) return;
+    if (emailVerifiedByLogin) {
+      // Email na ang ginamit sa login — verified na ito at nakasave na sa
+      // account. Diretso na sa dashboard; wala nang Verify Your Email step.
+      context.go(RouteConstants.lenderDashboard);
+      return;
+    }
     // ── Verification ng email: LINK ang ipinapadala (hindi OTP code) ────
     // Habang "Continuing..." pa ang button ay ipinapadala na ang mail, para
     // abot na ito pagdating sa Verify Your Email screen. Kapag nabigo, dinadala
@@ -536,10 +573,13 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
             ],
           ),
           const SizedBox(height: 6),
-          const Text(
-            'Please provide your full legal name and email. These details\n'
-            'will be auto-filled on your Account Upgrade.',
-            style: TextStyle(
+          Text(
+            _emailVerifiedByLogin
+                ? 'Please provide your full legal name. These details\n'
+                    'will be auto-filled on your Account Upgrade.'
+                : 'Please provide your full legal name and email. These details\n'
+                    'will be auto-filled on your Account Upgrade.',
+            style: const TextStyle(
               fontSize: 13,
               color: AppColors.textSecondary,
               height: 1.6,
@@ -587,23 +627,25 @@ class _TermsConditionsScreenState extends ConsumerState<TermsConditionsScreen> {
             decoration: _fieldDecoration('Suffix (Optional)',
                 hint: 'e.g. Jr., Sr., III'),
           ),
-          const SizedBox(height: 12),
-          TextFormField(
-            controller: _emailCtrl,
-            maxLength: 255,
-            keyboardType: TextInputType.emailAddress,
-            decoration: _fieldDecoration('Email Address *'),
-            validator: (v) {
-              if (v == null || v.trim().isEmpty) {
-                return 'Email address is required';
-              }
-              if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
-                  .hasMatch(v.trim())) {
-                return 'Enter a valid email address';
-              }
-              return null;
-            },
-          ),
+          if (!_emailVerifiedByLogin) ...[
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: _emailCtrl,
+              maxLength: 255,
+              keyboardType: TextInputType.emailAddress,
+              decoration: _fieldDecoration('Email Address *'),
+              validator: (v) {
+                if (v == null || v.trim().isEmpty) {
+                  return 'Email address is required';
+                }
+                if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+                    .hasMatch(v.trim())) {
+                  return 'Enter a valid email address';
+                }
+                return null;
+              },
+            ),
+          ],
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,

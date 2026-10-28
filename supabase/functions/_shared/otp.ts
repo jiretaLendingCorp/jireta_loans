@@ -88,6 +88,36 @@ export async function hashOtpCode(code: string, phone: string): Promise<string> 
     .join('');
 }
 
+/** Prefix ng synthetic na OTP key para sa email-only signup. */
+export const EMAIL_OTP_KEY_PREFIX = 'mail:';
+
+/**
+ * Stable na synthetic na key para sa OTP na nakabatay sa EMAIL.
+ *
+ * Ang `otp_codes.phone_number` ay VARCHAR(20) at ang buong OTP machinery
+ * (cooldown, lockout, rate limit, hash salt) ay naka-key doon. Kapag email
+ * lang ang identifier — bagong email na wala pang account, o email-only na
+ * lender — walang tunay na numero. Isang maikling SHA-256 digest ng
+ * lowercased na email ang ginagamit: `mail:` + 15 hex chars = 20 chars,
+ * kasya sa column at hindi makakabangga sa PH number (puro digit iyon).
+ *
+ * Deterministic ito, kaya pareho ang key sa send-otp at verify-otp.
+ */
+export async function emailOtpKey(email: string): Promise<string> {
+  const normalized = email.trim().toLowerCase();
+  const data = new TextEncoder().encode(`otp-email:${normalized}`);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  const hex = Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `${EMAIL_OTP_KEY_PREFIX}${hex.slice(0, 15)}`;
+}
+
+/** True kung ang OTP key ay galing sa [emailOtpKey] (hindi tunay na numero). */
+export function isEmailOtpKey(value: string): boolean {
+  return value.startsWith(EMAIL_OTP_KEY_PREFIX);
+}
+
 export type OtpRow = {
   otp_hash?: string | null;
   attempts?: number | null;

@@ -10,8 +10,11 @@ import {
 } from "https://deno.land/std@0.168.0/testing/asserts.ts";
 import {
   DEFAULT_OTP_SMS_TEMPLATE,
+  EMAIL_OTP_KEY_PREFIX,
+  emailOtpKey,
   generateOtpCode,
   hashOtpCode,
+  isEmailOtpKey,
   isOtpPurpose,
   normalizeOtpPurpose,
   otpRejectionReason,
@@ -93,6 +96,23 @@ Deno.test("hashOtpCode is deterministic, 64 hex chars, and phone-scoped", async 
   assert(!a.includes("123456"), "hash must not embed the OTP");
   assertNotEquals(a, otherPhone);
   assertNotEquals(a, otherCode);
+});
+
+Deno.test("emailOtpKey is stable, email-scoped, and fits otp_codes.phone_number", async () => {
+  const a = await emailOtpKey("  Juan@Gmail.com ");
+  const b = await emailOtpKey("juan@gmail.com");
+  const other = await emailOtpKey("maria@gmail.com");
+
+  assertEquals(a, b);
+  assertNotEquals(a, other);
+  assert(a.startsWith(EMAIL_OTP_KEY_PREFIX));
+  // otp_codes.phone_number ay VARCHAR(20) — kasya dapat ang buong key.
+  assertEquals(a.length, 20);
+  assert(/^mail:[0-9a-f]{15}$/.test(a), `unexpected key: ${a}`);
+  // Hindi ito puwedeng maging tunay na PH number (puro digit iyon).
+  assert(!/^\+?\d+$/.test(a));
+  assert(isEmailOtpKey(a));
+  assert(!isEmailOtpKey("09171234567"));
 });
 
 Deno.test("valid OTP is accepted for its purpose", () => {

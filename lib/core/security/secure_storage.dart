@@ -188,7 +188,7 @@ class SecureStorage {
     }
   }
 
-  // ── Idle-tracking (3-minute inactivity) ──────────────────────────────────
+  // ── Idle-tracking (3-minute rider/lender, 15-minute staff) ───────────────
   static Future<void> saveLastActivity(DateTime time) => _withQueue(() async {
         try {
           await _storage.write(
@@ -219,13 +219,21 @@ class SecureStorage {
     }
   }
 
-  /// Remaining time before idle expiry (3 min). Prefers lastActivity; falls
-  /// back to sessionStartedAt for fresh logins before first bump.
+  /// Idle window ng kasalukuyang account: 15 minuto para sa head manager /
+  /// employee (auto logout), 3 minuto para sa rider / lender (MPIN lock).
+  static Future<Duration> getIdleTimeout() async {
+    final role = await getUserRole() ?? await getLoginOwnerRole();
+    return AppConstants.idleTimeoutForRole(role);
+  }
+
+  /// Remaining time before idle expiry (15 min for staff, 3 min otherwise).
+  /// Prefers lastActivity; falls back to sessionStartedAt for fresh logins
+  /// before first bump.
   static Future<Duration?> getRemainingIdleTime() async {
     DateTime? last = await getLastActivity();
     last ??= await getSessionStartedAt();
     if (last == null) return null;
-    final expiry = last.add(AppConstants.sessionDuration);
+    final expiry = last.add(await getIdleTimeout());
     return expiry.difference(DateTime.now().toUtc());
   }
 

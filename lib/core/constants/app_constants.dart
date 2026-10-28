@@ -84,18 +84,33 @@ class AppConstants {
   /// Session heartbeat: validates + bumps last_seen_at while the app is open.
   static const String authPingPath = 'auth-session?fn=ping';
 
-  /// Idle session timeout: 3 minutes of inactivity → auto logout.
-  /// Any user interaction (tap, scroll, typing) bumps the idle deadline
-  /// forward by 3 minutes.
+  /// Idle session timeout para sa rider / lender: 3 minutes of inactivity →
+  /// MPIN lock. Any user interaction (tap, scroll, typing) bumps the idle
+  /// deadline forward by 3 minutes.
   static const Duration sessionDuration = Duration(minutes: 3);
   static const int sessionDurationMs = 180000;
   static const int sessionDurationSeconds = 180;
 
+  /// Idle session timeout para sa head manager / employee: 15 minutes of
+  /// inactivity → AUTO LOGOUT (hard logout, kailangang mag-login muli).
+  /// Walang MPIN lock ang staff roles, kaya sa idle expiry ay natatapos
+  /// talaga ang session.
+  static const Duration staffSessionDuration = Duration(minutes: 15);
+  static const int staffSessionDurationMs = 900000;
+  static const int staffSessionDurationSeconds = 900;
+
+  /// Ang idle window na applicable sa isang role. Staff (head manager /
+  /// employee) = 15 minutes; rider / lender = 3 minutes (lock lang).
+  static Duration idleTimeoutForRole(String? role) =>
+      role == roleHeadManager || role == roleEmployee
+          ? staffSessionDuration
+          : sessionDuration;
+
   /// ABSOLUTE session lifetime: gaano katagal mananatiling wasto ang isang
   /// login bago hilingin muli ang mobile number (OTP). Ang 3-minutong idle
-  /// window ay pag-lock lang ng app (MPIN ang mag-u-unlock) — HINDI ito
-  /// nagtatapos ng session. Dito lang (3 buwan) kailangan mag-login muli ng
-  /// numero ng rider / lender.
+  /// window ng rider / lender ay pag-lock lang ng app (MPIN ang mag-u-unlock) —
+  /// HINDI ito nagtatapos ng session. Dito lang (3 buwan) kailangan mag-login
+  /// muli ng numero ng rider / lender.
   static const Duration absoluteSessionDuration = Duration(days: 90);
 
   /// Legacy 1-hour constant kept for migration only (old installs may still
