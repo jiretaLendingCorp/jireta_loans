@@ -49,7 +49,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(hmLenderProvider);
     return WebScaffold(
-      title: 'Lenders',
+      title: 'Lendees',
       actions: [
         ElevatedButton.icon(
           onPressed: () => showDialog(
@@ -57,7 +57,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             builder: (_) => const CreateLenderModal(),
           ),
           icon: const Icon(Icons.person_add, size: 18),
-          label: const Text('Create Lender'),
+          label: const Text('Create Lendee'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.lenderBlue,
             foregroundColor: Colors.white,
@@ -87,7 +87,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
           searchField: TextField(
             controller: _searchCtrl,
             decoration: InputDecoration(
-              hintText: 'Search lenders...',
+              hintText: 'Search lendees...',
               prefixIcon: const Icon(Icons.search, size: 20),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(8),
@@ -209,7 +209,8 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             Icons.visibility_outlined,
             'View',
             AppColors.textSecondary,
-            () => showUserDetailsModal(context, user),
+            () => showUserDetailsModal(context, user,
+                roleLabelOverride: 'Lendee'),
           ),
           _btn(
             Icons.edit_outlined,
@@ -236,7 +237,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                 context,
                 userId: user.id,
                 personName: '${user.firstName} ${user.lastName}'.trim(),
-                roleLabel: 'lender',
+                roleLabel: 'lendee',
               ),
             ),
           if (user.accountStatus != 'archived')
@@ -260,8 +261,18 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
         initialStatus: user.accountStatus,
       ),
     );
-    if (updated == true) {
-      ref.read(hmLenderProvider.notifier).load();
+    if (updated != true || !mounted) return;
+    // Isang row lang ang nabago — kunin lang ang fresh record nito at i-patch
+    // sa listahan. Dati, `load()` ang tinatawag kaya nire-reload ang buong
+    // paged data at bumabalik sa shimmer ang buong table.
+    try {
+      final fresh =
+          await sl<UserRemoteDataSource>().getProfile(userId: user.id);
+      if (!mounted) return;
+      ref.read(hmLenderProvider.notifier).replaceLender(fresh);
+    } catch (_) {
+      if (!mounted) return;
+      ref.read(hmLenderProvider.notifier).load(silent: true);
     }
   }
 
@@ -295,7 +306,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Archive Lender?'),
+        title: const Text('Archive Lendee?'),
         content: Text(
           'This will archive ${user.firstName} ${user.lastName}. This action cannot be undone easily.',
         ),
@@ -312,7 +323,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
                 await ref.read(hmLenderProvider.notifier).archive(user.id);
                 if (mounted) {
                   context.showSnackBarAsToast(
-                    const SnackBar(content: Text('Lender archived successfully')),
+                    const SnackBar(content: Text('Lendee archived successfully')),
                   );
                 }
               } catch (e) {
@@ -403,7 +414,7 @@ class _HmLenderListScreenState extends ConsumerState<HmLenderListScreen> {
             Icon(Icons.people_outline, size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
             Text(
-              'No lenders found',
+              'No lendees found',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             ),
           ],

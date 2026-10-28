@@ -45,3 +45,24 @@ String collectionStatusLabel(String status) {
           .join(' ');
   }
 }
+
+/// Maikling paliwanag kung BAKIT naging `failed`/`expired` ang assignment —
+/// galing sa `collection_notes` na sinusulat ng system. Dalawa lang ang
+/// pinagmulan nito:
+///   • `expired: no action within 48h` — lender request na walang umaksyon
+///     (collections-manage, kapag may bagong request sa parehong schedule).
+///   • `[auto-expired: overdue]` — na-overdue ang assignment at sinara ng
+///     `expire_overdue_assignments()`.
+///
+/// `null` kapag hindi failed/expired ang status o walang makikilalang system
+/// note — hindi nagpapakita ng haka-haka o libreng staff note.
+String? collectionCloseReason(String status, String? notes) {
+  final s = status.toLowerCase();
+  if (s != 'failed' && s != 'expired') return null;
+  final text = (notes ?? '').toLowerCase();
+  if (text.contains('no action within 48h')) return 'No action within 48h';
+  if (text.contains('auto-expired') || text.contains('overdue')) {
+    return 'Overdue — auto-closed';
+  }
+  return null;
+}

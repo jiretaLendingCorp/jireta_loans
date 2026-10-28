@@ -6,6 +6,21 @@ import 'package:jireta_loans/data/models/rider_quota_model.dart';
 import 'package:jireta_loans/presentation/features/head_manager/rider_quotas/providers/hm_rider_quotas_provider.dart';
 import 'package:jireta_loans/presentation/features/head_manager/rider_quotas/screens/hm_rider_quotas_screen.dart';
 
+const _missedQuota = RiderQuota(
+  quotaId: 'q2',
+  riderId: 'r2',
+  riderName: 'Jay Shin',
+  phoneNumber: '09987654321',
+  period: RiderQuotaPeriod.weekly,
+  targetAmount: 100000,
+  confirmedCollection: 5000,
+  remainingTarget: 95000,
+  completionPercentage: 5,
+  status: RiderQuotaStatus.expired,
+  isActive: true,
+  achieved: false,
+);
+
 const _quota = RiderQuota(
   quotaId: 'q1',
   riderId: 'r1',
@@ -73,6 +88,28 @@ void main() {
     // Action buttons dapat naroon sa desktop (hindi blangkong ACTIONS column).
     expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
     expect(find.byIcon(Icons.lock_outline_rounded), findsOneWidget);
+  });
+
+  testWidgets('expired quota ay "Missed", hindi "Expired"', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 1062,
+            height: 420,
+            child: RiderQuotaTable(
+              state: const HmRiderQuotasState(rows: [_missedQuota], total: 1),
+              onEdit: (_) {},
+              onClose: (_) {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Missed'), findsOneWidget);
+    expect(find.text('Expired'), findsNothing);
   });
 
   testWidgets('maliit na width ay stacked cards pa rin', (tester) async {

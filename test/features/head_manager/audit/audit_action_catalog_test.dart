@@ -134,6 +134,37 @@ void main() {
       expect(AuditActionCatalog.label('ai_ask'), 'AI Ask');
     });
 
+    test('filterLabel: malinaw at natatangi ang payment actions', () {
+      // Dati sa dropdown: "Generate GCash Link", "Xendit Payment Verified",
+      // "Xendit Payment Synced" — utos ang isa, jargon ang iba, at pareho
+      // halos ang dalawa.
+      expect(AuditActionCatalog.filterLabel('generate_gcash_link'),
+          'GCash Link Generated');
+      expect(AuditActionCatalog.filterLabel('xendit_payment_verified'),
+          'GCash Payment Confirmed (Automatic)');
+      expect(AuditActionCatalog.filterLabel('xendit_payment_synced'),
+          'GCash Payment Confirmed (Manual)');
+      expect(AuditActionCatalog.filterLabel('xendit_test_payment_created'),
+          'GCash Test Payment Created');
+      expect(AuditActionCatalog.filterLabel('xendit_test_payment_simulated'),
+          'GCash Test Payment Simulated');
+      // Non-payment actions: pareho sa `label()`.
+      expect(AuditActionCatalog.filterLabel('loan_approve'),
+          AuditActionCatalog.label('loan_approve'));
+    });
+
+    test('filterLabel: natatangi ang lahat ng nasa dropdown', () {
+      final labels =
+          AuditActionCatalog.actions.map(AuditActionCatalog.filterLabel);
+      expect(labels.toSet().length, labels.length,
+          reason: 'bawat action ay dapat may sariling label sa dropdown');
+      for (final label in labels) {
+        expect(label.trim(), isNotEmpty);
+        expect(RegExp(r'^[A-Z]').hasMatch(label), isTrue);
+        expect(label.contains('_'), isFalse);
+      }
+    });
+
     test('displayLabel: friendly na GCash wording para sa rows', () {
       // Ginagamit sa Audit Logs table at Recent Activity — hindi na
       // "Xendit Payment Synced" / "Generate GCash Link" / "confirmed".

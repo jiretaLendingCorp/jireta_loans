@@ -4,10 +4,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../../../core/config/app_config.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/utils/formatters.dart';
@@ -181,8 +179,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
         const SizedBox(height: 12),
         _buildWorkCard(user),
         const SizedBox(height: 20),
-        _buildGeneralCard(),
-        const SizedBox(height: 16),
         _buildVersionFooter(),
         const SizedBox(height: 8),
       ],
@@ -212,8 +208,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildSecurityButton(),
-                  const SizedBox(height: 16),
-                  _buildGeneralCard(),
                   const SizedBox(height: 16),
                   _buildVersionFooter(),
                 ],
@@ -311,86 +305,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                 : '—'),
       ],
     );
-  }
-
-  Widget _buildGeneralCard() {
-    return ModernMenuCard(items: [
-      ModernMenuItem(
-        icon: Icons.notifications_outlined,
-        title: 'Notifications',
-        subtitle: 'View alerts and updates',
-        onTap: () =>
-            context.go(RouteConstants.empNotifications),
-      ),
-      ModernMenuItem(
-        icon: Icons.support_agent_outlined,
-        title: 'Help Center',
-        subtitle: 'FAQs and support guide',
-        onTap: () => _showSheet(
-          title: 'Help Center',
-          icon: Icons.support_agent_outlined,
-          sections: const [
-            ModernSheetSection(
-              title: 'How do I handle lender verifications?',
-              body:
-                  'Open Lendee Account Upgrade to review submitted IDs and documents, then verify or request resubmission.',
-            ),
-            ModernSheetSection(
-              title: 'How do I record office payments?',
-              body:
-                  'Go to Collections, find the due schedule, and record the cash payment with the official receipt number.',
-            ),
-            ModernSheetSection(
-              title: 'Forgot password?',
-              body:
-                  'Use Change Password above. If locked out, use Forgot Password on the login page to reset via email.',
-            ),
-          ],
-        ),
-      ),
-      ModernMenuItem(
-        icon: Icons.info_outline_rounded,
-        title: 'About Jireta',
-        subtitle: 'Since 1966',
-        onTap: () => _showSheet(
-          title: 'About Jireta',
-          icon: Icons.info_outline_rounded,
-          sections: const [
-            ModernSheetSection(
-              title: 'Company',
-              body:
-                  'Jireta Loans & Credit Corp 1966 provides accessible financial assistance to Filipinos.',
-            ),
-            ModernSheetSection(
-              title: 'Your role',
-              body:
-                  'As Staff you assist with verifications, loan processing, collections, and lender support.',
-            ),
-          ],
-        ),
-      ),
-      ModernMenuItem(
-        icon: Icons.privacy_tip_outlined,
-        title: 'Privacy & Terms',
-        subtitle: 'How we protect data',
-        onTap: () => _showSheet(
-          title: 'Privacy & Terms',
-          icon: Icons.privacy_tip_outlined,
-          sections: const [
-            ModernSheetSection(
-              title: 'Data privacy',
-              body:
-                  'Lender and company information must be kept confidential and used only for official duties, under the Data Privacy Act of 2012 (RA 10173).',
-            ),
-            ModernSheetSection(
-              title: 'Account security',
-              body:
-                  'Never share your password or OTP. Change your password regularly and log out on shared devices.',
-            ),
-          ],
-        ),
-      ),
-    ]);
   }
 
   Widget _buildVersionFooter() {
@@ -1056,20 +970,6 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
     // mensahe ng server). Dito, tagumpay lang ang may toast — ang Cancel ay
     // `null` at wala nang "Failed to save changes".
     if (saved == true) context.showSuccessToast('Profile updated');
-  }
-
-  void _showSheet({
-    required String title,
-    required IconData icon,
-    required List<ModernSheetSection> sections,
-  }) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) =>
-          ModernInfoSheet(title: title, icon: icon, sections: sections),
-    );
   }
 
   // ── Helpers ─────────────────────────────────────────────

@@ -125,7 +125,7 @@ class _EmpEditLenderModalState extends ConsumerState<EmpEditLenderModal> {
         children: [
           const Icon(Icons.edit_outlined, color: AppColors.gold, size: 20),
           const SizedBox(width: 10),
-          const Text('Edit Lender',
+          const Text('Edit Lendee',
               style: TextStyle(
                   color: Colors.white,
                   fontSize: 16,

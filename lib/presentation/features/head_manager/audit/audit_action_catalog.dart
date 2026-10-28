@@ -131,6 +131,25 @@ class AuditActionCatalog {
         .join(' ');
   }
 
+  /// Label para sa filter dropdown ng Audit Logs.
+  ///
+  /// Kailangan **natatangi** bawat action (`xendit_payment_verified` vs
+  /// `xendit_payment_synced`) at nakasulat bilang pangyayaring nangyari na —
+  /// hindi utos tulad ng "Generate GCash Link" o jargon tulad ng "Synced".
+  /// Ang mga hindi nakalista ay dumadaan sa `label()`.
+  static const Map<String, String> _filterLabels = {
+    'generate_gcash_link': 'GCash Link Generated',
+    // Ang webhook ang kusang nag-confirm; ang manual sync ay HM ang
+    // nag-check sa Xendit dahil hindi umabot ang webhook.
+    'xendit_payment_verified': 'GCash Payment Confirmed (Automatic)',
+    'xendit_payment_synced': 'GCash Payment Confirmed (Manual)',
+    'xendit_test_payment_created': 'GCash Test Payment Created',
+    'xendit_test_payment_simulated': 'GCash Test Payment Simulated',
+  };
+
+  static String filterLabel(String action) =>
+      _filterLabels[action] ?? label(action);
+
   /// Label para sa MGA ROW/GENAGGAMIT na display (Audit Logs table, mobile
   /// card, Recent Activity) — mas madaling basahin kaysa `label()`.
   ///

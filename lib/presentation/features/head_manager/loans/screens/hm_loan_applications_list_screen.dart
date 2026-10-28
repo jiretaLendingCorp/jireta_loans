@@ -640,9 +640,11 @@ class _HmLoanApplicationsListScreenState
     // Sariling Container ang search field (hindi InputDecoration) para
     // siguradong 48px ang taas — kapantay ng Date Range.
     //
-    // `filled: false` ang TextField: kung hindi, ipininta ng global
-    // InputDecorationTheme ang filled na kahon NITO sa LOOB ng Container kaya
-    // may dobleng box na lumalabas sa search field.
+    // Isang box lang dapat ang search field. Kung `filled`/`border` lang ang
+    // i-o-override, ipinipinta pa rin ng global InputDecorationTheme ang
+    // enabled/focused border NITO sa LOOB ng Container — kaya may dobleng box
+    // (kapansin-pansin kapag naka-focus ang field). Kaya lahat ng border state
+    // ay tahasang `InputBorder.none`, at `filled: false`.
     final searchField = Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -678,11 +680,17 @@ class _HmLoanApplicationsListScreenState
               },
               style: const TextStyle(
                   fontSize: 12.5, color: AppColors.textPrimary),
+              textAlignVertical: TextAlignVertical.center,
               decoration: const InputDecoration(
                 hintText: 'Search by Loan ID or client name...',
                 hintStyle:
                     TextStyle(fontSize: 12, color: AppColors.textTertiary),
                 border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                disabledBorder: InputBorder.none,
+                errorBorder: InputBorder.none,
+                focusedErrorBorder: InputBorder.none,
                 filled: false,
                 isDense: true,
                 contentPadding: EdgeInsets.zero,

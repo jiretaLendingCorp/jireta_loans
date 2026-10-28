@@ -786,7 +786,7 @@ List<_NavItem> _hmItems() => [
             _NavItem(Icons.delivery_dining_outlined, 'Riders',
                 RouteConstants.hmRiders),
             _NavItem(
-                Icons.person_outline, 'Lenders', RouteConstants.hmLenders),
+                Icons.person_outline, 'Lendees', RouteConstants.hmLenders),
             _NavItem(
                 Icons.archive_outlined, 'Archived', RouteConstants.hmArchived),
           ],
@@ -835,7 +835,7 @@ List<_NavItem> _empItems() => [
           '',
           [
             _NavItem(
-                Icons.person_outline, 'Lenders', RouteConstants.empLenders),
+                Icons.person_outline, 'Lendees', RouteConstants.empLenders),
             _NavItem(Icons.delivery_dining_outlined, 'Riders',
                 RouteConstants.empRiders),
           ],

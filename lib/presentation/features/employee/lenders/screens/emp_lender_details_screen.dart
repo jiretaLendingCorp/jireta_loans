@@ -46,7 +46,7 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
     final canEdit = authState.role == 'head_manager';
 
     return WebScaffold(
-      title: 'Lender Details',
+      title: 'Lendee Details',
       actions: [
         TextButton.icon(
           onPressed: () => context.pop(),
@@ -85,10 +85,10 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
         children: [
           UserProfileHeaderCard(
             photoUrl: data['profile_photo_url'] as String?,
-            name: name.isEmpty ? 'Lender' : name,
+            name: name.isEmpty ? 'Lendee' : name,
             subtitle: data['email'] ?? '—',
             subtitleIcon: Icons.email_outlined,
-            roleLabel: 'Lender',
+            roleLabel: 'Lendee',
             roleIcon: Icons.account_balance_wallet_outlined,
             accentColor: AppColors.lenderBlue,
             accountStatus: data['account_status'] ?? 'active',
@@ -211,7 +211,7 @@ class EmpLenderDetailsScreen extends ConsumerWidget {
     final confirmed = await ConfirmationDialog.show(
       context,
       title: 'Unpause Account',
-      message: 'Reactivate this lender\u2019s account? They will be able to use '
+      message: 'Reactivate this lendee\u2019s account? They will be able to use '
           'the app and apply for a new loan again. Their outstanding balances '
           'are not cleared.',
       confirmLabel: 'Unpause',
@@ -306,7 +306,7 @@ class _EmpPreviousLoans extends ConsumerWidget {
           if (loans.isEmpty) {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No previous loans found for this lender.',
+              child: Text('No previous loans found for this lendee.',
                   style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
             );
           }

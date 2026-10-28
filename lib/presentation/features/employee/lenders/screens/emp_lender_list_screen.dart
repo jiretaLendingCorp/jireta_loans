@@ -45,12 +45,12 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
     final state = ref.watch(empLenderProvider);
 
     return WebScaffold(
-      title: 'Lenders',
+      title: 'Lendees',
       actions: [
         ElevatedButton.icon(
           onPressed: () => _showRegisterModal(context),
           icon: const Icon(Icons.person_add, size: 18),
-          label: const Text('Create Lender'),
+          label: const Text('Create Lendee'),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.lenderBlue,
             foregroundColor: Colors.white,
@@ -81,7 +81,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
         searchField: TextField(
           controller: _searchCtrl,
           decoration: InputDecoration(
-            hintText: 'Search lenders by name or phone...',
+            hintText: 'Search lendees by name or phone...',
             prefixIcon: const Icon(Icons.search, size: 20),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(8),
@@ -145,7 +145,8 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
   ResponsiveRow _buildTableRow(UserModel user) {
     final isActive = user.accountStatus == 'active';
     return ResponsiveRow(
-      onTap: () => showUserDetailsModal(context, user),
+      onTap: () =>
+          showUserDetailsModal(context, user, roleLabelOverride: 'Lendee'),
       cells: [
         Row(
           children: [
@@ -205,7 +206,8 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
           _ActionBtn(
             icon: Icons.visibility_outlined,
             tooltip: 'View Details',
-            onTap: () => showUserDetailsModal(context, user),
+            onTap: () =>
+                showUserDetailsModal(context, user, roleLabelOverride: 'Lendee'),
           ),
         ],
       ),
@@ -265,7 +267,7 @@ class _EmpLenderListScreenState extends ConsumerState<EmpLenderListScreen> {
             Icon(Icons.person_outline, size: 64, color: AppColors.textTertiary),
             SizedBox(height: 16),
             Text(
-              'No lenders found',
+              'No lendees found',
               style: TextStyle(color: AppColors.textSecondary, fontSize: 16),
             ),
           ],

@@ -38,4 +38,32 @@ void main() {
     expect(collectionStatusLabel('on_hold'), 'On Hold');
     expect(collectionStatusLabel(''), '');
   });
+
+  group('collectionCloseReason — bakit na-failed', () {
+    test('48h request expiry', () {
+      expect(
+        collectionCloseReason('failed', 'expired: no action within 48h'),
+        'No action within 48h',
+      );
+    });
+
+    test('overdue auto-expiry (may naunang note)', () {
+      expect(
+        collectionCloseReason(
+            'failed', 'Borrower not home [auto-expired: overdue]'),
+        'Overdue — auto-closed',
+      );
+    });
+
+    test('walang system note → walang haka-hakang dahilan', () {
+      expect(collectionCloseReason('failed', null), isNull);
+      expect(collectionCloseReason('failed', 'Borrower not home'), isNull);
+    });
+
+    test('hindi failed/expired → walang dahilan', () {
+      expect(collectionCloseReason('completed', 'expired: no action within 48h'),
+          isNull);
+      expect(collectionCloseReason('rejected', 'overdue'), isNull);
+    });
+  });
 }

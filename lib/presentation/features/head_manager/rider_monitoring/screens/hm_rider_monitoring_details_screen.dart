@@ -12,6 +12,7 @@ import '../../../../shared/widgets/empty_state_widget.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/utils/collection_status_label.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../providers/hm_rider_monitoring_provider.dart';
 import '../utils/monitoring_money.dart';
@@ -714,7 +715,9 @@ class _AccountCard extends StatelessWidget {
                   ),
                 const SizedBox(width: 8),
                 Text(
-                  'Outstanding ${_num(account['outstanding_balance']).toPeso()}',
+                  // Loan-level ito, hindi lang sa mga naka-assign na
+                  // installment — kaya may "Loan" na qualifier.
+                  'Loan outstanding ${_num(account['outstanding_balance']).toPeso()}',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
@@ -731,20 +734,27 @@ class _AccountCard extends StatelessWidget {
               spacing: 20,
               runSpacing: 4,
               children: [
+                // `expected`/`remaining` ay para lang sa mga NAKA-ASSIGN na
+                // installment, habang `collected` ay lahat ng verified payment
+                // na naka-link sa assignments (kasama ang advance). Malinaw ang
+                // scope sa labels — dati "Expected 400 / Confirmed 5,000" ang
+                // lumalabas at parang magkasalungat.
                 _Money(
-                    label: 'Expected', value: account['expected_collection']),
+                    label: 'Expected (assigned)',
+                    value: account['expected_collection']),
                 _Money(
-                  label: 'Confirmed',
+                  label: 'Collected',
                   value: account['confirmed_collection'],
                   color: AppColors.success,
                 ),
                 _Money(
-                  label: 'Remaining',
+                  label: 'Remaining (assigned)',
                   value: account['remaining_due'],
                   color: AppColors.warning,
                 ),
                 Text(
-                  '${schedules.length} installment(s)',
+                  '${schedules.length} assigned '
+                  '${schedules.length == 1 ? 'installment' : 'installments'}',
                   style: TextStyle(
                     fontSize: 12,
                     color: context.cTextSecondary,
@@ -789,7 +799,7 @@ class _AccountCard extends StatelessWidget {
           Expanded(flex: 3, child: Text('AMOUNT DUE', style: style)),
           Expanded(flex: 3, child: Text('PAID', style: style)),
           Expanded(flex: 3, child: Text('REMAINING', style: style)),
-          Expanded(flex: 3, child: Text('CONFIRMED (RIDER)', style: style)),
+          Expanded(flex: 3, child: Text('COLLECTED (RIDER)', style: style)),
           Expanded(flex: 2, child: Text('STATUS', style: style)),
         ],
       ),
@@ -1008,6 +1018,12 @@ class _HistoryTable extends StatelessWidget {
             ? null
             : DateTime.tryParse(h['activity_at'].toString());
         final collected = (h['amount_collected'] as num?)?.toDouble();
+        final status = (h['status'] ?? 'pending').toString();
+        final closeReason =
+            collectionCloseReason(status, h['notes']?.toString());
+        final isUncollected =
+            status.toLowerCase() == 'failed' ||
+                status.toLowerCase() == 'expired';
         return ResponsiveRow(
           cells: [
             Text(
@@ -1030,7 +1046,30 @@ class _HistoryTable extends StatelessWidget {
               collected == null ? '—' : collected.toPeso(),
               style: TextStyle(fontSize: 12, color: context.cTextPrimary),
             ),
-            StatusBadge(status: (h['status'] ?? 'pending').toString()),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                StatusBadge(
+                  status: status,
+                  // `failed` ay "Uncollected" sa buong app, hindi raw "FAILED".
+                  labelOverride: collectionStatusLabel(status),
+                  colorOverride: isUncollected ? AppColors.error : null,
+                ),
+                // BAKIT nangyari — system note ng 48h expiry / overdue sweep.
+                if (closeReason != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      closeReason,
+                      style: TextStyle(
+                        fontSize: 10,
+                        color: context.cTextTertiary,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ],
         );
       }).toList(),

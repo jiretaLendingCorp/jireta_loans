@@ -77,6 +77,15 @@ void main() {
     });
   });
 
+  group('status labels', () {
+    test('expired → "Missed", hindi "Expired"', () {
+      // Tapos na ang period at hindi naabot ang target — performance result
+      // ito, hindi system expiration.
+      expect(RiderQuotaStatus.label('expired'), 'Missed');
+      expect(RiderQuotaStatus.label('completed'), 'Completed');
+    });
+  });
+
   group('RiderQuotaPage / summary', () {
     test('parses data + summary + pagination', () {
       final page = RiderQuotaPage.fromJson({

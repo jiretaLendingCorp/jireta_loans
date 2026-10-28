@@ -76,6 +76,12 @@ void main() {
     expect(find.text('Interest Rate (%)'), findsOneWidget);
     expect(find.text('Minimum Loan Amount (₱)'), findsOneWidget);
 
+    // Naka-format nang may thousand separator ang money fields.
+    expect(
+      fieldFor(tester, 'Minimum Loan Amount (₱)').controller?.text,
+      '3,000',
+    );
+
     // "Settings" (hindi "System Settings") ang title ng page.
     expect(find.text('System Settings'), findsNothing);
     expect(find.text('Settings'), findsWidgets);

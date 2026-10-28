@@ -125,9 +125,29 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
     await load();
   }
 
+  /// Ini-archive ang lender at tinatanggal lang ang row niya sa listahan —
+  /// hindi na nire-reload ang buong paged data (na dati ay nagpapakita ng
+  /// shimmer sa buong table kahit isang row lang ang na-archive).
   Future<void> archive(String userId) async {
     await _ds.archive(userId);
-    await load();
+    final index = state.lenders.indexWhere((l) => l.id == userId);
+    if (index == -1) {
+      // Wala sa kasalukuyang page/filter — saka lang mag-silent refresh.
+      await load(silent: true);
+      return;
+    }
+    final next = List<UserModel>.of(state.lenders)..removeAt(index);
+    // Sa 'all' filter, archived users ay hindi binibilang sa server total
+    // (kasama pa rin sila doon), kaya dun lang hindi binabawasan ang count.
+    final nextTotal = state.statusFilter == 'all' || state.total == 0
+        ? state.total
+        : state.total - 1;
+    state = state.copyWith(lenders: next, total: nextTotal);
+    // Naubos ang page — lumipat sa nakaraang page na may laman.
+    if (next.isEmpty && state.page > 1) {
+      state = state.copyWith(page: state.page - 1);
+      await load(silent: true);
+    }
   }
 
   Future<void> updateLender({
@@ -136,6 +156,21 @@ class HmLenderNotifier extends StateNotifier<HmLenderState>
   }) async {
     await _ds.updateProfile({'user_id': userId, ...data});
     await load();
+  }
+
+  /// I-patch lang sa listahan ang na-edit na lender — hindi na nire-reload ang
+  /// buong paged data (na dati ay nagpapakita ng shimmer at bumabalik sa
+  /// server kahit isang row lang ang nabago).
+  void replaceLender(UserModel updated) {
+    final index = state.lenders.indexWhere((l) => l.id == updated.id);
+    if (index == -1) {
+      // Wala na sa kasalukuyang page/filter — saka lang mag-silent refresh.
+      load(silent: true);
+      return;
+    }
+    final next = List<UserModel>.of(state.lenders);
+    next[index] = updated;
+    state = state.copyWith(lenders: next);
   }
 }
 

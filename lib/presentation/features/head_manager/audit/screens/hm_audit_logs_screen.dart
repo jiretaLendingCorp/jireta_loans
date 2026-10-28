@@ -273,7 +273,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
           items: [
             const DropdownMenuItem(value: null, child: Text('All Actions')),
             ...AuditActionCatalog.actions.map((a) => DropdownMenuItem(
-                value: a, child: Text(AuditActionCatalog.label(a)))),
+                value: a, child: Text(AuditActionCatalog.filterLabel(a)))),
           ],
           selectedItemBuilder: (context) => [
             const Text(
@@ -282,7 +282,7 @@ class _HmAuditLogsScreenState extends ConsumerState<HmAuditLogsScreen> {
               overflow: TextOverflow.ellipsis,
             ),
             ...AuditActionCatalog.actions.map((a) => Text(
-                  AuditActionCatalog.label(a),
+                  AuditActionCatalog.filterLabel(a),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 )),

@@ -75,7 +75,7 @@ class HmLenderDetailsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final async = ref.watch(_lenderDetailProvider(userId));
     return WebScaffold(
-      title: 'Lender Details',
+      title: 'Lendee Details',
       actions: [
         TextButton.icon(
           onPressed: () => context.pop(),
@@ -106,7 +106,7 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                 name: '${user.firstName} ${user.lastName}',
                 subtitle: user.email ?? '—',
                 subtitleIcon: Icons.email_outlined,
-                roleLabel: 'Lender',
+                roleLabel: 'Lendee',
                 roleIcon: Icons.account_balance_wallet_outlined,
                 accentColor: AppColors.lenderBlue,
                 accountStatus: user.accountStatus,
@@ -218,7 +218,7 @@ class HmLenderDetailsScreen extends ConsumerWidget {
                       context,
                       userId: user.id,
                       personName: '${user.firstName} ${user.lastName}'.trim(),
-                      roleLabel: 'lender',
+                      roleLabel: 'lendee',
                     ),
                     icon: const Icon(Icons.security_outlined, size: 18),
                     label: const Text('Reset 2FA'),
@@ -296,7 +296,7 @@ class _PreviousLoansCard extends ConsumerWidget {
           if (loans.isEmpty) {
             return const Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No previous loans found for this lender.',
+              child: Text('No previous loans found for this lendee.',
                   style: TextStyle(fontSize: 13, color: AppColors.textSecondary)),
             );
           }

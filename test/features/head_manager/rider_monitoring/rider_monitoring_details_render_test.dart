@@ -10,8 +10,8 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:jireta_loans/data/models/rider_collection_monitoring_model.dart';
 import 'package:jireta_loans/presentation/features/head_manager/rider_monitoring/screens/hm_rider_monitoring_details_screen.dart';
 
-final _detail = RiderMonitoringDetail(
-  rider: const {
+const _detail = RiderMonitoringDetail(
+  rider: {
     'rider_name': 'Anthony Maramba',
     'phone_number': '09635267491',
     'plate_number': 'PRT-6817',
@@ -20,7 +20,7 @@ final _detail = RiderMonitoringDetail(
     'joined_at': '2026-09-23T00:00:00.000Z',
     'address': 'Highway Street, Tuliao, Santa Barbara, Pampanga',
   },
-  summary: const RiderMonitoringSummary(
+  summary: RiderMonitoringSummary(
     expectedCollection: 20000,
     confirmedCollection: 20000,
     remainingDue: 0,
@@ -70,6 +70,18 @@ final _detail = RiderMonitoringDetail(
       'lender_name': 'April Malasan',
       'installment_number': 1,
     },
+    // REGRESSION: raw na "FAILED" ang dati lumalabas sa History kahit
+    // "Uncollected" ang tawag sa buong app. Dapat may paliwanag din kung bakit
+    // na-expire (galing sa `collection_notes`).
+    {
+      'status': 'failed',
+      'amount_collected': null,
+      'activity_at': '2026-10-16T02:00:00.000Z',
+      'loan_number': 'LN-2026-760880',
+      'lender_name': 'April Malasan',
+      'installment_number': 2,
+      'notes': 'expired: no action within 48h',
+    },
   ],
 );
 
@@ -86,7 +98,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(MaterialApp(
+    await tester.pumpWidget(const MaterialApp(
       home: Scaffold(
         body: SizedBox(
           width: 1062,
@@ -102,7 +114,16 @@ void main() {
     expect(find.text('April Malasan'), findsWidgets);
     expect(find.text('₱20,000.00'), findsWidgets);
     expect(find.text('Assigned Lenders & Loan Accounts'), findsOneWidget);
+    // Malinaw ang scope ng bawat numero sa account card.
+    expect(find.textContaining('Loan outstanding'), findsOneWidget);
+    expect(find.textContaining('Expected (assigned)'), findsOneWidget);
+    expect(find.textContaining('Remaining (assigned)'), findsOneWidget);
+    expect(find.text('1 assigned installment'), findsOneWidget);
     expect(find.text('Confirmed Payments'), findsOneWidget);
     expect(find.text('Collection History'), findsOneWidget);
+    // Hindi na raw "FAILED" — "Uncollected" + dahilan ang nakikita.
+    expect(find.text('FAILED'), findsNothing);
+    expect(find.text('Uncollected'), findsOneWidget);
+    expect(find.text('No action within 48h'), findsOneWidget);
   });
 }

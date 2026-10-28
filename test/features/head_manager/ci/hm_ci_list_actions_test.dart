@@ -171,4 +171,16 @@ void main() {
     expect(tester.takeException(), isNull);
     expect(find.text('Reassign'), findsOneWidget);
   });
+
+  testWidgets('failed: "Not Completed" ang pill at row status, hindi "Failed"',
+      (tester) async {
+    await pumpList(tester, _ci('failed'));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Not Completed'), findsOneWidget,
+        reason: 'Pill label — hindi basta "Failed"');
+    expect(find.text('Not Completed — Overdue'), findsOneWidget,
+        reason: 'Row status — dapat pareho ang salita sa pill');
+    expect(find.text('Failed'), findsNothing);
+  });
 }

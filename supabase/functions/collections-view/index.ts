@@ -464,7 +464,7 @@ async function handleRiderMonitoringDetail(req: Request) {
   const { data: assignmentRows, error: assignmentError } = await db
     .from('collection_assignments')
     .select(`id, loan_schedule_id, status, collection_type, collection_schedule,
-      amount_collected, completed_at, created_at, rejection_reason,
+      amount_collected, completed_at, created_at, rejection_reason, collection_notes,
       loan_schedule:loan_schedules!inner(id, installment_number, due_date, amount_due, loan_id,
         loan:loans!inner(id, loan_number, status, lender_id,
           lender_profiles!loans_lender_id_fkey(id, users!lender_profiles_id_fkey(first_name, last_name, phone_number)))),
@@ -627,6 +627,10 @@ async function handleRiderMonitoringDetail(req: Request) {
         activity_at: activityAt,
         completed_at: a.completed_at ?? null,
         rejection_reason: a.rejection_reason ?? null,
+        // System note ng auto-expiry ('expired: no action within 48h' o
+        // '[auto-expired: overdue]') — ito ang ipinapaliwanag ng History kung
+        // bakit na-`failed` ang isang assignment.
+        notes: a.collection_notes ?? null,
       };
     })
     .filter((h) => inRange(manilaDay(h.activity_at), range.from, range.to))

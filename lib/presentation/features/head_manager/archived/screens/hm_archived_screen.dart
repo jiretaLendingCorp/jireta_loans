@@ -1,11 +1,10 @@
 // lib/presentation/features/head_manager/archived/screens/hm_archived_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
+import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
@@ -134,9 +133,11 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
               variant: ResponsiveListVariant.card,
               columns: const [
                 ResponsiveCol('Name', flex: 3),
-                ResponsiveCol('Role', flex: 2),
+                ResponsiveCol('Role', flex: 1),
                 ResponsiveCol('Phone', flex: 2),
-                ResponsiveCol('Email', flex: 2),
+                // Sapat ang lapad para buo ang email — dati flex 2 lang kaya
+                // napuputol ito ng ellipsis ("monica_monic98@gmail....").
+                ResponsiveCol('Email', flex: 3),
                 ResponsiveCol('Status', flex: 1),
               ],
               actionsCol:
@@ -191,11 +192,12 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
           style:
               const TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
+        // Walang ellipsis: kapag sobrang haba pa rin ng email, mag-wrap ito
+        // sa pangalawang linya imbes na itago ang dulo.
         Text(
           user.email ?? '—',
           style:
               const TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          overflow: TextOverflow.ellipsis,
         ),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -224,7 +226,7 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
           ),
           _btn(
             Icons.unarchive_outlined,
-            'Restore',
+            'Unarchive',
             AppColors.success,
             () => _confirmRestore(user),
           ),
@@ -234,29 +236,18 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
   }
 
   void _goToDetails(UserModel user) {
-    switch (user.role) {
-      case 'employee':
-        context
-            .go(RouteConstants.hmEmployeeDetails.replaceFirst(':id', user.id));
-        break;
-      case 'rider':
-        context.go(RouteConstants.hmRiderDetails.replaceFirst(':id', user.id));
-        break;
-      case 'lender':
-        context.go(RouteConstants.hmLenderDetails.replaceFirst(':id', user.id));
-        break;
-      default:
-        break;
-    }
+    // Modal (tulad ng People → Lenders / All People) — hindi na lumilipat ng
+    // module sa full details page kapag pinindot ang View.
+    showUserDetailsModal(context, user);
   }
 
   void _confirmRestore(UserModel user) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Restore User?'),
+        title: const Text('Unarchive User?'),
         content: Text(
-          'Restore ${user.firstName} ${user.lastName} to Active status? They will reappear in People lists.',
+          'Unarchive ${user.firstName} ${user.lastName}? Their account will be set back to Active and they will reappear in People lists.',
         ),
         actions: [
           TextButton(
@@ -273,18 +264,18 @@ class _HmArchivedScreenState extends ConsumerState<HmArchivedScreen> {
                   context.showSnackBarAsToast(
                     SnackBar(
                         content: Text(
-                            '${_roleLabel(user.role)} restored successfully')),
+                            '${_roleLabel(user.role)} unarchived successfully')),
                   );
                 }
               } catch (e) {
                 if (mounted) {
                   context.showSnackBarAsToast(
-                    SnackBar(content: Text('Failed to restore: $e')),
+                    SnackBar(content: Text('Failed to unarchive: $e')),
                   );
                 }
               }
             },
-            child: const Text('Restore'),
+            child: const Text('Unarchive'),
           ),
         ],
       ),

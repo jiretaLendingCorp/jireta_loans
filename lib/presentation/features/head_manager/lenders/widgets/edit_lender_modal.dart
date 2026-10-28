@@ -88,7 +88,7 @@ class _EditLenderModalState extends ConsumerState<EditLenderModal> {
                       color: AppColors.gold, size: 22),
                   const SizedBox(width: 12),
                   const Expanded(
-                      child: Text('Edit Lender',
+                      child: Text('Edit Lendee',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 16,

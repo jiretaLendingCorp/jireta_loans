@@ -35,7 +35,7 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
   final _pillTabs = const [
     FilterTabDef('approved', 'Approved', Icons.check_circle_outline),
     FilterTabDef('rejected', 'Rejected', Icons.cancel_outlined),
-    FilterTabDef('failed', 'Failed', Icons.warning_amber_rounded),
+    FilterTabDef('failed', 'Not Completed', Icons.warning_amber_rounded),
   ];
 
   void _onDateRangeChanged(DateTimeRange? r) {
@@ -102,8 +102,8 @@ class _EmpCiListScreenState extends ConsumerState<EmpCiListScreen> {
       dropdownValue: dropdownValue,
       onDropdownChanged: (v) => ref.read(hmCiProvider.notifier).setStatus(v),
       pills: _pillTabs.map((t) {
-        // The Failed pill also surfaces rider-declined investigations so
-        // staff see every CI that needs reassignment in one place.
+        // The Not Completed pill also surfaces rider-declined investigations
+        // so staff see every CI that needs reassignment in one place.
         final isActive =
             t.key == active || (t.key == 'failed' && active == 'failed,declined');
         final statusToSend = t.key == 'failed' ? 'failed,declined' : t.key;
@@ -270,7 +270,7 @@ class _StatusInline extends StatelessWidget {
       case 'rejected': c = AppColors.error; label = 'Rejected'; break;
       case 'declined': c = AppColors.error; label = 'Declined'; break;
       case 'failed':
-      case 'expired': c = AppColors.error; label = 'Failed — Overdue'; break;
+      case 'expired': c = AppColors.error; label = 'Not Completed — Overdue'; break;
       case 'reassigned': c = AppColors.textSecondary; label = 'Reassigned'; break;
       default: c = AppColors.textSecondary; label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
     }

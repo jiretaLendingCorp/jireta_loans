@@ -86,7 +86,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   int _mpinLockSeconds = 0;
   Timer? _mpinLockTimer;
 
-  /// Auto-hide ng validation message (hal. "Incorrect MPIN") — 3 segundo lang.
+  /// Auto-hide ng validation message (hal. "Incorrect MPIN") — 1 segundo lang.
   Timer? _mpinErrorTimer;
 
   /// Natitirang segundo bago payagan ng server ang BAGONG code para sa reset.
@@ -100,7 +100,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   Timer? _resetCooldownTimer;
 
   /// Tagal bago kusang mawala ang mensahe ng maling MPIN.
-  static const _mpinErrorDuration = Duration(seconds: 3);
+  static const _mpinErrorDuration = Duration(seconds: 1);
 
   /// Taas na nakareserba sa itaas ng card para sa brand header
   /// ("Jireta Loans" + "& CREDIT CORP 1966"): 32 na offset mula sa itaas,
@@ -324,7 +324,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   }
 
   /// Ipinapakita ang mensahe ng maling MPIN, tapos kusang tinatanggal ito
-  /// pagkatapos ng [_mpinErrorDuration] (3 segundo) — para hindi ito manatiling
+  /// pagkatapos ng [_mpinErrorDuration] (1 segundo) — para hindi ito manatiling
   /// nakabitin habang nagta-type muli ang user.
   void _showMpinError(String message) {
     _mpinErrorTimer?.cancel();
@@ -1054,7 +1054,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                       // ── Mga mensahe: sa ILALIM ng 4 na tuldok ──
                       // Dalawa ang pwedeng lumabas dito:
                       //   • maling MPIN ("Incorrect MPIN. 2 attempts left.")
-                      //     — kusang nawawala pagkatapos ng 3 segundo
+                      //     — kusang nawawala pagkatapos ng 1 segundo
                       //     (tingnan ang `_showMpinError`),
                       //   • lockout ("Too many attempts. Try again in …")
                       //     — nananatili hangga't naka-lock.

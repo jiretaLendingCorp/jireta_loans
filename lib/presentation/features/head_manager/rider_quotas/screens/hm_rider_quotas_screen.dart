@@ -229,7 +229,7 @@ class _HmRiderQuotasScreenState extends ConsumerState<HmRiderQuotasScreen> {
                             child: Text('Completed')),
                         DropdownMenuItem(
                             value: RiderQuotaStatus.expired,
-                            child: Text('Expired')),
+                            child: Text('Missed')),
                         DropdownMenuItem(
                             value: RiderQuotaStatus.inactive,
                             child: Text('Inactive')),
@@ -361,7 +361,7 @@ class _QuotaSummaryCards extends StatelessWidget {
             value: '${summary.ridersMet}',
             icon: Icons.emoji_events_outlined,
             color: AppColors.success,
-            subtitle: '${summary.expiredQuotas} expired',
+            subtitle: '${summary.expiredQuotas} missed',
           ),
         ];
         return Wrap(

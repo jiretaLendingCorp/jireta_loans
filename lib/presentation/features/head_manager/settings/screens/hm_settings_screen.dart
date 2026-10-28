@@ -1,8 +1,11 @@
 // lib/presentation/features/head_manager/settings/screens/hm_settings_screen.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import '../../../../../core/di/injection.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/utils/input_formatters.dart';
 import '../../../../../domain/repositories/i_system_repository.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
@@ -41,12 +44,14 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
       'label': 'Minimum Loan Amount (₱)',
       'value': '3000',
       'type': 'number',
+      'money': 'true',
     },
     {
       'key': 'max_loan_amount',
       'label': 'Maximum Loan Amount (₱)',
       'value': '500000',
       'type': 'number',
+      'money': 'true',
     },
     {
       'key': 'interest_rate',
@@ -82,7 +87,11 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
   void initState() {
     super.initState();
     for (final c in _configs) {
-      _ctrls[c['key']!] = TextEditingController(text: c['value']);
+      final key = c['key']!;
+      _ctrls[key] = TextEditingController();
+      // I-format agad ang defaults (hal. `3000` -> `3,000`) para walang
+      // "glitch" na pagbabago kapag dumating ang server values.
+      _setControllerText(key, c['value']!);
     }
     // I-load ang aktwal na values mula sa `system_config` (interest rate, atbp.)
     // pagkatapos ng unang frame - hindi sa build, para hindi mag-setState habang
@@ -111,7 +120,7 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
           if (cfg['locked'] == 'true') continue;
           final serverValue = byKey[key];
           if (serverValue != null && serverValue.isNotEmpty) {
-            _ctrls[key]?.text = serverValue;
+            _setControllerText(key, serverValue);
           }
         }
       });
@@ -190,27 +199,70 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
           const SizedBox(width: 24),
           Expanded(
             flex: 2,
-            child: TextField(
-              controller: _ctrls[config['key']]!,
-              enabled: config['locked'] != 'true',
-              keyboardType: config['type'] == 'number'
-                  ? TextInputType.number
-                  : TextInputType.text,
-              decoration: InputDecoration(
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 240),
+                child: TextField(
+                  controller: _ctrls[config['key']]!,
+                  enabled: config['locked'] != 'true',
+                  keyboardType: TextInputType.number,
+                  // Naka-align sa START (kaliwa) ang numero, pantay ang lapad
+                  // ng digit — hindi na mukhang gumagalaw/glitch ang value.
+                  textAlign: TextAlign.start,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                    fontFeatures: [FontFeature.tabularFigures()],
+                  ),
+                  inputFormatters: _formattersFor(config['key']!),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    suffixText: config['locked'] == 'true' ? 'fixed' : null,
+                  ),
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                suffixText: config['locked'] == 'true' ? 'fixed' : null,
               ),
             ),
           ),
         ],
       ),
+    );
+  }
+
+  bool _isMoney(String key) =>
+      key == 'min_loan_amount' || key == 'max_loan_amount';
+
+  List<TextInputFormatter> _formattersFor(String key) {
+    if (_isMoney(key)) {
+      return const [ThousandsSeparatorInputFormatter(decimalDigits: 0)];
+    }
+    if (key == 'interest_rate') {
+      return [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))];
+    }
+    return [FilteringTextInputFormatter.digitsOnly];
+  }
+
+  /// I-format ang value bago ipakita sa field (hal. `600000` -> `600,000`)
+  /// at ilagay ang cursor sa dulo — dati kasi nagsisimula ito sa unahan at
+  /// nagdadagdag ang bagong type sa harap ng numero.
+  void _setControllerText(String key, String raw) {
+    final ctrl = _ctrls[key];
+    if (ctrl == null) return;
+    final parsed = double.tryParse(raw.replaceAll(',', '').trim());
+    final text = _isMoney(key) && parsed != null
+        ? NumberFormat('#,##0', 'en_PH').format(parsed)
+        : raw;
+    ctrl.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 
@@ -249,7 +301,9 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
       final key = cfg['key']!;
       if (cfg['locked'] == 'true') continue;
       if (!_serverKeys.contains(key)) continue;
-      final value = _ctrls[key]?.text.trim() ?? '';
+      // Alisin ang thousand separators bago i-save — numeric pa rin ang
+      // inaasahan ng backend (`Number(config_value)`).
+      final value = (_ctrls[key]?.text.trim() ?? '').replaceAll(',', '');
       if (value.isEmpty) continue;
       try {
         await repo.updateSystemConfig(key, value);
@@ -290,7 +344,7 @@ class _SystemConfigTabState extends ConsumerState<_SystemConfigTab> {
     if (confirmed == true) {
       setState(() {
         for (final c in _configs) {
-          _ctrls[c['key']]?.text = c['value']!;
+          _setControllerText(c['key']!, c['value']!);
         }
       });
     }

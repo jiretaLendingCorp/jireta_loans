@@ -59,7 +59,7 @@ class _EmpRegisterLenderModalState
                       ),
                       const SizedBox(width: 12),
                       const Text(
-                        'Create New Lender',
+                        'Create New Lendee',
                         style: TextStyle(
                             fontSize: 18, fontWeight: FontWeight.w700),
                       ),
@@ -196,7 +196,7 @@ class _EmpRegisterLenderModalState
                                   color: Colors.white,
                                 ),
                               )
-                            : const Text('Create Lender'),
+                            : const Text('Create Lendee'),
                       ),
                     ],
                   ),

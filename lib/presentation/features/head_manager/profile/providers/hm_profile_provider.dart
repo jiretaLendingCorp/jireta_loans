@@ -45,26 +45,20 @@ class HmProfileNotifier extends StateNotifier<HmProfileState>
     }
   }
 
-  Future<void> updateProfile({
-    required String firstName,
-    required String lastName,
-    String? middleName,
-    String? phoneNumber,
-    DateTime? dateOfBirth,
-  }) async {
-    final payload = <String, dynamic>{
-      'first_name': firstName,
-      'last_name': lastName,
-      if (middleName != null) 'middle_name': middleName,
-      if (phoneNumber != null) 'phone_number': phoneNumber,
-      if (dateOfBirth != null)
-        'employee_profile': {
-          'date_of_birth':
-              dateOfBirth.toIso8601String().substring(0, 10),
-        },
-    };
-    await _userDs.updateProfile(payload);
-    await loadProfile();
+  /// `null` = tagumpay. Kung may error, ibinabalik ang AKTWAL na mensahe ng
+  /// server (hal. "Email already registered") para iyon ang ipakita sa dialog
+  /// — hindi generic na "Failed to save".
+  Future<String?> updateProfile(Map<String, dynamic> data) async {
+    try {
+      await _userDs.updateProfile(data);
+      await loadProfile();
+      return null;
+    } catch (e) {
+      final message = ErrorHandler.handle(e).message.trim();
+      return message.isEmpty
+          ? 'Could not save your changes. Please try again.'
+          : message;
+    }
   }
 
   Future<void> updatePhoto(String url) async {

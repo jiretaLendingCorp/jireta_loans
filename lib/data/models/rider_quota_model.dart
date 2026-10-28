@@ -27,7 +27,10 @@ abstract final class RiderQuotaStatus {
     upcoming: 'Upcoming',
     active: 'Active',
     completed: 'Completed',
-    expired: 'Expired',
+    // `expired` ang code sa server (lumang API contract), pero "Missed" ang
+    // ipinapakita: tapos na ang period at HINDI naabot ang target. Ang
+    // "Expired" ay parang system error, hindi resulta ng quota.
+    expired: 'Missed',
     inactive: 'Inactive',
   };
 

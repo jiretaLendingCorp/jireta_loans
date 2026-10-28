@@ -7,7 +7,13 @@ import '../../../../../data/datasources/remote/user_remote_datasource.dart';
 import '../../../../../data/models/user_model.dart';
 import '../early_payer_badge.dart';
 
-Future<void> showUserDetailsModal(BuildContext context, UserModel user) {
+/// [roleLabelOverride] lets a section show its own label for the role (hal.
+/// "Lendee" sa Lenders list) nang hindi binabago ang label sa ibang sections.
+Future<void> showUserDetailsModal(
+  BuildContext context,
+  UserModel user, {
+  String? roleLabelOverride,
+}) {
   return showDialog<void>(
     context: context,
     barrierDismissible: true,
@@ -15,14 +21,18 @@ Future<void> showUserDetailsModal(BuildContext context, UserModel user) {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-      child: _UserDetailsModalContent(user: user),
+      child: _UserDetailsModalContent(
+        user: user,
+        roleLabelOverride: roleLabelOverride,
+      ),
     ),
   );
 }
 
 class _UserDetailsModalContent extends ConsumerStatefulWidget {
   final UserModel user;
-  const _UserDetailsModalContent({required this.user});
+  final String? roleLabelOverride;
+  const _UserDetailsModalContent({required this.user, this.roleLabelOverride});
 
   @override
   ConsumerState<_UserDetailsModalContent> createState() => _UserDetailsModalContentState();
@@ -64,7 +74,7 @@ class _UserDetailsModalContentState extends ConsumerState<_UserDetailsModalConte
     final user = _fullUser ?? widget.user;
     final role = user.role;
     final accent = _roleColor(role);
-    final roleLabel = _roleLabel(role);
+    final roleLabel = widget.roleLabelOverride ?? _roleLabel(role);
     final displayName =
         '${user.firstName}${user.middleName != null && user.middleName!.isNotEmpty ? ' ${user.middleName}' : ''} ${user.lastName}'.trim();
     final subtitle = _subtitleForRole(user);
