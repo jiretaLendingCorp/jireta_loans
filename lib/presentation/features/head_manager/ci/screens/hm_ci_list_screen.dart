@@ -10,6 +10,7 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../providers/hm_ci_provider.dart';
@@ -26,16 +27,16 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
   final _scrollCtrl = ScrollController();
   DateTimeRange? _dateRange;
 
-  final _dropdownTabs = const [
-    FilterTabDef('all', 'All', Icons.layers_outlined),
+  /// Mga option ng "All Status" dropdown sa toolbar.
+  final _statusTabs = const [
+    FilterTabDef('all', 'All Status', Icons.layers_outlined),
     FilterTabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
     FilterTabDef('in_progress', 'In Progress', Icons.timelapse_rounded),
     FilterTabDef('completed', 'Pending Approval', Icons.verified_outlined),
-  ];
-  final _pillTabs = const [
     FilterTabDef('approved', 'Approved', Icons.check_circle_outline),
     FilterTabDef('rejected', 'Rejected', Icons.cancel_outlined),
-    FilterTabDef('failed', 'Not Completed', Icons.warning_amber_rounded),
+    // `failed,declined` pareho ang sinasala kapag "Not Completed".
+    FilterTabDef('failed,declined', 'Not Completed', Icons.warning_amber_rounded),
   ];
 
   void _onDateRangeChanged(DateTimeRange? r) {
@@ -56,7 +57,6 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(hmCiProvider);
-    final effectiveTab = state.statusFilter;
 
     return WebScaffold(
       title: 'Credit Investigations',
@@ -68,8 +68,6 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTabPills(effectiveTab),
-              const SizedBox(height: 16),
               _buildToolbar(state),
               const SizedBox(height: 16),
               if (state.isLoading)
@@ -92,29 +90,6 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
 
 
 
-  Widget _buildTabPills(String active) {
-    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
-    final isDropdownActive = dropdownKeys.contains(active);
-    final dropdownValue = isDropdownActive ? active : null;
-    return FilterTabBar(
-      dropdownLabel: 'Pipeline',
-      dropdownOptions: _dropdownTabs,
-      dropdownValue: dropdownValue,
-      onDropdownChanged: (v) => ref.read(hmCiProvider.notifier).setStatus(v),
-      pills: _pillTabs.map((t) {
-        // The Not Completed pill also surfaces rider-declined investigations
-        // so staff see every CI that needs reassignment in one place.
-        final isActive =
-            t.key == active || (t.key == 'failed' && active == 'failed,declined');
-        final statusToSend = t.key == 'failed' ? 'failed,declined' : t.key;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: FilterPillTab(def: t, active: isActive, onTap: () => ref.read(hmCiProvider.notifier).setStatus(statusToSend)),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _buildToolbar(HmCiState state) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ResponsiveSearchToolbar(
@@ -132,6 +107,23 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
             onChanged: (v) => ref.read(hmCiProvider.notifier).setSearch(v),
           ),
           trailing: [
+            // Status filter — dropdown na kapareho ng "All Riders" ng Rider
+            // Monitoring, at nasa UNahan ng Filter Date.
+            FilterDropdown<String>(
+              value: _statusTabs.any((t) => t.key == state.statusFilter)
+                  ? state.statusFilter
+                  : 'all',
+              icon: Icons.filter_list_rounded,
+              items: _statusTabs
+                  .map((t) => DropdownMenuItem(
+                        value: t.key,
+                        child: Text(t.label),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) ref.read(hmCiProvider.notifier).setStatus(v);
+              },
+            ),
             SearchDateFilter(
               value: _dateRange,
               onChanged: _onDateRangeChanged,
@@ -145,7 +137,7 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
     return ResponsiveListCard(
       minTableWidth: 760,
       columns: const [
-        ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
+        ResponsiveCol('Lendee', icon: Icons.person_outline, flex: 3),
         ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
         ResponsiveCol('Deadline', icon: Icons.event_outlined, flex: 2),
         ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 3),
@@ -175,11 +167,19 @@ class _HmCiListScreenState extends ConsumerState<HmCiListScreen> {
             displayStatus != 'reassigned';
         return ResponsiveRow(
           cells: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(ci.loanNumber ?? 'CI Assignment', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-              const SizedBox(height: 2),
-              Text(ci.borrowerName ?? '—', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
-            ]),
+            // Lendee lang ang nakalagay dito — wala nang LN sa CI list.
+            // Nasa CI details / Loan Records na ang loan number kapag
+            // kailangan ito.
+            Text(
+              (ci.borrowerName ?? '').toString().isEmpty
+                  ? 'Unknown lendee'
+                  : ci.borrowerName.toString(),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                  color: AppColors.textPrimary),
+              overflow: TextOverflow.ellipsis,
+            ),
             Text(ci.riderName?.toString().isNotEmpty == true ? ci.riderName : 'Unassigned', style: const TextStyle(fontSize: 13, color: AppColors.textPrimary, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(ci.deadline != null ? DateFormat('MMM dd, yyyy').format(ci.deadline!) : '—', style: TextStyle(fontSize: 13, color: isOverdue ? AppColors.error : AppColors.textPrimary, fontWeight: FontWeight.w600)),

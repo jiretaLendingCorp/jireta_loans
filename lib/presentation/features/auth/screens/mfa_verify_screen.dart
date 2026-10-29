@@ -3,8 +3,8 @@
 // ── \"Verify it's you\" — authenticator (TOTP) challenge ──────────────────────
 //
 // Ang screen na ito ang humihingi ng 6-digit na code mula sa Google
-// Authenticator pagkatapos ng phone-OTP login, KAPAG may verified TOTP factor
-// ang account.
+// Authenticator pagkatapos ng phone-OTP login o email/password login, KAPAG may
+// verified TOTP factor ang account (kasama ang employee role).
 //
 // Paano ito hindi nalalampasan:
 //   * ang router redirect (`mfaRedirect`) ay hindi pumapayag na mabuksan ang
@@ -20,6 +20,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/route_constants.dart';
 import '../../../../core/security/mfa_service.dart';
 import '../../../../core/security/secure_storage.dart';
@@ -246,11 +247,23 @@ class _MfaVerifyScreenState extends ConsumerState<MfaVerifyScreen> {
     context.go(destination.location, extra: destination.extra);
   }
 
+  /// Staff (employee / head manager) ang pumapasok sa web email/password
+  /// login; ang rider/lender ay sa mobile OTP login. Gamit ito para tama ang
+  /// "use another account" na landas at label.
+  bool get _isStaff {
+    final role = ref.read(authStateProvider).role;
+    return role == AppConstants.roleEmployee ||
+        role == AppConstants.roleHeadManager;
+  }
+
   /// Hard logout: binubura ang tokens (kasama ang pending marker) at ang
   /// Supabase session — kaya hindi na maipit ang user sa pagitan ng MFA screen
-  /// at MPIN lock. Kailangan ng bagong OTP + authenticator code para makapasok
-  /// muli.
+  /// at MPIN lock. Kailangan ng bagong login + authenticator code para
+  /// makapasok muli.
   Future<void> _signOut() async {
+    // Basahin bago i-clear ang auth state — mawawala ang role pagkatapos ng
+    // logout, kaya hindi na matukoy kung saan ang login page.
+    final staff = _isStaff;
     try {
       await SecureStorage.clearAll();
       await ref.read(authStateProvider.notifier).logout();
@@ -258,7 +271,7 @@ class _MfaVerifyScreenState extends ConsumerState<MfaVerifyScreen> {
       AppLogger.w('[MFA] sign out failed: $e');
     }
     if (!mounted) return;
-    context.go(RouteConstants.mobileLogin);
+    context.go(staff ? RouteConstants.webLogin : RouteConstants.mobileLogin);
   }
 
   @override
@@ -288,7 +301,9 @@ class _MfaVerifyScreenState extends ConsumerState<MfaVerifyScreen> {
                     const SizedBox(height: 16),
                     TextButton(
                       onPressed: _submitting ? null : _signOut,
-                      child: const Text('Use another number'),
+                      child: Text(
+                        _isStaff ? 'Use another account' : 'Use another number',
+                      ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -448,7 +463,11 @@ class _MfaVerifyScreenState extends ConsumerState<MfaVerifyScreen> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('Sign out and use another number'),
+              child: Text(
+                _isStaff
+                    ? 'Sign out and use another account'
+                    : 'Sign out and use another number',
+              ),
             ),
           ],
         ],

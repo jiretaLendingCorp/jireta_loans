@@ -112,14 +112,18 @@ class _LenderAccountUpgradeStatusScreenState
   Widget _buildRejectedView(LenderAccountUpgradeState state) {
     final days = state.cooldownDaysRemaining;
     final inCooldown = state.isInCooldown;
+    final permanent = state.isPermanentlyRejected;
     final resubmit = state.resubmitAfter;
     String? cooldownLine;
-    if (inCooldown) {
+    if (permanent) {
+      cooldownLine =
+          'This decision is final. You can no longer resubmit an account upgrade.';
+    } else if (inCooldown) {
       cooldownLine = (days != null && days > 0)
           ? (resubmit != null
-              ? 'You may resubmit after 1 month (${resubmit.toLocal().toString().substring(0, 10)}). $days day(s) remaining.'
-              : 'You may resubmit after 1 month. $days day(s) remaining.')
-          : 'You may resubmit after 1 month.';
+              ? 'You may resubmit on ${resubmit.toLocal().toString().substring(0, 10)}. $days day(s) remaining.'
+              : 'You may resubmit after $days day(s).')
+          : 'You may currently resubmit your account upgrade.';
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -133,10 +137,12 @@ class _LenderAccountUpgradeStatusScreenState
           ),
           child: Column(
             children: [
-              const Text(
-                'Account upgrade submission rejected',
+              Text(
+                permanent
+                    ? 'Account upgrade submission permanently rejected'
+                    : 'Account upgrade submission rejected',
                 textAlign: TextAlign.center,
-                style: TextStyle(
+                style: const TextStyle(
                     fontSize: 14,
                     color: AppColors.error,
                     fontWeight: FontWeight.w700),
@@ -154,7 +160,7 @@ class _LenderAccountUpgradeStatusScreenState
           ),
         ),
         const SizedBox(height: 20),
-        if (inCooldown)
+        if (permanent || inCooldown)
           ElevatedButton(
             onPressed: null,
             style: ElevatedButton.styleFrom(
@@ -163,7 +169,7 @@ class _LenderAccountUpgradeStatusScreenState
                   borderRadius: BorderRadius.circular(10)),
             ),
             child: Text(
-              days != null && days > 0
+              !permanent && days != null && days > 0
                   ? 'Resubmit after $days day(s)'
                   : 'Resubmit unavailable',
               style: const TextStyle(fontWeight: FontWeight.w700),

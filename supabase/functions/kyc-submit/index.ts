@@ -134,36 +134,49 @@ serve(async (req) => {
       );
     }
 
-    // ── 1-month resubmit cooldown after rejection ─────────────────────────
-    // Rejected lenders may only resubmit once 30 days have passed since the
-    // latest rejection (anchored on account_upgrade_documents.reviewed_at,
-    // fallback to lender_profiles.updated_at).
+    // ── Resubmit cooldown after rejection ─────────────────────────────────
+    // Ang staff-chosen `reapply_allowed_at` (00191) ang basehan; kung wala
+    // (lumang data / lumang app build), default na 30 days mula sa latest
+    // rejection (reviewed_at, fallback sa lender_profiles.updated_at).
     const { data: curProfile } = await db
       .from("lender_profiles")
-      .select("account_upgrade_status, updated_at")
+      .select("account_upgrade_status, updated_at, account_upgrade_permanently_rejected")
       .eq("id", user.id)
       .maybeSingle();
+    // 00191: permanenteng rejection — hindi na makakapag-resubmit kahit kailan.
+    if (
+      curProfile?.account_upgrade_status === "rejected" &&
+      curProfile?.account_upgrade_permanently_rejected === true
+    ) {
+      return errorResponse(
+        "Account upgrade was permanently rejected. You can no longer resubmit.",
+        403,
+        "ACCOUNT_UPGRADE_PERMANENT",
+      );
+    }
     if (curProfile?.account_upgrade_status === "rejected") {
       const { data: rejDocs } = await db
         .from("account_upgrade_documents")
-        .select("reviewed_at")
+        .select("reviewed_at, reapply_allowed_at")
         .eq("lender_id", user.id)
         .eq("status", "rejected")
         .order("reviewed_at", { ascending: false })
         .limit(1);
+      const latestRejected = rejDocs?.[0] ?? null;
       const rawRejectedAt =
-        rejDocs?.[0]?.reviewed_at ?? curProfile?.updated_at ?? null;
+        latestRejected?.reviewed_at ?? curProfile?.updated_at ?? null;
+      const rawReapply = latestRejected?.reapply_allowed_at ?? null;
       if (rawRejectedAt) {
         const rejectedAt = new Date(rawRejectedAt);
-        const resubmitAfter = new Date(
-          rejectedAt.getTime() + 30 * 24 * 60 * 60 * 1000,
-        );
+        const resubmitAfter = rawReapply
+          ? new Date(rawReapply)
+          : new Date(rejectedAt.getTime() + 30 * 24 * 60 * 60 * 1000);
         if (new Date() < resubmitAfter) {
           const daysLeft = Math.ceil(
             (resubmitAfter.getTime() - Date.now()) / (24 * 60 * 60 * 1000),
           );
           return errorResponse(
-            `Account upgrade rejected. You may resubmit after 1 month (${resubmitAfter.toISOString().substring(0, 10)}). ${daysLeft} day(s) remaining.`,
+            `Account upgrade rejected. You may resubmit on ${resubmitAfter.toISOString().substring(0, 10)}. ${daysLeft} day(s) remaining.`,
             403,
             "ACCOUNT_UPGRADE_COOLDOWN",
             {

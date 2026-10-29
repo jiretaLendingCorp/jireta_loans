@@ -16,6 +16,7 @@ import 'package:jireta_loans/core/constants/app_constants.dart';
 import 'package:jireta_loans/core/security/mpin_login_gate.dart';
 import 'package:jireta_loans/presentation/features/auth/screens/mobile_login_screen.dart';
 import 'package:jireta_loans/presentation/shared/providers/connectivity_provider.dart';
+import 'package:jireta_loans/presentation/shared/widgets/security/mpin_keypad.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -25,8 +26,13 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  Future<void> pumpLogin(WidgetTester tester, double width) async {
-    tester.view.physicalSize = Size(width, 800);
+  Future<void> pumpLogin(
+    WidgetTester tester,
+    double width, {
+    bool showMpin = false,
+    double height = 800,
+  }) async {
+    tester.view.physicalSize = Size(width, height);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
@@ -37,9 +43,12 @@ void main() {
         ],
         // `handoff` — alam na agad kung OTP form o MPIN ang lalabas, kaya
         // hindi na nagbabasa ng secure storage sa unang frame.
-        child: const MaterialApp(
+        child: MaterialApp(
           home: MobileLoginScreen(
-            handoff: MpinLoginChoice(showMpin: false, phone: '09171234567'),
+            handoff: MpinLoginChoice(
+              showMpin: showMpin,
+              phone: '09171234567',
+            ),
           ),
         ),
       ),
@@ -148,6 +157,34 @@ void main() {
     final cta = tester.widget<ElevatedButton>(
         find.widgetWithText(ElevatedButton, 'Send OTP'));
     expect(cta.onPressed, isNotNull);
+
+    await disposeTree(tester);
+  });
+
+  // Sa laptop na ~687px ang taas ng browser, dating putol ang keypad (1–6 lang
+  // ang kita). Itinaas ito para buo ang 1–9 at 0 sa unang view.
+  testWidgets('desktop (1366x687): buo ang number keypad sa unang view',
+      (tester) async {
+    await pumpLogin(tester, 1366, showMpin: true, height: 687);
+
+    expect(find.text('Enter MPIN'), findsOneWidget);
+    final keypad = tester.getRect(find.byType(MpinKeypadField));
+    expect(keypad.bottom, lessThanOrEqualTo(687),
+        reason: 'Nasa ibaba pa rin ng viewport ang ilang numero');
+    for (final digit in const [
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '0',
+    ]) {
+      expect(find.text(digit), findsOneWidget);
+    }
 
     await disposeTree(tester);
   });

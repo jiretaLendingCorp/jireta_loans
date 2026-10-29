@@ -15,11 +15,28 @@ class ApproveRejectModal extends StatefulWidget {
       String loanId, String? reason, DateTime? reapplyAllowedAt,
       bool permanent) onConfirm;
 
+  /// Optional na override sa pamagat/msg — ginagamit ng Account Upgrade reject
+  /// ("Reject Account Upgrade") para kapareho pa rin ng loan reject ang itsura.
+  final String? title;
+  final String? message;
+
+  /// Salitang gamit sa re-apply picker: "apply" para sa loan, "resubmit" para
+  /// sa account upgrade.
+  final String actionWord;
+
+  /// Itago ang "Permanent reject" — `false` para sa account upgrade, kung saan
+  /// resubmit date lang ang sinusuportahan ng backend.
+  final bool allowPermanent;
+
   const ApproveRejectModal({
     super.key,
     required this.loanId,
     required this.isApprove,
     required this.onConfirm,
+    this.title,
+    this.message,
+    this.actionWord = 'apply',
+    this.allowPermanent = true,
   });
 
   @override
@@ -46,6 +63,12 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
   @override
   Widget build(BuildContext context) {
     final color = widget.isApprove ? AppColors.success : AppColors.error;
+    final title = widget.title ??
+        (widget.isApprove ? 'Approve Loan' : 'Reject Loan');
+    final message = widget.message ??
+        (widget.isApprove
+            ? 'Are you sure you want to approve this loan application? This will proceed to disbursement.'
+            : 'Are you sure to reject this loan application? This action cannot be undone.');
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
@@ -58,7 +81,7 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
             size: 24,
           ),
           const SizedBox(width: 10),
-          Text(widget.isApprove ? 'Approve Loan' : 'Reject Loan'),
+          Expanded(child: Text(title)),
         ],
       ),
       // Naka-scroll: anim na pagpipilian + buod ang nasa loob, kaya hindi ito
@@ -71,9 +94,7 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.isApprove
-                    ? 'Are you sure you want to approve this loan application? This will proceed to disbursement.'
-                    : 'Are you sure to reject this loan application? This action cannot be undone.',
+                message,
                 style: const TextStyle(
                     fontSize: 14, color: AppColors.textSecondary),
               ),
@@ -83,6 +104,8 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
               if (!widget.isApprove) ...[
                 const Divider(height: 26),
                 LoanReapplyPicker(
+                  actionWord: widget.actionWord,
+                  allowPermanent: widget.allowPermanent,
                   onChanged: (choice) {
                     if (mounted) setState(() => _reapplyChoice = choice);
                   },

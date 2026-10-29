@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:jireta_loans/presentation/features/head_manager/loans/widgets/loan_reapply_picker.dart';
 
 Future<void> pumpPicker(
@@ -20,6 +21,11 @@ Future<void> pumpPicker(
 }
 
 void main() {
+  setUpAll(() async {
+    // Ginagamit ng hints ang AppFormatters.date (en_PH).
+    await initializeDateFormatting('en_PH');
+  });
+
   testWidgets('walang default — hindi ito basta 1 month', (tester) async {
     final choices = <LoanReapplyChoice?>[];
     await pumpPicker(tester, choices.add);

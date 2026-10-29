@@ -980,13 +980,22 @@ class _LenderAccountUpgradeSubmitScreenState
   }
 
   Future<void> _submit() async {
-    // 1-month cooldown: blocked resubmit when rejected and still in cooldown.
+    // Permanent rejection: hinding-hindi na pwedeng mag-resubmit.
+    // Cooldown: blocked pa habang hindi pa umabot sa staff-chosen date.
     final upgradeState = ref.read(lenderAccountUpgradeProvider);
+    if (upgradeState.isPermanentlyRejected) {
+      context.showErrorToast(
+          'Account upgrade was permanently rejected. You can no longer resubmit.');
+      return;
+    }
     if (upgradeState.isInCooldown) {
       final days = upgradeState.cooldownDaysRemaining;
+      final resubmit = upgradeState.resubmitAfter;
       context.showErrorToast(days != null && days > 0
-          ? 'Account upgrade rejected. You may resubmit after 1 month. $days day(s) remaining.'
-          : 'Account upgrade rejected. You may resubmit after 1 month.');
+          ? (resubmit != null
+              ? 'Account upgrade rejected. You may resubmit on ${resubmit.toLocal().toString().substring(0, 10)}. $days day(s) remaining.'
+              : 'Account upgrade rejected. You may resubmit after $days day(s).')
+          : 'Account upgrade rejected. You may resubmit now.');
       return;
     }
     // Docs show inline error text below each card (no toast — same as fields).
@@ -1266,10 +1275,11 @@ class _LenderAccountUpgradeSubmitScreenState
       // naaabot dahil bumaba ang flow sa wizard para sa success modal.
       return const SizedBox.shrink();
     }
-    // Rejected: 1-month cooldown before resubmit.
-    // Still in cooldown → blocked view (text + button only, no icon).
-    // Cooldown expired → fall through to the form so the lender can resubmit.
-    if (status == 'rejected' && state.isInCooldown) {
+    // Rejected: permanent o naka-cooldown pa → blocked view (text + button
+    // only, no icon). Kapag tapos na ang cooldown, tuloy sa form para maka-
+    // resubmit.
+    if (status == 'rejected' &&
+        (state.isPermanentlyRejected || state.isInCooldown)) {
       return _buildRejectedCooldownView(state);
     }
 
@@ -2096,17 +2106,21 @@ class _LenderAccountUpgradeSubmitScreenState
     );
   }
 
-  /// Rejected + still in 1-month cooldown: no icon, text only + button only.
+  /// Rejected + permanent/cooldown: no icon, text only + button only.
   Widget _buildRejectedCooldownView(LenderAccountUpgradeState state) {
     final days = state.cooldownDaysRemaining;
+    final permanent = state.isPermanentlyRejected;
     final resubmit = state.resubmitAfter;
     String cooldownLine;
-    if (days != null && days > 0) {
+    if (permanent) {
+      cooldownLine =
+          'This decision is final. You can no longer resubmit an account upgrade.';
+    } else if (days != null && days > 0) {
       cooldownLine = resubmit != null
-          ? 'You may resubmit after 1 month (${resubmit.toLocal().toString().substring(0, 10)}). $days day(s) remaining.'
-          : 'You may resubmit after 1 month. $days day(s) remaining.';
+          ? 'You may resubmit on ${resubmit.toLocal().toString().substring(0, 10)}. $days day(s) remaining.'
+          : 'You may resubmit after $days day(s).';
     } else {
-      cooldownLine = 'You may resubmit after 1 month.';
+      cooldownLine = 'You may currently resubmit your account upgrade.';
     }
     return SingleChildScrollView(
       padding:
@@ -2123,9 +2137,12 @@ class _LenderAccountUpgradeSubmitScreenState
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text('Account upgrade submission rejected',
+                Text(
+                    permanent
+                        ? 'Account upgrade submission permanently rejected'
+                        : 'Account upgrade submission rejected',
                     textAlign: TextAlign.center,
-                    style: TextStyle(
+                    style: const TextStyle(
                         fontSize: 14,
                         color: AppColors.error,
                         fontWeight: FontWeight.w700)),
@@ -2139,7 +2156,7 @@ class _LenderAccountUpgradeSubmitScreenState
           ),
           const SizedBox(height: 20),
           AppButton(
-            label: days != null && days > 0
+            label: !permanent && days != null && days > 0
                 ? 'Resubmit after $days day(s)'
                 : 'Resubmit unavailable',
             onPressed: null,

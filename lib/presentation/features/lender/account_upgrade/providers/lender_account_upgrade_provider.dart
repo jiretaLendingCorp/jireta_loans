@@ -51,6 +51,8 @@ class LenderAccountUpgradeState {
   }
 
   bool get isRejected => accountUpgradeStatus?.isRejected ?? false;
+  bool get isPermanentlyRejected =>
+      accountUpgradeStatus?.isPermanentlyRejected ?? false;
   bool get isInCooldown => accountUpgradeStatus?.isInCooldown ?? false;
   bool get canResubmit => accountUpgradeStatus?.canResubmit ?? true;
   DateTime? get resubmitAfter => accountUpgradeStatus?.resubmitAfter;

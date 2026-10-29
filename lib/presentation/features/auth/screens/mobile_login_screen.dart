@@ -1066,8 +1066,11 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                         child: _buildMpinStatus(locked: locked),
                       ),
 
-                      // Nasa ibaba ang keypad — may pagitan sa mga tuldok.
-                      const SizedBox(height: 126),
+                      // Nasa ibaba ang keypad — sapat lang ang pagitan sa mga
+                      // tuldok/mensahe para buo pa rin itong makita sa mas
+                      // maiikling desktop browser (hindi na kailangang i-scroll
+                      // para maabot ang 7–9 at 0).
+                      const SizedBox(height: 20),
 
                       // ── Keypad (walang card) + Reset MPIN ──
                       Column(

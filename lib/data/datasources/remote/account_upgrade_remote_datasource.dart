@@ -105,6 +105,8 @@ class AccountUpgradeRemoteDataSource {
     required String accountUpgradeDocId,
     required String action,
     String? rejectionNotes,
+    DateTime? reapplyAllowedAt,
+    bool permanent = false,
   }) async {
     await _client.patch(
       ApiEndpoints.accountUpgradeVerify,
@@ -112,6 +114,9 @@ class AccountUpgradeRemoteDataSource {
         'account_upgrade_doc_id': accountUpgradeDocId,
         'action': action,
         if (rejectionNotes != null) 'rejection_notes': rejectionNotes,
+        if (reapplyAllowedAt != null)
+          'reapply_allowed_at': reapplyAllowedAt.toUtc().toIso8601String(),
+        if (permanent) 'permanent': true,
       },
     );
   }
@@ -120,6 +125,8 @@ class AccountUpgradeRemoteDataSource {
     required String lenderId,
     required String action,
     String? rejectionNotes,
+    DateTime? reapplyAllowedAt,
+    bool permanent = false,
   }) async {
     await _client.patch(
       ApiEndpoints.accountUpgradeVerify,
@@ -127,6 +134,9 @@ class AccountUpgradeRemoteDataSource {
         'lender_id': lenderId,
         'action': action,
         if (rejectionNotes != null) 'rejection_notes': rejectionNotes,
+        if (reapplyAllowedAt != null)
+          'reapply_allowed_at': reapplyAllowedAt.toUtc().toIso8601String(),
+        if (permanent) 'permanent': true,
       },
     );
   }
@@ -135,11 +145,15 @@ class AccountUpgradeRemoteDataSource {
     required String accountUpgradeDocId,
     required String action,
     String? rejectionNotes,
+    DateTime? reapplyAllowedAt,
+    bool permanent = false,
   }) =>
       verifyAccountUpgrade(
         accountUpgradeDocId: accountUpgradeDocId,
         action: action,
         rejectionNotes: rejectionNotes,
+        reapplyAllowedAt: reapplyAllowedAt,
+        permanent: permanent,
       );
 
   Future<void> submitAccountUpgrade(

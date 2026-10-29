@@ -39,17 +39,12 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
     return WebScaffold(
       title: 'CI Assignment Details',
       actions: [
-        OutlinedButton.icon(
+        IconButton(
+          tooltip: 'Back to CI List',
           onPressed: () => context.go(RouteConstants.hmCi),
-          icon: const Icon(Icons.arrow_back_rounded, size: 16),
-          label: const Text('Back to CI List',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.border),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10))),
+          icon: const Icon(Icons.arrow_back_rounded, size: 20),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
       ],
       body: ciState.isLoading && ciState.ci == null
           ? const Center(child: CircularProgressIndicator())
@@ -465,11 +460,17 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
       (label: 'Accepted', done: hasAccepted || status == 'accepted' || status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.handshake_rounded),
       (label: 'In Progress', done: status == 'accepted' || status == 'in_progress' || isCompletedPending || isApproved || isRejected, icon: Icons.timelapse_rounded),
       (label: 'Submitted', done: ci['completed_at'] != null, icon: Icons.rate_review_rounded),
-      (label: 'Approved', done: isApproved, icon: Icons.verified_rounded),
+      (
+        label: isRejected ? 'Rejected' : 'Approved',
+        done: isApproved,
+        icon: isRejected ? Icons.close_rounded : Icons.verified_rounded,
+      ),
     ];
+    // Kapag rejected, ang huling stage na ang "failed" — pula ang dot at label
+    // nito para malinaw agad ang bagsak ng report (hindi ito tapos).
+    final failedIndex = isRejected ? steps.length - 1 : null;
     final activeIndex = () {
-      if (isApproved) return 4;
-      if (isRejected) return 3;
+      if (isApproved || isRejected) return 4;
       if (ci['completed_at'] != null) return 3;
       if (status == 'in_progress' || status == 'accepted') return 2;
       if (hasAccepted) return 1;
@@ -488,93 +489,159 @@ class _HmCiDetailsScreenState extends ConsumerState<HmCiDetailsScreen> {
         // HORIZONTAL stepper ang gamitin para puno ang buong lapad. Kapag
         // makitid (mobile/tablet), vertical pa rin para hindi mag-cramp ang
         // mga label.
-        if (c.maxWidth >= 720) return _buildHorizontalSteps(steps, activeIndex);
-        return _buildVerticalSteps(steps, activeIndex);
+        if (c.maxWidth >= 720) {
+          return _buildHorizontalSteps(steps, activeIndex, failedIndex);
+        }
+        return _buildVerticalSteps(steps, activeIndex, failedIndex);
       }),
     );
   }
 
   Widget _buildVerticalSteps(
-      List<({String label, bool done, IconData icon})> steps, int activeIndex) {
+      List<({String label, bool done, IconData icon})> steps,
+      int activeIndex,
+      int? failedIndex) {
     return Column(children: [
       for (int i = 0; i < steps.length; i++) ...[
         Row(children: [
-          _stepDot(steps[i], i == activeIndex),
+          _stepDot(steps[i], i == activeIndex, i == failedIndex),
           const SizedBox(width: 10),
           Expanded(
               child: Text(steps[i].label,
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: i == activeIndex ? FontWeight.w800 : FontWeight.w600,
-                      color: i == activeIndex ? AppColors.deepNavy : AppColors.textSecondary))),
+                      color: i == failedIndex
+                          ? AppColors.error
+                          : i == activeIndex
+                              ? AppColors.deepNavy
+                              : steps[i].done
+                                  ? AppColors.textSecondary
+                                  : AppColors.textTertiary))),
         ]),
         if (i < steps.length - 1)
           Padding(
-            padding: const EdgeInsets.only(left: 13.5, top: 4, bottom: 4),
-            child: Container(width: 1.5, height: 12, color: steps[i].done ? AppColors.riderGreen.withValues(alpha: 0.4) : AppColors.border),
+            padding: const EdgeInsets.only(left: 16, top: 4, bottom: 4),
+            child: Container(
+                width: 2,
+                height: 12,
+                color: steps[i].done
+                    ? AppColors.riderGreen.withValues(alpha: 0.45)
+                    : AppColors.border),
           ),
       ],
     ]);
   }
 
-  /// Horizontal stepper (wide card): naka-centro ang icon sa ibabaw ng label,
-  /// may connector na linya sa pagitan ng mga stage.
+  /// Horizontal stepper (wide card): pantay ang agwat ng mga stage, nakasentro
+  /// ang dot sa ibabaw ng label, at isang tuloy-tuloy na track sa likod ng mga
+  /// dot — berde ang mga segment na naabot na, abuhin ang natitira.
   Widget _buildHorizontalSteps(
-      List<({String label, bool done, IconData icon})> steps, int activeIndex) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (int i = 0; i < steps.length; i++) ...[
-          if (i > 0)
+      List<({String label, bool done, IconData icon})> steps,
+      int activeIndex,
+      int? failedIndex) {
+    return LayoutBuilder(builder: (context, c) {
+      final n = steps.length;
+      // Hatiin sa `n` pantay na kolumna para pare-pareho ang gap mula sa
+      // unang dot hanggang sa huli — walang naka-hardcode na lapad.
+      final stepWidth = c.maxWidth / n;
+      return Column(children: [
+        SizedBox(
+          height: 34,
+          child: Stack(
+            children: [
+              // Track: mula sa gitna ng unang dot hanggang sa gitna ng huli.
+              Positioned(
+                left: stepWidth / 2,
+                right: stepWidth / 2,
+                top: 16,
+                child: Row(children: [
+                  for (int i = 0; i < n - 1; i++)
+                    Expanded(
+                      child: Container(
+                        height: 2,
+                        color: steps[i].done
+                            ? AppColors.riderGreen.withValues(alpha: 0.45)
+                            : AppColors.border,
+                      ),
+                    ),
+                ]),
+              ),
+              Row(children: [
+                for (int i = 0; i < n; i++)
+                  Expanded(
+                    child: Center(
+                      child: _stepDot(
+                          steps[i], i == activeIndex, i == failedIndex),
+                    ),
+                  ),
+              ]),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(children: [
+          for (int i = 0; i < n; i++)
             Expanded(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Container(
-                    height: 2,
-                    color: steps[i - 1].done
-                        ? AppColors.riderGreen.withValues(alpha: 0.4)
-                        : AppColors.border),
+              child: Text(
+                steps[i].label,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                style: TextStyle(
+                    fontSize: 11,
+                    height: 1.25,
+                    fontWeight:
+                        i == activeIndex ? FontWeight.w800 : FontWeight.w600,
+                    color: i == failedIndex
+                        ? AppColors.error
+                        : i == activeIndex
+                            ? AppColors.deepNavy
+                            : steps[i].done
+                                ? AppColors.textSecondary
+                                : AppColors.textTertiary),
               ),
             ),
-          SizedBox(
-            width: 96,
-            child: Column(children: [
-              _stepDot(steps[i], i == activeIndex),
-              const SizedBox(height: 6),
-              Text(steps[i].label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: i == activeIndex ? FontWeight.w800 : FontWeight.w600,
-                      color: i == activeIndex ? AppColors.deepNavy : AppColors.textSecondary)),
-            ]),
-          ),
-        ],
-      ],
-    );
+        ]),
+      ]);
+    });
   }
 
-  Widget _stepDot(({String label, bool done, IconData icon}) step, bool isActive) {
-    return Container(
-      width: 22,
-      height: 22,
-      decoration: BoxDecoration(
-        color: step.done
+  /// Isang dot ng workflow: berde = tapos, asul = kasalukuyang stage, pula =
+  /// rejected, at may manipis na halo ang aktibong stage para agad itong
+  /// mapansin sa mahabang pipeline.
+  Widget _stepDot(({String label, bool done, IconData icon}) step,
+      bool isActive, bool isFailed) {
+    final color = isFailed
+        ? AppColors.error
+        : step.done
             ? AppColors.riderGreen
             : isActive
                 ? AppColors.lenderBlue
-                : AppColors.surfaceVariant,
+                : AppColors.surfaceVariant;
+    final filled = step.done || isActive || isFailed;
+    return Container(
+      width: 34,
+      height: 34,
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
         shape: BoxShape.circle,
+        color: isActive ? color.withValues(alpha: 0.14) : Colors.transparent,
         border: Border.all(
-            color: step.done
-                ? AppColors.riderGreen
-                : isActive
-                    ? AppColors.lenderBlue
-                    : AppColors.border),
+            color:
+                isActive ? color.withValues(alpha: 0.35) : Colors.transparent,
+            width: 2),
       ),
-      child: Icon(step.icon,
-          size: 12,
-          color: step.done || isActive ? Colors.white : AppColors.textTertiary),
+      child: Container(
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          border: Border.all(
+              color: filled ? color : AppColors.border, width: 1.2),
+        ),
+        child: Icon(step.icon,
+            size: 14,
+            color: filled ? Colors.white : AppColors.textTertiary),
+      ),
     );
   }
 
@@ -862,13 +929,14 @@ class _SectionCard extends StatelessWidget {
             const SizedBox(width: 8),
             Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title,
-                  style: TextStyle(
-                      fontSize: compact ? 11 : 12,
+                  style: const TextStyle(
+                      fontSize: 12,
                       fontWeight: FontWeight.w800,
                       color: Colors.white)),
               if (subtitle.isNotEmpty)
                 Text(subtitle,
-                    style: TextStyle(fontSize: compact ? 9 : 10, color: Colors.white70)),
+                    style:
+                        const TextStyle(fontSize: 10, color: Colors.white70)),
             ]),
             if (trailing != null) ...[
               const Spacer(),

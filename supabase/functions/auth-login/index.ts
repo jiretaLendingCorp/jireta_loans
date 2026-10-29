@@ -21,6 +21,7 @@ import {
   cleanSessionId,
   sessionIdentifierFromToken,
 } from '../_shared/auth.ts';
+import { fetchUserMfaState } from '../_shared/mfa.ts';
 
 // ── Persistent, escalating login lockout ───────────────────────────────────
 // Stored in `login_lockouts` (keyed by user_id) so the lock survives a browser
@@ -371,18 +372,40 @@ serve(async (req) => {
       console.warn('[auth-login] claimActiveSession failed', e);
     }
 
-   return jsonResponse({
-  access_token:  authData.session.access_token,
-  refresh_token: authData.session.refresh_token,
-  user: {
-    id:                    user.id,
-    email:                 user.email,
-    first_name:            user.first_name  ?? '',   // FIX: was missing → avatar showed 'U'
-    last_name:             user.last_name   ?? '',   // FIX: was missing
-    role,
-    force_password_change: user.force_password_change,
-  },
-});
+    // ── MFA (TOTP) state ng account ───────────────────────────────────────
+    // Ang `signInWithPassword` ay `aal1` pa kahit may naka-enroll nang
+    // authenticator app. Ipinapaalam ito ng server (service-role) para ang
+    // app ay dumaan sa `mfa.challenge` + `mfa.verify` bago ang dashboard —
+    // kapareho ng OTP login ng rider/lender at ng staff flow.
+    // `enabled: null` = hindi matukoy (admin API error), hindi "wala": ang
+    // client ay may fallback sa Supabase Auth (`getUser().factors`).
+    const mfaState = await fetchUserMfaState(db, user.id);
+    const verifiedFactors = mfaState.factors.filter(
+      (factor) => factor.status === 'verified',
+    );
+
+    return jsonResponse({
+      access_token: authData.session.access_token,
+      refresh_token: authData.session.refresh_token,
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name ?? '', // FIX: was missing → avatar showed 'U'
+        last_name: user.last_name ?? '', // FIX: was missing
+        role,
+        force_password_change: user.force_password_change,
+      },
+      // Non-secret na metadata lang (id + pangalan) — walang TOTP secret.
+      mfa: {
+        enabled: mfaState.ok ? verifiedFactors.length > 0 : null,
+        factors: mfaState.ok
+          ? verifiedFactors.map((factor) => ({
+            id: factor.id,
+            friendly_name: factor.friendly_name,
+          }))
+          : [],
+      },
+    });
 
   } catch (err) {
     console.error('[auth-login] unexpected error', {

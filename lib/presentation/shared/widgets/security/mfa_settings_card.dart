@@ -1,7 +1,7 @@
 // lib/presentation/shared/widgets/security/mfa_settings_card.dart
 //
 // Ang "Two-Factor Authentication" (Google Authenticator / TOTP) na row sa
-// Lender Profile > Security — kasama ng MPIN card:
+// profile Security ng rider / lender / employee — kasama ng MPIN card:
 //
 //   * ipinapakita ang KASALUKUYANG status (ON / OFF / hindi matukoy);
 //   * ON → Switch + "Disable 2FA" (na may reauthentication gamit ang code);
@@ -130,7 +130,7 @@ class _MfaSettingsCardState extends State<MfaSettingsCard> {
           ),
           ModernSheetSection(
             title: 'After a reset',
-            body: 'Sign in again with your mobile number and SMS OTP, then set '
+            body: 'Sign in again with your registered sign-in method, then set '
                 'up the authenticator app again from this screen.',
           ),
           ModernSheetSection(

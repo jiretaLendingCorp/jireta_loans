@@ -57,7 +57,20 @@ class LoanReapplyPicker extends StatefulWidget {
   /// ipapasa sa `rejectLoan(..., reapplyAllowedAt:, permanent:)`.
   final ValueChanged<LoanReapplyChoice?> onChanged;
 
-  const LoanReapplyPicker({super.key, required this.onChanged});
+  /// Salitang ginagamit sa tanong at hints: "apply" para sa loan rejection,
+  /// "resubmit" para sa account upgrade rejection.
+  final String actionWord;
+
+  /// Itago ang "Permanent reject" na opsyon — ginagamit ng Account Upgrade
+  /// kung saan ang resubmit date lang ang sinusuportahan ng backend.
+  final bool allowPermanent;
+
+  const LoanReapplyPicker({
+    super.key,
+    required this.onChanged,
+    this.actionWord = 'apply',
+    this.allowPermanent = true,
+  });
 
   @override
   State<LoanReapplyPicker> createState() => _LoanReapplyPickerState();
@@ -143,7 +156,7 @@ class _LoanReapplyPickerState extends State<LoanReapplyPicker> {
   String? _hintFor(LoanReapplyPreset preset) {
     switch (preset) {
       case LoanReapplyPreset.now:
-        return 'Can apply again right away';
+        return 'Can ${widget.actionWord} again right away';
       case LoanReapplyPreset.oneMonth:
         return 'From ${AppFormatters.date(_addMonths(DateTime.now(), 1))}';
       case LoanReapplyPreset.threeMonths:
@@ -155,7 +168,7 @@ class _LoanReapplyPickerState extends State<LoanReapplyPicker> {
             ? 'Pick an exact date'
             : 'From ${AppFormatters.date(_customDate!)}';
       case LoanReapplyPreset.permanent:
-        return 'Can never apply again — permanent block';
+        return 'Can never ${widget.actionWord} again — permanent block';
     }
   }
 
@@ -167,9 +180,9 @@ class _LoanReapplyPickerState extends State<LoanReapplyPicker> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        const Text(
-          'When can the lender apply again?',
-          style: TextStyle(
+        Text(
+          'When can the lender ${widget.actionWord} again?',
+          style: const TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w700,
               color: AppColors.textPrimary),
@@ -217,20 +230,22 @@ class _LoanReapplyPickerState extends State<LoanReapplyPicker> {
           active: _preset == LoanReapplyPreset.custom,
           onTap: () => _select(LoanReapplyPreset.custom),
         ),
-        const Padding(
-          padding: EdgeInsets.symmetric(vertical: 10),
-          child: Divider(height: 1),
-        ),
-        // Destructive na pagpipilian — hiwalay sa ibaba at may pulang
-        // kulay para hindi ito mapindot nang hindi sinasadya.
-        _ReapplyOption(
-          icon: Icons.block_rounded,
-          label: 'Permanent reject',
-          hint: _hintFor(LoanReapplyPreset.permanent),
-          active: isPermanent,
-          danger: true,
-          onTap: () => _select(LoanReapplyPreset.permanent),
-        ),
+        if (widget.allowPermanent) ...[
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 10),
+            child: Divider(height: 1),
+          ),
+          // Destructive na pagpipilian — hiwalay sa ibaba at may pulang
+          // kulay para hindi ito mapindot nang hindi sinasadya.
+          _ReapplyOption(
+            icon: Icons.block_rounded,
+            label: 'Permanent reject',
+            hint: _hintFor(LoanReapplyPreset.permanent),
+            active: isPermanent,
+            danger: true,
+            onTap: () => _select(LoanReapplyPreset.permanent),
+          ),
+        ],
         const SizedBox(height: 12),
         // Buod ng pinili — dating hubad na text, ngayon ay naka-callout para
         // kitang-kita bago pindutin ang Reject. Walang default: hangga't hindi
@@ -273,13 +288,15 @@ class _LoanReapplyPickerState extends State<LoanReapplyPicker> {
               Expanded(
                 child: Text(
                   choice == null
-                      ? 'No default — choose when the lender can apply again.'
+                      ? 'No default — choose when the lender can '
+                          '${widget.actionWord} again.'
                       : isPermanent
-                          ? 'Permanent: the lender can no longer apply for a '
-                              'new loan.'
+                          ? 'Permanent: the lender can no longer '
+                              '${widget.actionWord} again.'
                           : _preset == LoanReapplyPreset.now
-                              ? 'The lender can apply again right away.'
-                              : 'The lender can apply again on '
+                              ? 'The lender can ${widget.actionWord} again '
+                                  'right away.'
+                              : 'The lender can ${widget.actionWord} again on '
                                   '${AppFormatters.date(choice.allowedAt!)}.',
                   style: TextStyle(
                       fontSize: 12,

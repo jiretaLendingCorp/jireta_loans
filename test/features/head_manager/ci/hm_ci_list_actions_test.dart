@@ -107,7 +107,7 @@ void main() {
 
   tearDown(() => GetIt.instance.reset());
 
-  Future<void> pumpList(
+  Future<_StubHmCiNotifier> pumpList(
     WidgetTester tester,
     CreditInvestigationModel ci,
   ) async {
@@ -124,6 +124,7 @@ void main() {
     );
     addTearDown(router.dispose);
 
+    final notifier = _StubHmCiNotifier([ci]);
     await tester.pumpWidget(ProviderScope(
       overrides: [
         authStateProvider.overrideWith((ref) => _FakeAuthNotifier()),
@@ -133,11 +134,12 @@ void main() {
             sl<AuthRemoteDataSource>(),
           ),
         ),
-        hmCiProvider.overrideWith((ref) => _StubHmCiNotifier([ci])),
+        hmCiProvider.overrideWith((ref) => notifier),
       ],
       child: MaterialApp.router(routerConfig: router),
     ));
     await tester.pumpAndSettle();
+    return notifier;
   }
 
   testWidgets('pending approval: walang Reassign Rider sa actions',
@@ -172,15 +174,45 @@ void main() {
     expect(find.text('Reassign'), findsOneWidget);
   });
 
-  testWidgets('failed: "Not Completed" ang pill at row status, hindi "Failed"',
+  testWidgets('failed: "Not Completed" ang row status, hindi "Failed"',
       (tester) async {
     await pumpList(tester, _ci('failed'));
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Not Completed'), findsOneWidget,
-        reason: 'Pill label — hindi basta "Failed"');
     expect(find.text('Not Completed — Overdue'), findsOneWidget,
-        reason: 'Row status — dapat pareho ang salita sa pill');
+        reason: 'Row status — dapat pareho ang salita sa dropdown');
+    expect(find.text('Not Completed'), findsNothing,
+        reason: 'Tinanggal na ang status pills sa itaas ng listahan');
     expect(find.text('Failed'), findsNothing);
+  });
+
+  testWidgets('Lendee lang sa table — wala nang LN', (tester) async {
+    await pumpList(tester, _ci('approved'));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('LENDEE'), findsOneWidget);
+    expect(find.text('LENDEE & LOAN'), findsNothing);
+    expect(find.text('Mike Nindo'), findsOneWidget);
+    expect(find.text('LN-2026-916379'), findsNothing,
+        reason: 'Wala nang LN sa CI list');
+  });
+
+  testWidgets('status filter: All Status dropdown bago ang Filter Date',
+      (tester) async {
+    final notifier = await pumpList(tester, _ci('completed'));
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('All Status'), findsOneWidget);
+    expect(tester.getTopLeft(find.text('All Status')).dx,
+        lessThan(tester.getTopLeft(find.text('Filter Date')).dx),
+        reason: 'Dapat nasa kaliwa ng Filter Date ang status dropdown');
+
+    await tester.tap(find.text('All Status'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Assigned').last);
+    await tester.pumpAndSettle();
+
+    expect(notifier.state.statusFilter, 'assigned',
+        reason: 'Dapat agad na-filter sa Assigned ang listahan');
   });
 }

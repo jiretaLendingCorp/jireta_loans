@@ -98,7 +98,7 @@ async function handleVerify(req: Request) {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { account_upgrade_doc_id, lender_id, action, rejection_notes } = body;
+    const { account_upgrade_doc_id, lender_id, action, rejection_notes, reapply_allowed_at, permanent } = body;
     if (!['verified', 'rejected'].includes(action)) {
       return errorResponse('action (verified|rejected) is required', 400, 'VALIDATION_ERROR');
     }
@@ -107,6 +107,34 @@ async function handleVerify(req: Request) {
     if (!account_upgrade_doc_id && !lender_id) {
       return errorResponse('account_upgrade_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
     }
+
+    // 00191: ang STAFF ang nagde-decide kung kailan pwedeng mag-resubmit ng
+    // Account Upgrade pagkatapos ma-reject (kapareho ng loan reject, 00176).
+    // ISO timestamp; wala/null = default 1-month cooldown (lumang build).
+    let reapplyAllowedAt: string | null = null;
+    if (
+      action === 'rejected' &&
+      reapply_allowed_at !== undefined &&
+      reapply_allowed_at !== null &&
+      String(reapply_allowed_at).trim() !== ''
+    ) {
+      const parsed = new Date(String(reapply_allowed_at));
+      if (Number.isNaN(parsed.getTime())) {
+        return errorResponse('Invalid reapply_allowed_at', 400, 'VALIDATION_ERROR');
+      }
+      // Guard rail: hanggang 2 taon lang — mas mahaba pa ay malamang typo.
+      const maxMs = Date.now() + 2 * 365 * 24 * 60 * 60 * 1000;
+      if (parsed.getTime() > maxMs) {
+        return errorResponse('Resubmit date cannot be more than 2 years from now', 400, 'VALIDATION_ERROR');
+      }
+      reapplyAllowedAt = parsed.toISOString();
+    }
+
+    // 00191: PERMANENTENG rejection — hindi na makakapag-resubmit ang lender
+    // kahit kailan (kapareho ng `loans.permanently_rejected`, 00179). Kapag
+    // permanent, hindi na pinapansin ang cooldown date.
+    const isPermanent = action === 'rejected' && permanent === true;
+    if (isPermanent) reapplyAllowedAt = null;
 
     const db = getAdminClient();
     const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
@@ -124,14 +152,36 @@ async function handleVerify(req: Request) {
 
     // When lender_id is given, verify/reject ALL non-final docs for that lender
     // in a single operation. When account_upgrade_doc_id is given, only that doc is updated.
-    let query = db.from('account_upgrade_documents').update({
+    const reviewUpdate: Record<string, unknown> = {
       status: action,
       reviewed_by: user.id,
       reviewed_at: now,
       rejection_notes: rejection_notes ?? null,
-    }).eq('lender_id', targetLenderId);
+      // Naka-set lang kapag rejection; nilinis kapag verified para hindi
+      // magmana ang lumang resubmit date.
+      reapply_allowed_at:
+        action === 'rejected' && !isPermanent ? reapplyAllowedAt : null,
+    };
+    let query = db.from('account_upgrade_documents').update(reviewUpdate).eq('lender_id', targetLenderId);
     if (singleDocId) query = query.eq('id', singleDocId);
-    const { error: updateError } = await query;
+    let { error: updateError } = await query;
+    // Deploy-order guard: kung wala pa ang 00191 column, huwag hayaang mabigo
+    // ang rejection — retry na walang reapply_allowed_at (default cooldown).
+    if (updateError && /reapply_allowed_at/i.test(updateError.message ?? '')) {
+      console.error(
+        '[kyc-verify] kulang ang migration 00191 — update na walang reapply_allowed_at:',
+        updateError.message,
+      );
+      const fallbackUpdate = { ...reviewUpdate };
+      delete fallbackUpdate.reapply_allowed_at;
+      let retryQuery = db.from('account_upgrade_documents')
+        .update(fallbackUpdate)
+        .eq('lender_id', targetLenderId);
+      if (singleDocId) retryQuery = retryQuery.eq('id', singleDocId);
+      const retry = await retryQuery;
+      updateError = retry.error;
+      reapplyAllowedAt = null;
+    }
     if (updateError) return errorResponse('Failed to update Account Upgrade documents', 500, 'DB_ERROR');
 
     const { data: allDocs } = await db.from('account_upgrade_documents').select('status').eq('lender_id', targetLenderId);
@@ -150,7 +200,19 @@ async function handleVerify(req: Request) {
       updated_at: now,
       account_upgrade_rejection_notes:
         action === 'rejected' ? (rejection_notes ?? null) : null,
+      // Tina-tahasang i-set sa bawat review: true kapag permanent reject,
+      // false kapag normal rejection o verified (nag-a-unblock).
+      account_upgrade_permanently_rejected:
+        action === 'rejected' ? isPermanent : false,
     }).eq('id', targetLenderId);
+
+    // Cooldown: ang staff-chosen resubmit date ang basehan; NULL = default
+    // 1 month mula sa rejection timestamp. Permanent reject — walang date.
+    const rejectedAt = newAccountUpgradeStatus === 'rejected' ? now : null;
+    const resubmitAfter = rejectedAt && !isPermanent
+      ? (reapplyAllowedAt ??
+          new Date(new Date(rejectedAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString())
+      : null;
 
     // ── AUTO-CONVERT pending Walk-in (in_office) to Loan after verification ──────
     // Business rule: in-office application STOPPED at account creation until KYC verified.
@@ -307,6 +369,12 @@ async function handleVerify(req: Request) {
       action: singleDocId ? `account_upgrade_doc_${action}` : `account_upgrade_all_${action}`,
       tableName: 'account_upgrade_documents',
       recordId: singleDocId ?? targetLenderId ?? account_upgrade_doc_id ?? '',
+      newValues: {
+        status: action,
+        reapply_allowed_at: reapplyAllowedAt,
+        permanently_rejected: isPermanent,
+        resubmit_after: resubmitAfter,
+      },
       ipAddress: ip,
     });
     await sendPushNotification({
@@ -316,7 +384,11 @@ async function handleVerify(req: Request) {
         ? 'Good news! Your account upgrade has been verified. You can now apply for a loan.'
         : (rejection_notes
             ? `Account Upgrade rejected: ${rejection_notes}`
-            : 'Account Upgrade rejected. You may resubmit after 1 month.'),
+            : isPermanent
+              ? 'Account Upgrade permanently rejected.'
+              : resubmitAfter
+                ? `Account Upgrade rejected. You may resubmit on ${resubmitAfter.substring(0, 10)}.`
+                : 'Account Upgrade rejected.'),
       // Distinct type per outcome so the in-app list shows the right icon
       // (verified = check, rejected = cross) instead of one generic upgrade icon.
       type: action === 'verified'
@@ -326,18 +398,13 @@ async function handleVerify(req: Request) {
       sentBy: user.id,
     });
 
-    // 1-month cooldown anchors on this rejection timestamp.
-    const rejectedAt = newAccountUpgradeStatus === 'rejected' ? now : null;
-    const resubmitAfter = rejectedAt
-      ? new Date(new Date(rejectedAt).getTime() + 30 * 24 * 60 * 60 * 1000).toISOString()
-      : null;
-
     return jsonResponse({
       message: singleDocId ? `Document ${action}` : `All documents ${action}`,
       account_upgrade_status: newAccountUpgradeStatus,
       lender_id: targetLenderId,
       rejected_at: rejectedAt,
       resubmit_after: resubmitAfter,
+      permanent: isPermanent,
       auto_converted_loan_id: autoConvertedLoanId,
     });
 }
@@ -544,7 +611,7 @@ async function handleGetStatus(req: Request) {
     const db = getAdminClient();
     const { data: profile } = await db.from('lender_profiles').select('*').eq('id', lenderId).single();
     const { data: docs } = await db.from('account_upgrade_documents')
-      .select('id, lender_id, document_type, file_path, status, rejection_notes, reviewed_by, reviewed_at, uploaded_at')
+      .select('id, lender_id, document_type, file_path, status, rejection_notes, reviewed_by, reviewed_at, reapply_allowed_at, uploaded_at')
       .eq('lender_id', lenderId)
       .order('uploaded_at', { ascending: false });
     const { data: emergencyContacts } = await db.from('emergency_contacts')
@@ -598,23 +665,38 @@ async function handleGetStatus(req: Request) {
       }
     } catch (_) { /* ignore */ }
 
-    // 1-month resubmit cooldown after rejection (anchored on latest
-    // rejected reviewed_at, fallback to profile updated_at).
+    // Resubmit cooldown after rejection. Basehan ang staff-chosen
+    // `reapply_allowed_at` ng PINAKABAGONG rejected doc (00191); kung wala
+    // (lumang data / lumang build), default na 1 month mula sa reviewed_at
+    // o profile updated_at.
     let rejectedAt: string | null = null;
     let resubmitAfter: string | null = null;
     let daysRemaining: number | null = null;
     let canResubmit = true;
-    if ((profile?.account_upgrade_status ?? 'not_submitted') === 'rejected') {
-      const rejReviewed = (docs ?? [])
-        .filter((d: any) => d.status === 'rejected' && d.reviewed_at)
-        .map((d: any) => new Date(d.reviewed_at).getTime())
-        .filter((t: number) => !Number.isNaN(t));
-      const anchorMs = rejReviewed.length
-        ? Math.max(...rejReviewed)
+    // 00191: permanent rejection — hinding-hindi na pwedeng mag-resubmit,
+    // kaya wala ring cooldown date.
+    const isPermanent = profile?.account_upgrade_permanently_rejected === true;
+    if ((profile?.account_upgrade_status ?? 'not_submitted') === 'rejected' && isPermanent) {
+      canResubmit = false;
+    } else if ((profile?.account_upgrade_status ?? 'not_submitted') === 'rejected') {
+      const latestRejected = (docs ?? [])
+        .filter((d: any) => d.status === 'rejected')
+        .sort((a: any, b: any) =>
+          new Date(b.reviewed_at ?? 0).getTime() -
+          new Date(a.reviewed_at ?? 0).getTime())[0];
+      const anchorMs = latestRejected?.reviewed_at
+        ? new Date(latestRejected.reviewed_at).getTime()
         : (profile?.updated_at ? new Date(profile.updated_at).getTime() : NaN);
-      if (!Number.isNaN(anchorMs)) {
-        rejectedAt = new Date(anchorMs).toISOString();
-        const afterMs = anchorMs + 30 * 24 * 60 * 60 * 1000;
+      const chosenMs = latestRejected?.reapply_allowed_at
+        ? new Date(latestRejected.reapply_allowed_at).getTime()
+        : NaN;
+      if (!Number.isNaN(anchorMs) || !Number.isNaN(chosenMs)) {
+        rejectedAt = !Number.isNaN(anchorMs)
+          ? new Date(anchorMs).toISOString()
+          : null;
+        const afterMs = !Number.isNaN(chosenMs)
+          ? chosenMs
+          : anchorMs + 30 * 24 * 60 * 60 * 1000;
         resubmitAfter = new Date(afterMs).toISOString();
         const remaining = Math.ceil((afterMs - Date.now()) / (24 * 60 * 60 * 1000));
         daysRemaining = remaining > 0 ? remaining : 0;
@@ -637,6 +719,7 @@ async function handleGetStatus(req: Request) {
       resubmit_after: resubmitAfter,
       days_remaining: daysRemaining,
       can_resubmit: canResubmit,
+      permanent: isPermanent,
     });
 }
 
@@ -699,7 +782,7 @@ async function handleGetDetails(req: Request) {
 
     const { data: docs } = await db
       .from('account_upgrade_documents')
-      .select('id, lender_id, document_type, file_path, file_name, status, rejection_notes, reviewed_by, reviewed_at, uploaded_at')
+      .select('id, lender_id, document_type, file_path, file_name, status, rejection_notes, reviewed_by, reviewed_at, reapply_allowed_at, uploaded_at')
       .eq('lender_id', targetLenderId!)
       .order('uploaded_at', { ascending: false });
 
@@ -844,23 +927,32 @@ async function handleGetDetails(req: Request) {
       });
     }
 
-    // Cooldown anchors for staff view (same 30-day rule as get-status).
+    // Cooldown anchors for staff view (same rule as get-status): staff-chosen
+    // resubmit date mula sa pinakabagong rejected doc, else 30-day default.
+    // Permanent reject → walang resubmit date.
     let rejectedAt: string | null = null;
     let resubmitAfter: string | null = null;
-    if ((lenderProfile?.account_upgrade_status ?? '') === 'rejected') {
-      const times = (docs ?? [])
-        .filter((d: any) => d.status === 'rejected' && d.reviewed_at)
-        .map((d: any) => new Date(d.reviewed_at).getTime())
-        .filter((t: number) => !Number.isNaN(t));
-      const anchor = times.length
-        ? Math.max(...times)
+    const isPermanent = lenderProfile?.account_upgrade_permanently_rejected === true;
+    if ((lenderProfile?.account_upgrade_status ?? '') === 'rejected' && !isPermanent) {
+      const latestRejected = (docs ?? [])
+        .filter((d: any) => d.status === 'rejected')
+        .sort((a: any, b: any) =>
+          new Date(b.reviewed_at ?? 0).getTime() -
+          new Date(a.reviewed_at ?? 0).getTime())[0];
+      const anchor = latestRejected?.reviewed_at
+        ? new Date(latestRejected.reviewed_at).getTime()
         : (lenderProfile?.updated_at
             ? new Date(lenderProfile.updated_at).getTime()
             : NaN);
-      if (!Number.isNaN(anchor)) {
-        rejectedAt = new Date(anchor).toISOString();
+      const chosen = latestRejected?.reapply_allowed_at
+        ? new Date(latestRejected.reapply_allowed_at).getTime()
+        : NaN;
+      if (!Number.isNaN(anchor) || !Number.isNaN(chosen)) {
+        rejectedAt = !Number.isNaN(anchor)
+          ? new Date(anchor).toISOString()
+          : null;
         resubmitAfter = new Date(
-          anchor + 30 * 24 * 60 * 60 * 1000,
+          !Number.isNaN(chosen) ? chosen : anchor + 30 * 24 * 60 * 60 * 1000,
         ).toISOString();
       }
     }
@@ -874,6 +966,7 @@ async function handleGetDetails(req: Request) {
       emergency_contacts: emergencyContacts ?? [],
       rejected_at: rejectedAt,
       resubmit_after: resubmitAfter,
+      permanent: isPermanent,
     });
 }
 

@@ -10,6 +10,7 @@ import '../../../../../core/di/injection.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../loans/widgets/approve_reject_modal.dart';
 import '../../../../shared/widgets/document_preview_dialog.dart';
 import '../../../../shared/utils/account_upgrade_checklist.dart';
 
@@ -54,38 +55,59 @@ class _HmAccountUpgradeDetailsScreenState
   }
 
   Future<void> _verifyAll(String action) async {
-    // Reject requires no reason — simple Yes / No confirm.
-    // Yes => reject, No => cancel (do not reject).
     if (action == 'rejected') {
-      final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (_) => const ConfirmationDialog(
-          title: 'Reject Account Upgrade?',
-          message:
-              'Do you want to reject this lender\'s account upgrade submission?',
-          confirmLabel: 'Yes',
-          cancelLabel: 'No',
-          confirmColor: AppColors.error,
-        ),
-      );
-      if (confirmed != true || !mounted) return;
-    } else {
-      final confirmed = await showConfirmationDialog(
-        context,
-        title: 'Verify All Documents',
-        message:
-            'Verify the lender\'s entire account upgrade submission at once?',
-        confirmLabel: 'Verify',
-        icon: Icons.verified_rounded,
-      );
-      if (confirmed != true || !mounted) return;
+      await _rejectWithResubmitWindow();
+      return;
     }
+    final confirmed = await showConfirmationDialog(
+      context,
+      title: 'Verify All Documents',
+      message:
+          'Verify the lender\'s entire account upgrade submission at once?',
+      confirmLabel: 'Verify',
+      icon: Icons.verified_rounded,
+    );
+    if (confirmed != true || !mounted) return;
+    await _submitVerify(action);
+  }
 
+  /// Kapareho ng loan reject: may "when can the lender resubmit again?"
+  /// picker at naka-disable ang Reject hangga't wala pang napili — walang
+  /// default na 1 month.
+  Future<void> _rejectWithResubmitWindow() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => ApproveRejectModal(
+        loanId: widget.lenderId,
+        isApprove: false,
+        title: 'Reject Account Upgrade',
+        message:
+            'Do you want to reject this lender\'s account upgrade submission? This action cannot be undone.',
+        actionWord: 'resubmit',
+        onConfirm: (_, __, reapplyAllowedAt, permanent) {
+          Navigator.of(context).pop();
+          _submitVerify(
+            'rejected',
+            reapplyAllowedAt: reapplyAllowedAt,
+            permanent: permanent,
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _submitVerify(
+    String action, {
+    DateTime? reapplyAllowedAt,
+    bool permanent = false,
+  }) async {
     setState(() => _submitting = true);
     try {
       await _ds.verifyAllAccountUpgrade(
         lenderId: widget.lenderId,
         action: action,
+        reapplyAllowedAt: reapplyAllowedAt,
+        permanent: permanent,
       );
       if (mounted) {
         showSuccessSnackBar(context, action == 'verified' ? 'All documents verified successfully.' : 'All documents rejected.');
@@ -387,6 +409,8 @@ class _HmAccountUpgradeDetailsScreenState
                         final isRejected = s == 'rejected';
                         // Rejected: Verify must NOT appear. No further action.
                         if (isRejected) {
+                          final permanent =
+                              _data?['permanent'] == true;
                           final resubmitAfter =
                               (_data?['resubmit_after'] as String?);
                           final dateStr =
@@ -397,9 +421,11 @@ class _HmAccountUpgradeDetailsScreenState
                           return Padding(
                             padding: const EdgeInsets.all(4),
                             child: Text(
-                                dateStr != null
-                                    ? 'Lender may resubmit after 1 month ($dateStr).'
-                                    : 'Lender may resubmit after the 1-month cooldown.',
+                                permanent
+                                    ? 'Permanently rejected — the lender can no longer resubmit.'
+                                    : dateStr != null
+                                        ? 'Lender may resubmit on $dateStr.'
+                                        : 'Lender may resubmit after the cooldown.',
                                 style: const TextStyle(
                                     fontSize: 12,
                                     color: AppColors.textSecondary)),

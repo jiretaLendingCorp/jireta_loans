@@ -89,6 +89,9 @@ class AccountUpgradeStatusModel {
   final int? daysRemaining;
   final bool canResubmit;
 
+  /// 00191: permanenteng rejection — hindi na makakapag-resubmit kahit kailan.
+  final bool permanentlyRejected;
+
   const AccountUpgradeStatusModel({
     required this.lenderId,
     required this.accountUpgradeStatus,
@@ -97,6 +100,7 @@ class AccountUpgradeStatusModel {
     this.resubmitAfter,
     this.daysRemaining,
     this.canResubmit = true,
+    this.permanentlyRejected = false,
   });
 
   static DateTime? _parseDate(dynamic v) {
@@ -113,6 +117,7 @@ class AccountUpgradeStatusModel {
     DateTime? resubmitAfter = _parseDate(json['resubmit_after']);
     int? daysRemaining = (json['days_remaining'] as num?)?.toInt();
     bool canResubmit = json['can_resubmit'] as bool? ?? true;
+    bool permanentlyRejected = json['permanent'] == true;
 
     final docs = (json['documents'] as List? ?? [])
         .map((e) =>
@@ -121,7 +126,10 @@ class AccountUpgradeStatusModel {
 
     // Fallback: compute 30-day cooldown locally from latest rejected
     // reviewed_at when backend does not send cooldown fields (old deploy).
-    if ((json['account_upgrade_status'] ?? 'not_submitted') == 'rejected' &&
+    // Permanent rejection ay walang resubmit date — huwag itong bigyan ng
+    // local na 30-day cooldown.
+    if (!permanentlyRejected &&
+        (json['account_upgrade_status'] ?? 'not_submitted') == 'rejected' &&
         (rejectedAt == null || resubmitAfter == null)) {
       DateTime? latest;
       for (final d in docs) {
@@ -153,6 +161,7 @@ class AccountUpgradeStatusModel {
       resubmitAfter: resubmitAfter,
       daysRemaining: daysRemaining,
       canResubmit: canResubmit,
+      permanentlyRejected: permanentlyRejected,
     );
   }
 
@@ -160,6 +169,7 @@ class AccountUpgradeStatusModel {
   bool get isEmpty => documents.isEmpty;
   AccountUpgradeDocumentModel get first => documents.first;
   bool get isRejected => accountUpgradeStatus == 'rejected';
+  bool get isPermanentlyRejected => isRejected && permanentlyRejected;
   bool get isInCooldown =>
       isRejected && !canResubmit && resubmitAfter != null;
 }

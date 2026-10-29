@@ -14,6 +14,7 @@ import '../../../../../data/models/user_model.dart';
 import '../../../../shared/providers/auth_state_provider.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
+import '../../../../shared/widgets/security/mfa_settings_card.dart';
 import '../../../../shared/widgets/forms/app_date_picker.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
@@ -174,6 +175,10 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
         ),
         const SizedBox(height: 12),
         _buildSecurityButton(),
+        const SizedBox(height: 12),
+        // 2FA (Google Authenticator / TOTP) — pareho ng rider/lender profile
+        // at enforced din sa email/password login.
+        const MfaSettingsCard(),
         const SizedBox(height: 20),
         _buildPersonalCard(user),
         const SizedBox(height: 12),
@@ -208,6 +213,10 @@ class _EmpProfileScreenState extends ConsumerState<EmpProfileScreen> {
                   ),
                   const SizedBox(height: 12),
                   _buildSecurityButton(),
+                  const SizedBox(height: 12),
+                  // 2FA (Google Authenticator / TOTP) — pareho ng
+                  // rider/lender profile at enforced din sa password login.
+                  const MfaSettingsCard(),
                   const SizedBox(height: 16),
                   _buildVersionFooter(),
                 ],

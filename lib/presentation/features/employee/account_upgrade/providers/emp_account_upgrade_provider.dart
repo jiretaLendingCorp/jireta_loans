@@ -123,12 +123,16 @@ class EmpAccountUpgradeNotifier extends StateNotifier<EmpAccountUpgradeState>
     required String accountUpgradeDocId,
     required String action,
     String? rejectionNotes,
+    DateTime? reapplyAllowedAt,
+    bool permanent = false,
   }) async {
     try {
       await _ds.verifyAccountUpgrade(
         accountUpgradeDocId: accountUpgradeDocId,
         action: action,
         rejectionNotes: rejectionNotes,
+        reapplyAllowedAt: reapplyAllowedAt,
+        permanent: permanent,
       );
       // Silent refresh: huwag ipakita ang shimmer sa buong table habang
       // nagre-refresh pagkatapos ng verify — manatiling visible ang listahan.
@@ -152,12 +156,16 @@ class EmpAccountUpgradeNotifier extends StateNotifier<EmpAccountUpgradeState>
     required String lenderId,
     required String action,
     String? rejectionNotes,
+    DateTime? reapplyAllowedAt,
+    bool permanent = false,
   }) async {
     try {
       await _ds.verifyAllAccountUpgrade(
         lenderId: lenderId,
         action: action,
         rejectionNotes: rejectionNotes,
+        reapplyAllowedAt: reapplyAllowedAt,
+        permanent: permanent,
       );
       // Silent refresh: ang Verify/Reject ay per-row lang — hindi dapat
       // mawala/mag-loading ang buong data table pagkatapos ng aksyon.

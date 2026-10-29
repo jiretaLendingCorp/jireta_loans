@@ -147,9 +147,9 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
 
   Future<bool> login({required String email, required String password}) async {
     _authState.startInteractiveAuth();
-    // Staff (email/password) login: huwag magmanang ng MFA state ng nakaraang
-    // mobile login — ang gate na ito ay para sa (mobile) OTP / Google na may
-    // naka-enroll na authenticator.
+    // Bagong login = bagong MFA state. Ang server response (o ang Supabase
+    // Auth fallback) ang magsasabi kung may verified authenticator factor ang
+    // account — kasama na ang employee role.
     _loginMfa = const LoginMfaInfo.unknown();
     state = const AsyncLoading();
     try {
@@ -163,6 +163,8 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
       final token = res['access_token'] as String;
       final refresh = res['refresh_token'] as String;
       final userData = res['user'] as Map<String, dynamic>;
+      // MFA (TOTP) state na iniulat ng server para sa login na ito.
+      _loginMfa = LoginMfaInfo.fromLoginResponse(res['mfa']);
       // Ensure clean slate for second login (avoids race where old auto-logout's clearAll deletes new tokens)
       await SecureStorage.clearAll();
       await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
@@ -193,6 +195,13 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
         createdAt: DateTime.now(),
       );
       _authState.setAuthenticated(user);
+      // ── May naka-enroll bang authenticator (TOTP) ang account? ───────────
+      // Kapag oo, hindi pa tapos ang login: kailangan muna ang `mfa.verify`
+      // (aal2) bago ang dashboard. Kapareho ito ng OTP at Google login —
+      // ang server pa rin ang huling salita sa mga sensitibong aksyon.
+      if (await _resolveMfaChallenge()) {
+        await _authState.requireMfa();
+      }
       state = const AsyncData(null);
       RealtimeService.instance.reconnect();
       return true;

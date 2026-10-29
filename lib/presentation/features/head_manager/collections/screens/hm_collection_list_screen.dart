@@ -16,6 +16,7 @@ import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/utils/collection_status_label.dart';
 import '../../../../shared/widgets/status_badge.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/details/user_details_modal.dart';
 import '../../../../shared/widgets/early_payer_badge.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
@@ -35,6 +36,9 @@ class _PaymentsState {
   final int totalPages;
   final int totalCount;
   final String methodFilter;
+  /// `all` o isa sa mga payment status (`verified`, `pending`, `reversed`,
+  /// `rejected`) — sinasala sa server kapag hindi `all`.
+  final String statusFilter;
   final String? dateFrom;
   final String? dateTo;
   const _PaymentsState({
@@ -45,6 +49,7 @@ class _PaymentsState {
     this.totalPages = 1,
     this.totalCount = 0,
     this.methodFilter = 'all',
+    this.statusFilter = 'all',
     this.dateFrom,
     this.dateTo,
   });
@@ -56,6 +61,7 @@ class _PaymentsState {
     int? totalPages,
     int? totalCount,
     String? methodFilter,
+    String? statusFilter,
     String? dateFrom,
     String? dateTo,
   }) =>
@@ -67,6 +73,7 @@ class _PaymentsState {
         totalPages: totalPages ?? this.totalPages,
         totalCount: totalCount ?? this.totalCount,
         methodFilter: methodFilter ?? this.methodFilter,
+        statusFilter: statusFilter ?? this.statusFilter,
         dateFrom: dateFrom ?? this.dateFrom,
         dateTo: dateTo ?? this.dateTo,
       );
@@ -80,13 +87,20 @@ class _PaymentsNotifier extends StateNotifier<_PaymentsState>
     fetch();
   }
 
-  Future<void> fetch({int page = 1, bool silent = false, String? method}) async {
+  Future<void> fetch({
+    int page = 1,
+    bool silent = false,
+    String? method,
+    String? status,
+  }) async {
     final m = method ?? state.methodFilter;
+    final s = status ?? state.statusFilter;
     if (!silent) state = state.copyWith(isLoading: true, error: null);
     try {
       final res = await _ds.getPaymentListPage(
         page: page,
         method: m == 'all' ? null : m,
+        status: s == 'all' ? null : s,
         dateFrom: state.dateFrom,
         dateTo: state.dateTo,
       );
@@ -100,6 +114,7 @@ class _PaymentsNotifier extends StateNotifier<_PaymentsState>
         totalPages: meta['total_pages'] as int? ?? 1,
         totalCount: (meta['total'] as num?)?.toInt() ?? payments.length,
         methodFilter: m,
+        statusFilter: s,
       );
     } catch (e) {
       if (silent) return;
@@ -111,6 +126,11 @@ class _PaymentsNotifier extends StateNotifier<_PaymentsState>
   void setMethod(String method) {
     state = state.copyWith(methodFilter: method);
     fetch(method: method);
+  }
+
+  void setStatus(String status) {
+    state = state.copyWith(statusFilter: status);
+    fetch(status: status);
   }
 
   void setDateRange(String? from, String? to) {
@@ -154,7 +174,9 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   /// Huling na-load na tab — para hindi umulit ang fetch sa bawat rebuild.
   String? _lastRouteTab;
 
-  final _dropdownTabs = const [
+  /// Status filter ng Collections list — ito ang mga option ng "All Status"
+  /// dropdown sa toolbar.
+  final _statusTabs = const [
     FilterTabDef('all', 'All', Icons.layers_outlined),
     FilterTabDef('requested', 'Requested', Icons.hourglass_top_rounded),
     FilterTabDef('assigned', 'Assigned', Icons.assignment_ind_outlined),
@@ -163,7 +185,9 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     FilterTabDef('rejected', 'Rejected', Icons.cancel_outlined),
   ];
 
-  final _pillTabs = const [
+  /// Module tabs — ang URL ang nagbibiyahe sa Payments / Early Payers.
+  final _moduleTabs = const [
+    FilterTabDef('collections', 'Collections', Icons.folder_copy_outlined),
     FilterTabDef('payments', 'Payments', Icons.payments_outlined),
     // Early payers ay lender attribute — dating badge sa People/Lenders list.
     // Nasa Collections na sila ngayon kasama ng Payments.
@@ -178,6 +202,16 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     // kung `gcash` lang ang ipapasa, walang tugmang row at "No matching
     // payments" ang lumalabas kahit may bayad na.
     FilterTabDef('gcash_xendit', 'GCash', Icons.phone_android_rounded),
+  ];
+
+  /// Status filter ng Payments tab — kaparehong "All Status" dropdown gaya ng
+  /// Collections list.
+  final _paymentStatusTabs = const [
+    FilterTabDef('all', 'All Status', Icons.layers_outlined),
+    FilterTabDef('verified', 'Paid', Icons.check_circle_rounded),
+    FilterTabDef('pending', 'Pending', Icons.hourglass_top_rounded),
+    FilterTabDef('reversed', 'Reversed', Icons.undo_rounded),
+    FilterTabDef('rejected', 'Rejected', Icons.cancel_outlined),
   ];
 
   void _onDateRangeChanged(DateTimeRange? r) {
@@ -222,17 +256,21 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
   }
 
   void _onTabTap(String key) {
-    // Payments / Early Payers: URL ang nagbibiyahe sa tab.
-    if (key == 'payments' || key == 'early_payers') {
+    // Module tabs (Collections / Payments / Early Payers): URL ang
+    // nagbibiyahe sa tab.
+    if (key == 'collections' || key == 'payments' || key == 'early_payers') {
       final target = key == 'payments'
           ? RouteConstants.hmCollectionPayments
-          : RouteConstants.hmCollectionEarlyPayers;
+          : key == 'early_payers'
+              ? RouteConstants.hmCollectionEarlyPayers
+              : RouteConstants.hmCollections;
       if (GoRouterState.of(context).uri.path == target) return;
       _searchCtrl.clear();
       context.go(target);
       return;
     }
 
+    // Status filter (Collections list lang).
     if (key == _activeTab) return;
     setState(() => _activeTab = key);
     _searchCtrl.clear();
@@ -265,8 +303,6 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
                   collectionState, paymentsState, isPayments, isEarlyPayers),
               const SizedBox(height: 16),
               if (isPayments) ...[
-                _buildPaymentMethodFilter(paymentsState),
-                const SizedBox(height: 12),
                 if (paymentsState.isLoading)
                   _buildLoadingShimmer()
                 else if (paymentsState.error != null &&
@@ -304,26 +340,24 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     );
   }
 
-  // ── Tabs: dropdown for All/Requested/etc (like Loan Records Pipeline) + Payments pill beside it ──
+  // ── Tabs: module pills (Collections / Payments / Early Payers). Ang status
+  // filter ay nasa "All Status" dropdown ng toolbar. ──
   Widget _buildTabPills(String tab) {
-    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
-    // Sa Payments / Early Payers tab, walang value ang Collections dropdown.
-    final dropdownValue = tab == 'all' && dropdownKeys.contains(_activeTab)
-        ? _activeTab
-        : null;
-
-    return FilterTabBar(
-      dropdownLabel: 'Collections',
-      dropdownOptions: _dropdownTabs,
-      dropdownValue: dropdownValue,
-      onDropdownChanged: (v) => _onTabTap(v),
-      pills: _pillTabs.map((t) {
-        final isActive = t.key == tab;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: FilterPillTab(def: t, active: isActive, onTap: () => _onTabTap(t.key)),
-        );
-      }).toList(),
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: [
+          for (final t in _moduleTabs)
+            Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: FilterPillTab(
+                def: t,
+                active: t.key == 'collections' ? tab == 'all' : t.key == tab,
+                onTap: () => _onTabTap(t.key),
+              ),
+            ),
+        ],
+      ),
     );
   }
 
@@ -481,73 +515,116 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     );
   }
 
-  Widget _buildPaymentMethodFilter(_PaymentsState state) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: _paymentMethodTabs.map((t) {
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterPillTab(
-              def: t,
-              active: t.key == state.methodFilter,
-              onTap: () => ref
-                  .read(_hmPaymentsInCollectionProvider.notifier)
-                  .setMethod(t.key),
+  // ── Toolbar: search + filters, magkakatabi sa isang row ──
+  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState,
+      bool isPayments, bool isEarlyPayers) {
+    final searchField = TextField(
+      controller: _searchCtrl,
+      decoration: InputDecoration(
+        hintText: isPayments
+            ? 'Search payments...'
+            : isEarlyPayers
+                ? 'Search early payers...'
+                : 'Search collections...',
+        prefixIcon: const Icon(Icons.search, size: 20),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(color: AppColors.border),
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+      onChanged: (v) {
+        if (isPayments || isEarlyPayers) {
+          setState(() {});
+        } else {
+          ref.read(hmCollectionProvider.notifier).setSearch(v);
+        }
+      },
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ResponsiveSearchToolbar(
+        // Apat ang filter sa Payments kaya mas maagang mag-stack.
+        breakpoint: isPayments ? 760 : 640,
+        searchField: searchField,
+        trailing: [
+          if (isPayments) ...[
+            _buildPaymentStatusDropdown(pState),
+            _buildPaymentMethodDropdown(pState),
+          ] else if (!isEarlyPayers)
+            // Status filter — parang "All Riders" sa Rider Monitoring.
+            FilterDropdown<String>(
+              value: _activeTab,
+              icon: Icons.filter_list_rounded,
+              items: _statusTabs
+                  .map((t) => DropdownMenuItem(
+                        value: t.key,
+                        child: Text(t.key == 'all' ? 'All Status' : t.label),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) _onTabTap(v);
+              },
             ),
-          );
-        }).toList(),
+          SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
+          SearchResultsChip(
+            // No search text -> true server total; while searching the box
+            // filters client-side so the chip matches what is shown.
+            count: isPayments
+                ? (_searchCtrl.text.trim().isEmpty
+                    ? pState.totalCount
+                    : _filteredPayments(pState.payments).length)
+                : isEarlyPayers
+                    ? _earlyPayerLenders(ref.read(hmLenderProvider)).length
+                    : cState.totalCount,
+          ),
+        ],
       ),
     );
   }
 
-  // ── Toolbar: single outer box with Search (hint "Search"), refresh, results badge ──
-  Widget _buildToolbar(HmCollectionState cState, _PaymentsState pState,
-          bool isPayments, bool isEarlyPayers) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: ResponsiveSearchToolbar(
-          searchField: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: isPayments
-                ? 'Search payments...'
-                : isEarlyPayers
-                    ? 'Search early payers...'
-                    : 'Search collections...',
-              prefixIcon: const Icon(Icons.search, size: 20),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: AppColors.border),
-              ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 10),
-            ),
-            onChanged: (v) {
-              if (isPayments || isEarlyPayers) {
-                setState(() {});
-              } else {
-                ref.read(hmCollectionProvider.notifier).setSearch(v);
-              }
-            },
-          ),
-          trailing: [
-            SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
-            SearchResultsChip(
-              count: isPayments
-                  // No search text -> true server total; while searching the
-                  // box filters client-side so the chip matches what is shown.
-                  ? (_searchCtrl.text.trim().isEmpty
-                      ? pState.totalCount
-                      : _filteredPayments(pState.payments).length)
-                  : isEarlyPayers
-                      ? _earlyPayerLenders(ref.read(hmLenderProvider)).length
-                      : cState.totalCount,
-            ),
-          ],
-        ),
-      );
+  Widget _buildPaymentStatusDropdown(_PaymentsState state) {
+    return FilterDropdown<String>(
+      value: _paymentStatusTabs.any((t) => t.key == state.statusFilter)
+          ? state.statusFilter
+          : 'all',
+      icon: Icons.filter_list_rounded,
+      items: _paymentStatusTabs
+          .map((t) => DropdownMenuItem(
+                value: t.key,
+                child: Text(t.label),
+              ))
+          .toList(),
+      onChanged: (v) {
+        if (v != null) {
+          ref.read(_hmPaymentsInCollectionProvider.notifier).setStatus(v);
+        }
+      },
+    );
+  }
 
-
+  /// Methods (All / Office / Cash on Delivery / GCash) — dropdown na katabi
+  /// ng All Status, hindi na hiwalay na pills row sa ibaba.
+  Widget _buildPaymentMethodDropdown(_PaymentsState state) {
+    return FilterDropdown<String>(
+      value: _paymentMethodTabs.any((t) => t.key == state.methodFilter)
+          ? state.methodFilter
+          : 'all',
+      icon: Icons.payments_outlined,
+      items: _paymentMethodTabs
+          .map((t) => DropdownMenuItem(
+                value: t.key,
+                child: Text(t.key == 'all' ? 'All Methods' : t.label),
+              ))
+          .toList(),
+      onChanged: (v) {
+        if (v != null) {
+          ref.read(_hmPaymentsInCollectionProvider.notifier).setMethod(v);
+        }
+      },
+    );
+  }
 
   List<Map<String, dynamic>> _filteredPayments(List<Map<String, dynamic>> payments) {
     final q = _searchCtrl.text.toLowerCase().trim();
@@ -590,7 +667,7 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
           ResponsiveListCard(
             minTableWidth: 820,
             columns: const [
-              ResponsiveCol('Lendee & Loan', icon: Icons.person_outline, flex: 3),
+              ResponsiveCol('Lendee', icon: Icons.person_outline, flex: 3),
               ResponsiveCol('Amount', icon: Icons.payments_outlined, flex: 2),
               ResponsiveCol('Rider', icon: Icons.delivery_dining_outlined, flex: 2),
               ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
@@ -624,11 +701,10 @@ class _HmCollectionListScreenState extends ConsumerState<HmCollectionListScreen>
     final canReassign = status == 'rejected' && !isOffice;
     return ResponsiveRow(
       cells: [
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(col.loanNumber.isNotEmpty ? col.loanNumber : 'N/A', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 11, color: AppColors.textTertiary), overflow: TextOverflow.ellipsis),
-        ]),
+        // Lendee lang ang nakalagay dito — wala nang LN sa Collections list.
+        // Nasa Collection Details / Loan Records na ang loan number kapag
+        // kailangan ito.
+        Text(col.lenderName.isNotEmpty ? col.lenderName : 'Unknown lender', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.textPrimary), overflow: TextOverflow.ellipsis),
         Text('₱${fmt.format(amount)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: amount > 0 ? AppColors.deepNavy : AppColors.textSecondary)),
         Row(children: [Icon(isOffice ? Icons.storefront_rounded : Icons.delivery_dining_rounded, size: 14, color: AppColors.textTertiary), const SizedBox(width: 6), Flexible(child: Text(isOffice ? 'Office' : (col.riderName.isNotEmpty ? col.riderName : 'N/A'), style: const TextStyle(fontSize: 12, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis))]),
         Row(mainAxisSize: MainAxisSize.min, children: [

@@ -8,9 +8,10 @@ import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
-import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
+import '../../loans/widgets/approve_reject_modal.dart';
 import '../providers/hm_account_upgrade_provider.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
@@ -28,11 +29,10 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
   // Hindi ito dapat mag-loading ng buong table.
   String? _busyLenderId;
 
-  final _dropdownTabs = const [
-    FilterTabDef('all', 'All', Icons.layers_outlined),
+  /// Mga option ng "All Status" dropdown sa toolbar.
+  final _statusTabs = const [
+    FilterTabDef('all', 'All Status', Icons.layers_outlined),
     FilterTabDef('submitted', 'Submitted', Icons.hourglass_top_rounded),
-  ];
-  final _pillTabs = const [
     FilterTabDef('verified', 'Verified', Icons.verified_rounded),
     FilterTabDef('rejected', 'Rejected', Icons.cancel_rounded),
   ];
@@ -55,7 +55,6 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(hmAccountUpgradeProvider);
-    final effectiveTab = state.statusFilter;
 
     return WebScaffold(
       title: 'Lendee Account Upgrade',
@@ -67,8 +66,6 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTabPills(effectiveTab),
-              const SizedBox(height: 16),
               _buildToolbar(state),
               const SizedBox(height: 16),
               if (state.isLoading)
@@ -90,25 +87,6 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
 
 
 
-  Widget _buildTabPills(String active) {
-    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
-    final isDropdownActive = dropdownKeys.contains(active);
-    final dropdownValue = isDropdownActive ? active : null;
-    return FilterTabBar(
-      dropdownLabel: 'Pipeline',
-      dropdownOptions: _dropdownTabs,
-      dropdownValue: dropdownValue,
-      onDropdownChanged: (v) => ref.read(hmAccountUpgradeProvider.notifier).setStatus(v),
-      pills: _pillTabs.map((t) {
-        final isActive = t.key == active;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: FilterPillTab(def: t, active: isActive, onTap: () => ref.read(hmAccountUpgradeProvider.notifier).setStatus(t.key)),
-        );
-      }).toList(),
-    );
-  }
-
   Widget _buildToolbar(HmAccountUpgradeState state) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ResponsiveSearchToolbar(
@@ -126,6 +104,24 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
             onChanged: (v) => ref.read(hmAccountUpgradeProvider.notifier).setSearch(v),
           ),
           trailing: [
+            // Status filter — dropdown na katabi ng search, bago ang date.
+            FilterDropdown<String>(
+              value: _statusTabs.any((t) => t.key == state.statusFilter)
+                  ? state.statusFilter
+                  : 'all',
+              icon: Icons.filter_list_rounded,
+              items: _statusTabs
+                  .map((t) => DropdownMenuItem(
+                        value: t.key,
+                        child: Text(t.label),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v != null) {
+                  ref.read(hmAccountUpgradeProvider.notifier).setStatus(v);
+                }
+              },
+            ),
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(count: state.totalCount),
           ],
@@ -201,26 +197,40 @@ class _HmAccountUpgradeListScreenState extends ConsumerState<HmAccountUpgradeLis
 
   Future<void> _promptReject(dynamic doc) async {
     final lenderId = doc.lenderId.isEmpty ? doc.id : doc.lenderId;
-    // No reason required — simple Yes / No confirm.
-    // Yes => reject, No => cancel (do not reject).
-    final confirmed = await showDialog<bool>(
+    // Kapareho ng loan reject: kailangang pumili muna ang staff kung kailan
+    // pwedeng mag-resubmit ang lender (Immediately / months / exact date).
+    // Naka-disable ang Reject hangga't wala pang napili — walang default.
+    await showDialog<void>(
       context: context,
-      builder: (_) => const ConfirmationDialog(
-        title: 'Reject Account Upgrade?',
-        message: 'Do you want to reject this lender\'s account upgrade submission?',
-        confirmLabel: 'Yes',
-        cancelLabel: 'No',
-        confirmColor: AppColors.error,
+      builder: (_) => ApproveRejectModal(
+        loanId: lenderId,
+        isApprove: false,
+        title: 'Reject Account Upgrade',
+        message:
+            'Do you want to reject this lender\'s account upgrade submission? This action cannot be undone.',
+        actionWord: 'resubmit',
+        onConfirm: (_, __, reapplyAllowedAt, permanent) async {
+          setState(() => _busyLenderId = lenderId);
+          final ok = await ref
+              .read(hmAccountUpgradeProvider.notifier)
+              .verifyAll(
+                lenderId: lenderId,
+                action: 'rejected',
+                reapplyAllowedAt: reapplyAllowedAt,
+                permanent: permanent,
+              );
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          setState(() => _busyLenderId = null);
+          context.showSnackBarAsToast(SnackBar(
+            content: Text(ok
+                ? 'Account upgrade documents rejected'
+                : 'Action failed'),
+            backgroundColor: ok ? AppColors.success : AppColors.error,
+          ));
+        },
       ),
     );
-    if (confirmed == true) {
-      if (!mounted) return;
-      setState(() => _busyLenderId = lenderId);
-      final ok = await ref.read(hmAccountUpgradeProvider.notifier).verifyAll(lenderId: lenderId, action: 'rejected');
-      if (!mounted) return;
-      setState(() => _busyLenderId = null);
-      context.showSnackBarAsToast(SnackBar(content: Text(ok ? 'Account upgrade documents rejected' : 'Action failed'), backgroundColor: ok ? AppColors.success : AppColors.error));
-    }
   }
 
   Widget _buildLoadingShimmer() {

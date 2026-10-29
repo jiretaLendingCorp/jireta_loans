@@ -12,6 +12,7 @@ import '../../../shared/providers/connectivity_provider.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../../../shared/widgets/offline_toast.dart';
 import '../providers/auth_provider.dart';
+import 'mfa_verify_screen.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 /// Centered web login — single light panel with the login form centered.
@@ -159,7 +160,19 @@ class _WebLoginScreenState extends ConsumerState<WebLoginScreen>
   }
 
   void _goToRoleHome() {
-    final role = ref.read(authStateProvider).role;
+    final authState = ref.read(authStateProvider);
+    // Head manager / employee na may verified authenticator factor: huwag
+    // munang pumasok sa dashboard. Ipinapasa ang factor id para hindi na
+    // kailangan ng extra round-trip sa MFA screen.
+    if (authState.mfaRequired) {
+      final loginMfa = ref.read(authProvider.notifier).loginMfa;
+      context.go(
+        RouteConstants.mfaVerify,
+        extra: MfaVerifyArgs(factorId: loginMfa.factorId),
+      );
+      return;
+    }
+    final role = authState.role;
     switch (role) {
       case AppConstants.roleHeadManager:
         context.go(RouteConstants.hmDashboard);
