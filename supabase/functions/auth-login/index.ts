@@ -190,6 +190,15 @@ serve(async (req) => {
       return errorResponse('Account archived', 403, 'ACCOUNT_ARCHIVED');
     }
 
+    // `inactive` = pansamantalang disable ng Head Manager. Kung hahayaan itong
+    // makakuha ng session, RLS naman ang tatanggap sa lahat ng query
+    // (`auth_role()` requires `active`), kaya putol/blank ang app — mas
+    // malinaw na 403 na lang dito. Hinahandle ng app ang code na ito bilang
+    // hard logout (`auth_interceptor.dart`).
+    if (user.account_status === 'inactive') {
+      return errorResponse('Account inactive', 403, 'ACCOUNT_INACTIVE');
+    }
+
     // TEMP HOTFIX: role-archived check disabled
     // try { const roleNameTmp = user?.roles?.name as string | undefined; if (roleNameTmp) { const { data: roleArchRow } = await db.from('roles').select('is_archived').eq('name', roleNameTmp).maybeSingle(); if ((roleArchRow as any)?.is_archived === true) return errorResponse('Role is archived — account disabled', 403, 'ROLE_ARCHIVED'); } } catch (_) {}
 

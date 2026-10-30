@@ -6,7 +6,7 @@
 // backend (`collections-view?fn=rider-monitoring`) ay tumatanggap na ng
 // HM **at** EMPLOYEE. Sinusuri dito:
 //   • may sariling employee routes (`/employee/rider-monitoring*`);
-//   • nasa employee sidebar ang "Rider Monitoring" entry;
+//   • "Rider Quotas" ang nasa employee sidebar (nakatago ang Monitoring);
 //   • employee URL ang binubuksan ng View action (hindi tumatalon sa `/hm/...`);
 //   • WALANG Quotas tab sa employee (HM-only ang pag-set ng quota).
 import 'dart:io';
@@ -130,15 +130,26 @@ void main() {
             router.indexOf('path: RouteConstants.empRiderMonitoringDetails')),
         reason: 'Mauuna dapat ang /quotas sa /:id para hindi ito rider id',
       );
+      // Nakatago ang Monitoring — ang base route ay redirect sa Quotas.
+      final empBase =
+          router.indexOf('path: RouteConstants.empRiderMonitoring,');
+      expect(empBase, greaterThan(-1));
+      expect(
+        router.substring(empBase, empBase + 200),
+        contains(
+            'redirect: (ctx, s) => RouteConstants.empRiderMonitoringQuotas'),
+        reason: 'Dapat Quotas ang buksan ng /employee/rider-monitoring',
+      );
     });
 
-    test('nasa employee sidebar ang Rider Monitoring', () {
+    test('nasa employee sidebar ang Rider Quotas', () {
       final sidebar =
           _read('lib/presentation/shared/widgets/layout/web_scaffold.dart');
       final empItems =
           sidebar.substring(sidebar.indexOf('List<_NavItem> _empItems()'));
-      expect(empItems, contains("'Rider Monitoring'"));
-      expect(empItems, contains('RouteConstants.empRiderMonitoring'));
+      expect(empItems, contains("'Rider Quotas'"));
+      expect(empItems, isNot(contains("'Rider Monitoring'")));
+      expect(empItems, contains('RouteConstants.empRiderMonitoringQuotas'));
     });
   });
 
@@ -167,11 +178,12 @@ void main() {
       expect(find.textContaining('EMP '), findsNothing);
     });
 
-    testWidgets('may Quotas tab din ang employee (read-only)', (tester) async {
+    testWidgets('nakatago ang Monitoring tab, Quotas ang natitira',
+        (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
           body: RiderMonitoringSectionTabs(
-            activeRoute: RouteConstants.empRiderMonitoring,
+            activeRoute: RouteConstants.empRiderMonitoringQuotas,
             monitoringRoute: RouteConstants.empRiderMonitoring,
             quotasRoute: RouteConstants.empRiderMonitoringQuotas,
           ),
@@ -179,7 +191,8 @@ void main() {
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('Monitoring'), findsOneWidget);
+      // Nakatago ang Monitoring tab pero buo pa rin ang Quotas tab.
+      expect(find.text('Monitoring'), findsNothing);
       expect(find.text('Quotas'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
@@ -220,17 +233,17 @@ void main() {
       expect(find.byIcon(Icons.lock_clock_outlined), findsOneWidget);
     });
 
-    testWidgets('may Quotas tab pa rin sa HM', (tester) async {
+    testWidgets('nakatago rin ang Monitoring tab sa HM', (tester) async {
       await tester.pumpWidget(const MaterialApp(
         home: Scaffold(
           body: RiderMonitoringSectionTabs(
-            activeRoute: RouteConstants.hmRiderMonitoring,
+            activeRoute: RouteConstants.hmRiderMonitoringQuotas,
           ),
         ),
       ));
       await tester.pumpAndSettle();
 
-      expect(find.text('Monitoring'), findsOneWidget);
+      expect(find.text('Monitoring'), findsNothing);
       expect(find.text('Quotas'), findsOneWidget);
     });
   });

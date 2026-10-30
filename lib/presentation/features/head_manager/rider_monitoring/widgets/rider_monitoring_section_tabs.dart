@@ -11,6 +11,12 @@ import '../../../../shared/widgets/filter_pill_tab.dart';
 /// `/hm/rider-monitoring/quotas`) para deep-linkable, tama pa rin pagkatapos
 /// ng refresh/bookmark/browser back, at hindi ito basta client-side state.
 class RiderMonitoringSectionTabs extends StatelessWidget {
+  /// Nakatago muna ang Monitoring tab — ang Quotas lang ang laman at tab ng
+  /// `/hm/rider-monitoring` at `/employee/rider-monitoring` (tingnan ang
+  /// redirect sa `app_router.dart`). I-flip sa `true` at tanggalin ang
+  /// redirect na iyon para ilabas muli ang Monitoring.
+  static const bool _showMonitoringTab = false;
+
   /// Kasalukuyang path (`RouteConstants.hmRiderMonitoring*` / employee).
   final String activeRoute;
 
@@ -60,7 +66,9 @@ class RiderMonitoringSectionTabs extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: Row(
         children: [
-          _pill(context, _monitoring, monitoringRoute),
+          // Nakatago ang Monitoring pero nananatili ang Quotas tab.
+          if (_showMonitoringTab)
+            _pill(context, _monitoring, monitoringRoute),
           if (quotasRoute != null) _pill(context, _quotas, quotasRoute!),
         ],
       ),

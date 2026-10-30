@@ -267,6 +267,18 @@ class UserRemoteDataSource {
     await _client.patch(ApiEndpoints.usersArchive, data: {'user_id': userId});
   }
 
+  /// Head Manager: temporary disable / re-enable ng account (`inactive` ↔
+  /// `active`). Ibang estado ito sa `archived` (permanenteng naka-block) at sa
+  /// `paused` (automatic loan-default escalation), kaya hiwalay ang action na
+  /// ito. Naka-audit sa server bilang `update_profile`
+  /// (`users-manage?fn=update-profile`).
+  Future<void> setAccountStatus(String userId, String status) async {
+    await _client.patch(
+      ApiEndpoints.usersUpdateProfile,
+      data: {'user_id': userId, 'account_status': status},
+    );
+  }
+
   /// Inaalis ang automatic account pause ng isang lender (escalation rule ng
   /// pagka-pangalawa nang term default, migration 00152). Head Manager o
   /// Employee lang ang pinapayagan; lender accounts lang, at 'paused' →

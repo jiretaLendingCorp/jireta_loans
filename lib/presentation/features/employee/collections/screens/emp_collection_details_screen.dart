@@ -34,11 +34,11 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
     return WebScaffold(
       title: 'Collection Details',
       actions: [
-        OutlinedButton.icon(
+        // Arrow lang — walang "Back" label sa top bar.
+        IconButton(
           onPressed: () => context.go(RouteConstants.empCollections),
-          icon: const Icon(Icons.arrow_back_rounded, size: 16),
-          label: const Text('Back', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.border), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+          tooltip: 'Back',
+          icon: const Icon(Icons.arrow_back_rounded),
         ),
         const SizedBox(width: 12),
       ],

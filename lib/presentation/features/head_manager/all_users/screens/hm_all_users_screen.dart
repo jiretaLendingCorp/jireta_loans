@@ -127,8 +127,7 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
                 ResponsiveCol('Email', flex: 2),
                 ResponsiveCol('Status', flex: 1),
               ],
-              actionsCol:
-                  const ResponsiveActionsCol(label: 'Actions', flex: 2),
+              actionsCol: const ResponsiveActionsCol(label: 'Actions', flex: 2),
               rows: state.users.map((e) => _row(e)).toList(),
             ),
             // Pagination — kapareho ng nasa Loan Records (arrows + navy na
@@ -178,13 +177,11 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
         ),
         Text(
           user.phoneNumber ?? '—',
-          style:
-              const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
         ),
         Text(
           user.email ?? '—',
-          style:
-              const TextStyle(fontSize: 13, color: AppColors.textSecondary),
+          style: const TextStyle(fontSize: 13, color: AppColors.textSecondary),
           overflow: TextOverflow.ellipsis,
         ),
         Text(
@@ -212,6 +209,25 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
             AppColors.primary,
             () => _openEdit(user),
           ),
+          // Temporary disable (inactive) — iba ito sa Archive. Inactive lang
+          // ang pwedeng i-set dito; ang archived ay nire-restore sa Archived
+          // screen, at ang paused ay may sariling unpause action.
+          if (!isArchived &&
+              user.role != 'head_manager' &&
+              (user.accountStatus == 'active' ||
+                  user.accountStatus == 'inactive'))
+            _btn(
+              user.accountStatus == 'active'
+                  ? Icons.toggle_off_outlined
+                  : Icons.toggle_on_outlined,
+              user.accountStatus == 'active' ? 'Set Inactive' : 'Set Active',
+              user.accountStatus == 'active'
+                  ? AppColors.employeeOrange
+                  : AppColors.success,
+              () => user.accountStatus == 'active'
+                  ? _confirmSetInactive(user)
+                  : _confirmSetActive(user),
+            ),
           // Reset Password is only for Head Manager and Employee accounts.
           if (!isArchived &&
               (user.role == 'head_manager' || user.role == 'employee'))
@@ -273,6 +289,97 @@ class _HmAllUsersScreenState extends ConsumerState<HmAllUsersScreen> {
               }
             },
             child: const Text('Archive'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// `inactive` = pansamantalang disable, hindi archive. Hindi makakalogin at
+  /// hindi makakatanggap ng notification ang user habang inactive, pero buo
+  /// ang records at pwedeng i-activate muli anumang oras.
+  void _confirmSetInactive(UserModel user) {
+    _confirmStatusChange(
+      user,
+      status: 'inactive',
+      title: 'Set ${_roleLabel(user.role)} Inactive?',
+      message:
+          '${user.firstName} ${user.lastName} will be temporarily disabled. '
+          'They will not be able to log in or receive notifications, but their '
+          'records stay intact. You can set the account back to Active anytime.',
+      confirmLabel: 'Set Inactive',
+      color: AppColors.employeeOrange,
+      successMessage: 'account set to inactive',
+    );
+  }
+
+  void _confirmSetActive(UserModel user) {
+    _confirmStatusChange(
+      user,
+      status: 'active',
+      title: 'Set ${_roleLabel(user.role)} Active?',
+      message:
+          '${user.firstName} ${user.lastName} will be able to log in and use '
+          'the system again.',
+      confirmLabel: 'Set Active',
+      color: AppColors.success,
+      successMessage: 'account reactivated',
+    );
+  }
+
+  void _confirmStatusChange(
+    UserModel user, {
+    required String status,
+    required String title,
+    required String message,
+    required String confirmLabel,
+    required Color color,
+    required String successMessage,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+        title: Text(title),
+        // Fixed na makitid na width — kapag hinayaan ang intrinsic width ng
+        // mahabang text, lumalapad ang AlertDialog hanggang buong screen.
+        content: SizedBox(
+          width: 360,
+          child: Text(message),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              shape:
+                  const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+            ),
+            onPressed: () async {
+              Navigator.of(ctx).pop();
+              try {
+                await ref
+                    .read(hmAllUsersProvider.notifier)
+                    .setAccountStatus(user.id, status);
+                if (mounted) {
+                  context.showSnackBarAsToast(
+                    SnackBar(
+                      content: Text(
+                          '${user.firstName} ${user.lastName}: $successMessage'),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  context.showErrorToast('Failed to update status: $e');
+                }
+              }
+            },
+            child: Text(confirmLabel),
           ),
         ],
       ),

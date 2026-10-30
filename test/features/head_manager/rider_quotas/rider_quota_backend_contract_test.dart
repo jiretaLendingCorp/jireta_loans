@@ -174,12 +174,14 @@ void main() {
       expect(router, contains('RouteConstants.riderMyQuota'));
     });
 
-    test('Quotas ay tab sa Rider Monitoring, hindi hiwalay na sidebar item',
-        () {
+    test('Rider Quotas ang nasa sidebar, hindi Rider Monitoring', () {
       final nav = readNormalized(
           'lib/presentation/shared/widgets/layout/web_scaffold.dart');
-      expect(nav, contains("'Rider Monitoring'"));
-      expect(nav, isNot(contains("'Rider Quotas'")));
+      expect(nav, contains("'Rider Quotas'"));
+      expect(nav, isNot(contains("'Rider Monitoring'")));
+      // Naka-link ang sidebar entry sa Quotas URI ng HM at employee.
+      expect(nav, contains('RouteConstants.hmRiderMonitoringQuotas'));
+      expect(nav, contains('RouteConstants.empRiderMonitoringQuotas'));
 
       final tabs = readNormalized(
           'lib/presentation/features/head_manager/rider_monitoring/widgets/rider_monitoring_section_tabs.dart');
@@ -194,6 +196,25 @@ void main() {
       expect(monitoring, contains('RiderMonitoringSectionTabs'));
       expect(quotas, contains('RiderMonitoringSectionTabs'));
       expect(quotas, contains("title: 'Rider Collection Monitoring'"));
+    });
+
+    test('nakatago ang Monitoring view — Quotas ang lumalabas sa base route',
+        () {
+      final router = readNormalized('lib/core/router/app_router.dart');
+      final base = router.indexOf('path: RouteConstants.hmRiderMonitoring,');
+      expect(base, greaterThan(-1));
+      expect(
+        router.substring(base, base + 200),
+        contains('redirect: (ctx, s) => RouteConstants.hmRiderMonitoringQuotas'),
+        reason: 'Dapat Quotas ang buksan ng /hm/rider-monitoring',
+      );
+
+      final tabs = readNormalized(
+          'lib/presentation/features/head_manager/rider_monitoring/widgets/rider_monitoring_section_tabs.dart');
+      expect(tabs, contains('static const bool _showMonitoringTab = false;'));
+      // Quotas tab pa rin ang dapat lumabas, hindi buong strip ang tinanggal.
+      expect(tabs, contains('if (_showMonitoringTab)'));
+      expect(tabs, contains('_pill(context, _quotas, quotasRoute!)'));
     });
   });
 }

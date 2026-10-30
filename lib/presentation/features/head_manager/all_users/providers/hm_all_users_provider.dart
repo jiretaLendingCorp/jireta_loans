@@ -151,6 +151,14 @@ class HmAllUsersNotifier extends StateNotifier<HmAllUsersState>
     await load(silent: true);
   }
 
+  /// `inactive` = pansamantalang disable (hindi archived): hindi makakalogin
+  /// at hindi makakatanggap ng notification, pero buo ang records at pwedeng
+  /// i-activate muli anumang oras.
+  Future<void> setAccountStatus(String userId, String status) async {
+    await _ds.setAccountStatus(userId, status);
+    await load(silent: true);
+  }
+
   Future<Map<String, dynamic>> createHeadManager(
       Map<String, dynamic> data) async {
     final res = await _ds.createHeadManager(data);

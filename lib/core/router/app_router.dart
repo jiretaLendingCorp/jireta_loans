@@ -52,7 +52,6 @@ import '../../presentation/features/head_manager/ci/screens/hm_ci_details_screen
 import '../../presentation/features/head_manager/ci/screens/hm_ci_list_screen.dart';
 import '../../presentation/features/head_manager/collections/screens/hm_collection_details_screen.dart';
 import '../../presentation/features/head_manager/rider_monitoring/screens/hm_rider_monitoring_details_screen.dart';
-import '../../presentation/features/head_manager/rider_monitoring/screens/hm_rider_monitoring_screen.dart';
 import '../../presentation/features/head_manager/rider_quotas/screens/hm_rider_quotas_screen.dart';
 import '../../presentation/features/head_manager/collections/screens/hm_collection_list_screen.dart';
 import '../../presentation/features/head_manager/dashboard/screens/hm_dashboard_screen.dart';
@@ -698,9 +697,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.hmCollectionDetails,
           builder: (ctx, s) =>
               HmCollectionDetailsScreen(collectionId: s.pathParameters['id']!)),
+      // Nakatago muna ang Monitoring view (`RiderMonitoringSectionTabs`) —
+      // Quotas ang lumalabas kapag pinindot ang "Rider Monitoring" sa sidebar.
+      // Ibalik sa `HmRiderMonitoringScreen` kapag ilalabas muli ito, kasama ang
+      // pag-flip ng `_showMonitoringTab`.
       GoRoute(
           path: RouteConstants.hmRiderMonitoring,
-          builder: (ctx, s) => const HmRiderMonitoringScreen()),
+          redirect: (ctx, s) => RouteConstants.hmRiderMonitoringQuotas),
       // Quotas tab — SARILING URI. Naka-register BAGO ang `:id` route para hindi
       // ito maging rider id (`/hm/rider-monitoring/quotas`).
       GoRoute(
@@ -847,17 +850,13 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           path: RouteConstants.empCollectionDetails,
           builder: (ctx, s) => EmpCollectionDetailsScreen(
               collectionId: s.pathParameters['id']!)),
-      // Rider Monitoring (read-only) para sa employee — parehong screen ng HM,
-      // pero employee URLs ang ginagamit at WALANG Quotas tab (HM-only ang
-      // pag-set ng quota). Ang backend (`collections-view?fn=rider-monitoring`)
-      // ay tumatanggap na ng HM + EMPLOYEE.
+      // Rider Monitoring (read-only) para sa employee — nakatago muna ang
+      // Monitoring view, kaya Quotas (read-only) ang lumalabas. Ang backend
+      // (`collections-view?fn=rider-monitoring`) ay tumatanggap na ng HM +
+      // EMPLOYEE kapag ibinalik ito.
       GoRoute(
           path: RouteConstants.empRiderMonitoring,
-          builder: (ctx, s) => const HmRiderMonitoringScreen(
-                monitoringRoute: RouteConstants.empRiderMonitoring,
-                detailsRoute: RouteConstants.empRiderMonitoringDetails,
-                quotasRoute: RouteConstants.empRiderMonitoringQuotas,
-              )),
+          redirect: (ctx, s) => RouteConstants.empRiderMonitoringQuotas),
       // Quotas tab (employee) — NAKA-REGISTER BAGO ang `:id` route para hindi
       // ito maging rider id (`/employee/rider-monitoring/quotas`). Read-only:
       // HM lang ang pwedeng mag-assign/edit/close quota.

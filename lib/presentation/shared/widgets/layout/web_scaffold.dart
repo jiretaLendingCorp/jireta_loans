@@ -808,12 +808,12 @@ List<_NavItem> _hmItems() => [
           'Collections',
           RouteConstants.hmCollections,
         ),
-        // Read-only monitoring ng bawat rider — accounts, expected vs
-        // confirmed collections, overdue at remaining balances.
+        // Rider Quotas tab — collection quota ng bawat rider at ang
+        // progress nila laban sa target.
         const _NavItem(
-          Icons.insights_outlined,
-          'Rider Monitoring',
-          RouteConstants.hmRiderMonitoring,
+          Icons.flag_outlined,
+          'Rider Quotas',
+          RouteConstants.hmRiderMonitoringQuotas,
         ),
         const _NavItem(
             Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
@@ -857,12 +857,12 @@ List<_NavItem> _empItems() => [
           'Collections',
           RouteConstants.empCollections,
         ),
-        // Read-only rider monitoring — kapareho ng HM entry, para makita ng
-        // employee ang expected vs confirmed collections ng bawat rider.
+        // Rider Quotas tab (read-only) — kapareho ng HM entry, para makita ng
+        // employee ang quota targets at progress ng bawat rider.
         const _NavItem(
-          Icons.insights_outlined,
-          'Rider Monitoring',
-          RouteConstants.empRiderMonitoring,
+          Icons.flag_outlined,
+          'Rider Quotas',
+          RouteConstants.empRiderMonitoringQuotas,
         ),
       ];
 
