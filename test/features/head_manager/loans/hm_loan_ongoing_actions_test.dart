@@ -4,7 +4,8 @@
 //
 // Ongoing loan (`active`) = hindi na kailangan i-open ang buong details page;
 // "View Remaining Balance" lang ang nasa 3-dots menu at compact na dialog ang
-// lumalabas. Ibang status (hal. approved) = "Open details" pa rin.
+// lumalabas. Walang "Open details" sa menu sa LAHAT ng status — nasa row na
+// mismo ang View action.
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -112,7 +113,8 @@ class _StubInOfficeNotifier extends HmInOfficeNotifier {
             LoanRemoteDataSource(DioClientFake()));
 
   @override
-  Future<void> load({String? status, int page = 1, bool silent = false}) async {}
+  Future<void> load(
+      {String? status, int page = 1, bool silent = false}) async {}
 }
 
 class _StubDisbursementNotifier extends HmDisbursementNotifier {
@@ -180,7 +182,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('ongoing loan: View Remaining Balance, hindi Open details',
+  testWidgets('ongoing loan: View Remaining Balance, walang Open details',
       (tester) async {
     await pumpLoans(tester, _loan('active'));
 
@@ -193,8 +195,7 @@ void main() {
     expect(find.text('Open details'), findsNothing);
   });
 
-  testWidgets('ongoing loan: compact na balanse ang binuksan',
-      (tester) async {
+  testWidgets('ongoing loan: compact na balanse ang binuksan', (tester) async {
     await pumpLoans(tester, _loan('active'));
 
     await tester.tap(find.byTooltip('Actions'));
@@ -205,15 +206,15 @@ void main() {
     final dialog = find.byType(AlertDialog);
     expect(find.text('Remaining Balance'), findsOneWidget);
 
-    final lender = find.descendant(
-        of: dialog, matching: find.text('April Malasan'));
+    final lender =
+        find.descendant(of: dialog, matching: find.text('April Malasan'));
     final loanNo =
         find.descendant(of: dialog, matching: find.text('LN-2026-760880'));
     expect(lender, findsOneWidget,
         reason: 'Dapat nakikita ang pangalan ng lender sa dialog');
     // Pangalan ng lender muna, tapos ang loan number sa ilalim.
-    expect(tester.getTopLeft(lender).dy,
-        lessThan(tester.getTopLeft(loanNo).dy));
+    expect(
+        tester.getTopLeft(lender).dy, lessThan(tester.getTopLeft(loanNo).dy));
 
     expect(find.textContaining('5,000'), findsWidgets);
     expect(find.text('Remaining balance on this ongoing loan'), findsOneWidget);
@@ -227,7 +228,8 @@ void main() {
 
   testWidgets('bayad na ang overdue: "Overdue paid" tag sa ilalim ng status',
       (tester) async {
-    await pumpLoans(tester, _loan('active', overduePaidAt: '2026-09-27T13:32:00Z'));
+    await pumpLoans(
+        tester, _loan('active', overduePaidAt: '2026-09-27T13:32:00Z'));
 
     expect(tester.takeException(), isNull,
         reason: 'Walang overflow sa fixed-height row');
@@ -235,27 +237,46 @@ void main() {
   });
 
   testWidgets('overdue pa rin: walang "Overdue paid" tag', (tester) async {
-    await pumpLoans(tester, _loan('overdue', overduePaidAt: '2026-09-27T13:32:00Z'));
+    await pumpLoans(
+        tester, _loan('overdue', overduePaidAt: '2026-09-27T13:32:00Z'));
 
     expect(find.text('Overdue paid · Sep 27, 2026'), findsNothing);
   });
 
-  testWidgets('walang late payment: walang "Overdue paid" tag',
-      (tester) async {
+  testWidgets('walang late payment: walang "Overdue paid" tag', (tester) async {
     await pumpLoans(tester, _loan('active'));
 
     expect(find.textContaining('Overdue paid'), findsNothing);
   });
 
-  testWidgets('approved loan: Open details pa rin', (tester) async {
-    await pumpLoans(tester, _loan('approved', outstanding: 0));
+  // Walang "Open details" sa 3-dots menu kahit anong status — ang View action
+  // sa row na ang paraan ng pagbukas ng details.
+  for (final status in const [
+    'pending',
+    'under_review',
+    'ci_required',
+    'ci_assigned',
+    'ci_completed',
+    'approved',
+    'active',
+    'overdue',
+    'completed',
+  ]) {
+    testWidgets('$status: walang Open details sa actions menu', (tester) async {
+      await pumpLoans(tester, _loan(status, outstanding: 0));
 
-    expect(tester.takeException(), isNull);
+      expect(tester.takeException(), isNull);
 
-    await tester.tap(find.byTooltip('Actions'));
-    await tester.pumpAndSettle();
+      final actions = find.byTooltip('Actions');
+      if (actions.evaluate().isNotEmpty) {
+        await tester.tap(actions);
+        await tester.pumpAndSettle();
+      }
 
-    expect(find.text('Open details'), findsOneWidget);
-    expect(find.text('View Remaining Balance'), findsNothing);
-  });
+      expect(find.text('Open details'), findsNothing);
+      if (status != 'active') {
+        expect(find.text('View Remaining Balance'), findsNothing);
+      }
+    });
+  }
 }

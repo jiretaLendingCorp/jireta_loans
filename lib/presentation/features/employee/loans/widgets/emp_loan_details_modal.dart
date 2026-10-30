@@ -1273,6 +1273,7 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 TextField(
                   controller: _reasonCtrl,
                   maxLines: 3,
+                  onChanged: (_) => setDialogState(() {}),
                   decoration: const InputDecoration(
                     hintText: 'Enter rejection reason...',
                     filled: true,
@@ -1306,7 +1307,8 @@ class _EmpLoanDetailsModalState extends ConsumerState<EmpLoanDetailsModal> {
                 foregroundColor: Colors.white,
                 shape: const RoundedRectangleBorder(
                     borderRadius: BorderRadius.zero)),
-              onPressed: reapplyChoice == null
+              onPressed: reapplyChoice == null ||
+                      _reasonCtrl.text.trim().isEmpty
                   ? null
                   : () => Navigator.pop(ctx, _reasonCtrl.text.trim()),
               child: Text(reapplyChoice?.permanent == true

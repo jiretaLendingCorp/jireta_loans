@@ -84,10 +84,11 @@ class _EmpAccountUpgradeDetailsScreenState
         message:
             'Do you want to reject this lender\'s account upgrade submission? This action cannot be undone.',
         actionWord: 'resubmit',
-        onConfirm: (_, __, reapplyAllowedAt, permanent) {
+        onConfirm: (_, reason, reapplyAllowedAt, permanent) {
           Navigator.of(context).pop();
           _submitVerify(
             'rejected',
+            rejectionNotes: reason,
             reapplyAllowedAt: reapplyAllowedAt,
             permanent: permanent,
           );
@@ -98,6 +99,7 @@ class _EmpAccountUpgradeDetailsScreenState
 
   Future<void> _submitVerify(
     String action, {
+    String? rejectionNotes,
     DateTime? reapplyAllowedAt,
     bool permanent = false,
   }) async {
@@ -106,6 +108,7 @@ class _EmpAccountUpgradeDetailsScreenState
       await _ds.verifyAllAccountUpgrade(
         lenderId: widget.lenderId,
         action: action,
+        rejectionNotes: rejectionNotes,
         reapplyAllowedAt: reapplyAllowedAt,
         permanent: permanent,
       );

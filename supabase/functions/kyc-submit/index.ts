@@ -138,9 +138,11 @@ serve(async (req) => {
     // Ang staff-chosen `reapply_allowed_at` (00191) ang basehan; kung wala
     // (lumang data / lumang app build), default na 30 days mula sa latest
     // rejection (reviewed_at, fallback sa lender_profiles.updated_at).
+    // `*` para hindi bumagsak ang buong check kapag wala pa ang 00191 column
+    // (lumang deploy) — optional na lang ang flag sa ibaba.
     const { data: curProfile } = await db
       .from("lender_profiles")
-      .select("account_upgrade_status, updated_at, account_upgrade_permanently_rejected")
+      .select("*")
       .eq("id", user.id)
       .maybeSingle();
     // 00191: permanenteng rejection — hindi na makakapag-resubmit kahit kailan.

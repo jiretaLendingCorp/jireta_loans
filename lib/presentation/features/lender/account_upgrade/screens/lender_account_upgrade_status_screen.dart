@@ -114,6 +114,8 @@ class _LenderAccountUpgradeStatusScreenState
     final inCooldown = state.isInCooldown;
     final permanent = state.isPermanentlyRejected;
     final resubmit = state.resubmitAfter;
+    // Dahilan mula sa staff — dapat makita ng lender kung bakit na-reject.
+    final reason = state.rejectionNotes?.trim();
     String? cooldownLine;
     if (permanent) {
       cooldownLine =
@@ -147,6 +149,15 @@ class _LenderAccountUpgradeStatusScreenState
                     color: AppColors.error,
                     fontWeight: FontWeight.w700),
               ),
+              if (reason != null && reason.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Reason: $reason',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ],
               if (cooldownLine != null) ...[
                 const SizedBox(height: 8),
                 Text(

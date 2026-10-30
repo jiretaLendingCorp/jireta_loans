@@ -163,11 +163,13 @@ async function handleReject(req: Request) {
 
     const { loan_id, rejection_reason, reapply_allowed_at, permanent } = await req.json();
     if (!loan_id) return errorResponse('loan_id is required', 400, 'VALIDATION_ERROR');
-    // The reject confirmation no longer collects a free-text reason (plain
-    // Yes/No modal), so fall back to a generic label when none is supplied.
-    const reason = (typeof rejection_reason === 'string' && rejection_reason.trim())
-      ? sanitizeString(rejection_reason)
-      : 'Rejected by staff';
+    // Required ang dahilan para sa rejection — ipinapakita ito sa lender sa
+    // application status at ipinapadala rin sa notification. Ang staff UI ang
+    // nangongolekta nito, at ito ang huling depensa laban sa blangko/whitespace.
+    const reason = sanitizeString(rejection_reason);
+    if (!reason) {
+      return errorResponse('Rejection reason is required', 400, 'VALIDATION_ERROR');
+    }
 
     // 00179: PERMANENTENG rejection — kapag ito ang pinili sa reject modal,
     // hindi na makakapag-apply muli ang lender kahit kailan. Ang flag

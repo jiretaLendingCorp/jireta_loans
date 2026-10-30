@@ -209,13 +209,14 @@ class _EmpAccountUpgradeListScreenState extends ConsumerState<EmpAccountUpgradeL
         message:
             'Do you want to reject this lender\'s account upgrade submission? This action cannot be undone.',
         actionWord: 'resubmit',
-        onConfirm: (_, __, reapplyAllowedAt, permanent) async {
+        onConfirm: (_, reason, reapplyAllowedAt, permanent) async {
           setState(() => _busyLenderId = lenderId);
           final ok = await ref
               .read(hmAccountUpgradeProvider.notifier)
               .verifyAll(
                 lenderId: lenderId,
                 action: 'rejected',
+                rejectionNotes: reason,
                 reapplyAllowedAt: reapplyAllowedAt,
                 permanent: permanent,
               );

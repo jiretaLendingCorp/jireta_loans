@@ -2,9 +2,9 @@
 //
 // ACCOUNT UPGRADE REJECT — kapareho ng loan reject.
 //
-// Kailangang pumili muna ang staff kung kailan pwedeng mag-resubmit ang
-// lender (Immediately / 1 month / ... / Other date / Permanent reject) bago
-// naka-enable ang Reject. Walang default.
+// Kailangang maglagay ng rejection reason AT pumili ng resubmit window
+// (Immediately / 1 month / ... / Other date / Permanent reject) bago naka-enable
+// ang Reject. Walang default. Ang reason ang nakikita ng lender.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
@@ -19,7 +19,7 @@ void main() {
 
   Future<void> pumpModal(
     WidgetTester tester,
-    void Function(DateTime?, bool) onConfirm,
+    void Function(String?, DateTime?, bool) onConfirm,
   ) async {
     // Sapat ang taas para buong picker (kasama ang Permanent reject) — para
     // hindi kailangang i-scroll sa test.
@@ -41,8 +41,8 @@ void main() {
                   message:
                       'Do you want to reject this lender\'s account upgrade submission? This action cannot be undone.',
                   actionWord: 'resubmit',
-                  onConfirm: (_, __, reapplyAllowedAt, permanent) {
-                    onConfirm(reapplyAllowedAt, permanent);
+                  onConfirm: (_, reason, reapplyAllowedAt, permanent) {
+                    onConfirm(reason, reapplyAllowedAt, permanent);
                     // Gaya ng app: parent ang nag-po-pop matapos pindutin —
                     // kung hindi, tuloy-tuloy ang spinner sa Reject button.
                     Navigator.of(context).pop();
@@ -59,24 +59,29 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('may resubmit picker; disabled ang Reject hangga\'t walang napili',
+  testWidgets(
+      'kailangan ang reason at resubmit picker bago maka-reject',
       (tester) async {
+    String? pickedReason;
     DateTime? pickedDate;
     bool? pickedPermanent;
-    await pumpModal(tester, (date, permanent) {
+    await pumpModal(tester, (reason, date, permanent) {
+      pickedReason = reason;
       pickedDate = date;
       pickedPermanent = permanent;
     });
 
     expect(find.text('Reject Account Upgrade'), findsOneWidget);
+    expect(find.text('Rejection reason'), findsOneWidget);
     expect(find.text('When can the lender resubmit again?'), findsOneWidget);
     expect(find.text('Immediately'), findsOneWidget);
     expect(find.text('1 month'), findsOneWidget);
     expect(find.text('Permanent reject'), findsOneWidget);
 
-    // Walang default — hindi basta 1 month ang ipapadala.
+    // Walang default at walang reason — hindi basta 1 month ang ipapadala.
     await tester.tap(find.text('Reject'));
     await tester.pumpAndSettle();
+    expect(pickedReason, isNull);
     expect(pickedDate, isNull);
     expect(pickedPermanent, isNull);
 
@@ -88,8 +93,21 @@ void main() {
       findsOneWidget,
     );
 
+    // May petse na pero blangko pa ang reason — disabled pa rin ang Reject.
     await tester.tap(find.text('Reject'));
     await tester.pumpAndSettle();
+    expect(pickedReason, isNull);
+    expect(pickedDate, isNull);
+
+    await tester.enterText(
+      find.byType(TextField),
+      'Incomplete supporting documents',
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Reject'));
+    await tester.pumpAndSettle();
+    expect(pickedReason, 'Incomplete supporting documents');
     expect(pickedPermanent, isFalse);
     expect(pickedDate, isNotNull);
     expect(
@@ -100,12 +118,20 @@ void main() {
 
   testWidgets('Permanent reject → walang date, permanent ang ipapadala',
       (tester) async {
+    String? pickedReason;
     DateTime? pickedDate;
     bool? pickedPermanent;
-    await pumpModal(tester, (date, permanent) {
+    await pumpModal(tester, (reason, date, permanent) {
+      pickedReason = reason;
       pickedDate = date;
       pickedPermanent = permanent;
     });
+
+    await tester.enterText(
+      find.byType(TextField),
+      'Fraudulent document submitted',
+    );
+    await tester.pumpAndSettle();
 
     await tester.tap(find.text('Permanent reject'));
     await tester.pumpAndSettle();
@@ -118,6 +144,7 @@ void main() {
     // Kapag permanent ang pinili, "Reject permanently" ang label ng button.
     await tester.tap(find.text('Reject permanently'));
     await tester.pumpAndSettle();
+    expect(pickedReason, 'Fraudulent document submitted');
     expect(pickedPermanent, isTrue);
     expect(pickedDate, isNull);
   });

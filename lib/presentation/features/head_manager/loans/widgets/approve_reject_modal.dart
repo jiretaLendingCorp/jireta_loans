@@ -46,6 +46,19 @@ class ApproveRejectModal extends StatefulWidget {
 class _ApproveRejectModalState extends State<ApproveRejectModal> {
   bool _loading = false;
 
+  /// Dahilan ng rejection — ipinapakita sa lender (loan status / account
+  /// upgrade status) at naka-save sa record. Required bago payagan ang
+  /// pag-reject.
+  final _reasonCtrl = TextEditingController();
+
+  String get _reason => _reasonCtrl.text.trim();
+
+  @override
+  void dispose() {
+    _reasonCtrl.dispose();
+    super.dispose();
+  }
+
   /// Napili ng staff para sa rejection (date o permanent). WALANG default:
   /// mananatili itong null hangga't hindi pumili ang staff, at habang null ay
   /// naka-disable ang Reject (para hindi ito tahimik na mag-fallback sa
@@ -98,6 +111,23 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
                 style: const TextStyle(
                     fontSize: 14, color: AppColors.textSecondary),
               ),
+              // Required ang dahilan para sa rejection — ito ang nakikita ng
+              // lender kapag na-reject ang loan o account upgrade.
+              if (!widget.isApprove) ...[
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _reasonCtrl,
+                  maxLines: 3,
+                  maxLength: 500,
+                  onChanged: (_) => setState(() {}),
+                  decoration: const InputDecoration(
+                    labelText: 'Rejection reason',
+                    hintText: 'Enter rejection reason...',
+                    helperText: 'Required — the lender will see this.',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ],
               // 00176 / 00179: kapag rejection, ang staff ang nagde-decide kung
               // kailan pwedeng mag-apply ulit ang lender — o kung PERMANENTE
               // nang hindi na ito papayagan (walang approve-side chooser).
@@ -121,9 +151,11 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          // Pag-reject, kailangan munang pumili ng re-apply date — walang
+          // Pag-reject, kailangan ang dahilan at ang re-apply date — walang
           // default na 1 month, desisyon ito ng staff.
-          onPressed: (_loading || (!widget.isApprove && !_reapplyChosen))
+          onPressed: (_loading ||
+                  (!widget.isApprove &&
+                      (!_reapplyChosen || _reason.isEmpty)))
               ? null
               : _confirm,
           style: ElevatedButton.styleFrom(
@@ -146,12 +178,12 @@ class _ApproveRejectModalState extends State<ApproveRejectModal> {
 
   Future<void> _confirm() async {
     setState(() => _loading = true);
-    // No reason collected — a plain Yes/No confirmation (reason stays null).
-    // Ang re-apply date (o permanent) naman ay pinipili ng staff — null/false
-    // kapag approve.
+    // Ang dahilan ay required sa rejection at ipinapasa sa backend; null ito
+    // kapag approve. Ang re-apply date (o permanent) ay pinipili ng staff —
+    // null/false kapag approve.
     widget.onConfirm(
       widget.loanId,
-      null,
+      widget.isApprove ? null : _reason,
       widget.isApprove ? null : _reapplyChoice?.allowedAt,
       !widget.isApprove && _permanent,
     );

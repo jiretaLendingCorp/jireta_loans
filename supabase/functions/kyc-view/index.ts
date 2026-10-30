@@ -17,7 +17,7 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
-import { validatePagination, validateUUID } from '../_shared/validators.ts';
+import { sanitizeString, validatePagination, validateUUID } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddressBatch, getLenderAddress } from '../_shared/loan_financials.ts';
@@ -98,12 +98,23 @@ async function handleVerify(req: Request) {
     if (roleCheck) return roleCheck;
 
     const body = await req.json();
-    const { account_upgrade_doc_id, lender_id, action, rejection_notes, reapply_allowed_at, permanent } = body;
+    const {
+      account_upgrade_doc_id,
+      lender_id,
+      action,
+      rejection_notes: rawRejectionNotes,
+      reapply_allowed_at,
+      permanent,
+    } = body;
     if (!['verified', 'rejected'].includes(action)) {
       return errorResponse('action (verified|rejected) is required', 400, 'VALIDATION_ERROR');
     }
-    // Reject requires NO reason — simple Yes / No confirm from staff UI.
-    // rejection_notes is optional and may be omitted entirely.
+    // Required ang dahilan para sa rejection — ito ang nakikita ng lender sa
+    // account upgrade status at ipinapadala rin sa notification.
+    const rejectionNotes = sanitizeString(rawRejectionNotes);
+    if (action === 'rejected' && !rejectionNotes) {
+      return errorResponse('rejection_notes is required when rejecting', 400, 'VALIDATION_ERROR');
+    }
     if (!account_upgrade_doc_id && !lender_id) {
       return errorResponse('account_upgrade_doc_id or lender_id is required', 400, 'VALIDATION_ERROR');
     }
@@ -133,7 +144,7 @@ async function handleVerify(req: Request) {
     // 00191: PERMANENTENG rejection — hindi na makakapag-resubmit ang lender
     // kahit kailan (kapareho ng `loans.permanently_rejected`, 00179). Kapag
     // permanent, hindi na pinapansin ang cooldown date.
-    const isPermanent = action === 'rejected' && permanent === true;
+    let isPermanent = action === 'rejected' && permanent === true;
     if (isPermanent) reapplyAllowedAt = null;
 
     const db = getAdminClient();
@@ -156,7 +167,7 @@ async function handleVerify(req: Request) {
       status: action,
       reviewed_by: user.id,
       reviewed_at: now,
-      rejection_notes: rejection_notes ?? null,
+      rejection_notes: action === 'rejected' ? rejectionNotes : null,
       // Naka-set lang kapag rejection; nilinis kapag verified para hindi
       // magmana ang lumang resubmit date.
       reapply_allowed_at:
@@ -194,17 +205,43 @@ async function handleVerify(req: Request) {
 
     // Track rejection time via updated_at so the 1-month resubmit cooldown
     // can be enforced in kyc-submit / kyc-get-status without a migration.
-    // rejection_notes stays optional (null when staff rejects via Yes/No).
-    await db.from('lender_profiles').update({
+    // rejection_notes is required on rejection and cleared on verify.
+    const profileUpdate: Record<string, unknown> = {
       account_upgrade_status: newAccountUpgradeStatus,
       updated_at: now,
       account_upgrade_rejection_notes:
-        action === 'rejected' ? (rejection_notes ?? null) : null,
+        action === 'rejected' ? rejectionNotes : null,
       // Tina-tahasang i-set sa bawat review: true kapag permanent reject,
       // false kapag normal rejection o verified (nag-a-unblock).
       account_upgrade_permanently_rejected:
         action === 'rejected' ? isPermanent : false,
-    }).eq('id', targetLenderId);
+    };
+    let { error: profileError } = await db
+      .from('lender_profiles')
+      .update(profileUpdate)
+      .eq('id', targetLenderId);
+    // Deploy-order guard: kung wala pa ang 00191 permanent column, huwag
+    // hayaang mabigo ang status update — retry na walang flag (normal
+    // rejection na may default cooldown ang kalalabasan).
+    if (
+      profileError &&
+      /account_upgrade_permanently_rejected/i.test(profileError.message ?? '')
+    ) {
+      console.error(
+        '[kyc-verify] kulang ang migration 00191 (permanent flag) — retry na walang flag:',
+        profileError.message,
+      );
+      delete profileUpdate.account_upgrade_permanently_rejected;
+      const retry = await db
+        .from('lender_profiles')
+        .update(profileUpdate)
+        .eq('id', targetLenderId);
+      profileError = retry.error;
+      isPermanent = false;
+    }
+    if (profileError) {
+      console.error('kyc-verify: lender_profiles update failed:', profileError);
+    }
 
     // Cooldown: ang staff-chosen resubmit date ang basehan; NULL = default
     // 1 month mula sa rejection timestamp. Permanent reject — walang date.
@@ -382,8 +419,8 @@ async function handleVerify(req: Request) {
       title: action === 'verified' ? 'Account Upgrade Verified' : 'Account Upgrade Rejected',
       body: action === 'verified'
         ? 'Good news! Your account upgrade has been verified. You can now apply for a loan.'
-        : (rejection_notes
-            ? `Account Upgrade rejected: ${rejection_notes}`
+        : (rejectionNotes
+            ? `Account Upgrade rejected: ${rejectionNotes}`
             : isPermanent
               ? 'Account Upgrade permanently rejected.'
               : resubmitAfter

@@ -14,6 +14,7 @@ import '../../../../../data/models/loan_model.dart';
 import '../../../../shared/widgets/layout/responsive_content.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/search_date_filter.dart';
+import '../../../../shared/widgets/filter_dropdown.dart';
 import '../../../../shared/widgets/filter_pill_tab.dart';
 import '../../../../shared/widgets/search_results_chip.dart';
 import '../../ci/widgets/ci_assign_modal.dart';
@@ -56,9 +57,11 @@ class _HmLoanApplicationsListScreenState
   String? _lastRouteTab;
   String _inOfficeSearch = '';
 
-  // Pipeline tabs become dropdown; Active & In-Office remain as pills per request
-  final _dropdownTabs = const [
-    FilterTabDef('all', 'All', Icons.layers_outlined),
+  /// Mga option ng "All Status" dropdown sa toolbar (dating "Pipeline").
+  /// Ang Ongoing Loan / In-Office / Disbursements / Previous Loan ay pills
+  /// pa rin, hindi kasama dito.
+  final _statusTabs = const [
+    FilterTabDef('all', 'All Status', Icons.layers_outlined),
     FilterTabDef('pending', 'Pending CI', Icons.hourglass_top_rounded),
     FilterTabDef('under_review', 'Under Review', Icons.rate_review_outlined),
     FilterTabDef('ci_required', 'CI Required', Icons.search_outlined),
@@ -71,7 +74,8 @@ class _HmLoanApplicationsListScreenState
     FilterTabDef(
         'active', 'Ongoing Loan', Icons.account_balance_wallet_outlined),
     // Tinanggal ang "Completed" tab — nasa Previous Loan na ito.
-    FilterTabDef('in_office', 'In-Office Application', Icons.storefront_outlined),
+    FilterTabDef(
+        'in_office', 'In-Office Application', Icons.storefront_outlined),
     FilterTabDef('disbursements', 'Disbursements', Icons.payments_outlined),
     // Tapos nang magbayad (`completed`) + malapit nang matapos (isang
     // installment na lang ang natitira) — progreso ng bayad kada loan ang
@@ -216,7 +220,7 @@ class _HmLoanApplicationsListScreenState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildTabPills(effectiveTab),
+              _buildPillTabs(effectiveTab),
               const SizedBox(height: 16),
               // Toolbar stays visible for both modes; search filters the
               // currently visible list. For In-Office we still show the
@@ -225,8 +229,8 @@ class _HmLoanApplicationsListScreenState
               // table (gaya ng design), kaya hindi na kailangan ang global
               // toolbar doon. Ibang tabs: toolbar pa rin ang nagfi-filter.
               if (!isLoanHistory) ...[
-                _buildToolbar(loanState, inOfficeState, disbState,
-                    historyState, isInOffice, isDisbursements, isLoanHistory),
+                _buildToolbar(loanState, inOfficeState, disbState, historyState,
+                    effectiveTab, isInOffice, isDisbursements, isLoanHistory),
                 const SizedBox(height: 16),
               ],
               if (isInOffice) ...[
@@ -257,61 +261,49 @@ class _HmLoanApplicationsListScreenState
     );
   }
 
-  // ─────────────────────────────── Pill Tabs + Dropdown ───────────────────────────────
-  // Ongoing Loan & In-Office stay as pills; pipeline (All/Pending/etc.) is dropdown.
-  Widget _buildTabPills(String active) {
-    final dropdownKeys = _dropdownTabs.map((e) => e.key).toSet();
-    final isDropdownActive = dropdownKeys.contains(active);
-    final dropdownValue = isDropdownActive ? active : null;
-
-    return FilterTabBar(
-      dropdownLabel: 'Pipeline',
-      dropdownOptions: _dropdownTabs,
-      dropdownValue: dropdownValue,
-      onDropdownChanged: (v) {
-        // Sariling URL ang bawat pipeline status: /hm/loan-records/pipeline/<v>.
-        final target = _pipelinePath(v);
-        final path = GoRouterState.of(context).uri.path;
-        if (path == target) {
-          ref.read(hmLoanProvider.notifier).setTab(v);
-        } else {
-          context.go(target);
-        }
-      },
-      // Pill tabs for Active & In-Office
-      pills: _pillTabs.map((t) {
-        final isActive = t.key == active;
-        return Padding(
-          padding: const EdgeInsets.only(right: 8),
-          child: FilterPillTab(
-            def: t,
-            active: isActive,
-            onTap: () {
-              // Lahat ng pill ay may sariling URI. Ang `didChangeDependencies`
-              // ang naglo-load ng tamang data pagkatapos magpalit ng URL.
-              final target = _pathForTab(t.key);
-              if (GoRouterState.of(context).uri.path == target) {
-                ref.read(hmLoanProvider.notifier).setTab(t.key);
-              } else {
-                context.go(target);
-              }
-            },
-          ),
-        );
-      }).toList(),
+  // ─────────────────────────── Pill tabs ───────────────────────────
+  // Ongoing Loan / In-Office / Disbursements / Previous Loan lang ang pills;
+  // ang pipeline statuses ay nasa "All Status" dropdown ng toolbar.
+  Widget _buildPillTabs(String active) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: _pillTabs.map((t) {
+          final isActive = t.key == active;
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: FilterPillTab(
+              def: t,
+              active: isActive,
+              onTap: () {
+                // Lahat ng pill ay may sariling URI. Ang
+                // `didChangeDependencies` ang naglo-load ng tamang data
+                // pagkatapos magpalit ng URL.
+                final target = _pathForTab(t.key);
+                if (GoRouterState.of(context).uri.path == target) {
+                  ref.read(hmLoanProvider.notifier).setTab(t.key);
+                } else {
+                  context.go(target);
+                }
+              },
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 
   // ─────────────────────────────── Toolbar ───────────────────────────────
   // No inner box — single outer container with flat Search field (hint "Search").
   Widget _buildToolbar(
-      HmLoanState loanState,
-      HmInOfficeState inOfficeState,
-      HmDisbursementState disbState,
-      HmLoanHistoryState historyState,
-      bool isInOffice,
-      bool isDisbursements,
-      bool isLoanHistory) =>
+          HmLoanState loanState,
+          HmInOfficeState inOfficeState,
+          HmDisbursementState disbState,
+          HmLoanHistoryState historyState,
+          String activeTab,
+          bool isInOffice,
+          bool isDisbursements,
+          bool isLoanHistory) =>
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: ResponsiveSearchToolbar(
@@ -341,6 +333,31 @@ class _HmLoanApplicationsListScreenState
             },
           ),
           trailing: [
+            // Status filter — dropdown na katabi ng search, bago ang date.
+            // Kapareho ng Account Upgrade at Collections.
+            FilterDropdown<String>(
+              value: _statusTabs.any((t) => t.key == activeTab)
+                  ? activeTab
+                  : 'all',
+              icon: Icons.filter_list_rounded,
+              items: _statusTabs
+                  .map((t) => DropdownMenuItem(
+                        value: t.key,
+                        child: Text(t.label),
+                      ))
+                  .toList(),
+              onChanged: (v) {
+                if (v == null) return;
+                // Sariling URL ang bawat pipeline status:
+                // /hm/loan-records/pipeline/<v>.
+                final target = _pathForTab(v);
+                if (GoRouterState.of(context).uri.path == target) {
+                  ref.read(hmLoanProvider.notifier).setTab(v);
+                } else {
+                  context.go(target);
+                }
+              },
+            ),
             SearchDateFilter(value: _dateRange, onChanged: _onDateRangeChanged),
             SearchResultsChip(
               count: isInOffice
@@ -678,8 +695,8 @@ class _HmLoanApplicationsListScreenState
                     .read(hmLoanHistoryProvider.notifier)
                     .setSearch(value.trim());
               },
-              style: const TextStyle(
-                  fontSize: 12.5, color: AppColors.textPrimary),
+              style:
+                  const TextStyle(fontSize: 12.5, color: AppColors.textPrimary),
               textAlignVertical: TextAlignVertical.center,
               decoration: const InputDecoration(
                 hintText: 'Search by Loan ID or client name...',
@@ -831,7 +848,8 @@ class _HmLoanApplicationsListScreenState
         case 'weekly':
           return start.add(Duration(days: loan.termPeriods * 7));
         default:
-          return DateTime(start.year, start.month + loan.termPeriods, start.day);
+          return DateTime(
+              start.year, start.month + loan.termPeriods, start.day);
       }
     }
     return null;
@@ -868,10 +886,9 @@ class _HmLoanApplicationsListScreenState
   }
 
   /// "1 day" / "3 months" — hindi "1 days".
-  String _plural(int count, String unit) =>
-      count == 1 && unit.endsWith('s')
-          ? unit.substring(0, unit.length - 1)
-          : unit;
+  String _plural(int count, String unit) => count == 1 && unit.endsWith('s')
+      ? unit.substring(0, unit.length - 1)
+      : unit;
 
   /// Table ng Previous Loans — Loan ID (may pangalan ng client sa ilalim) ·
   /// Amount · Term · Installment · Start Date · End Date · Status · Actions.
@@ -1011,8 +1028,7 @@ class _HmLoanApplicationsListScreenState
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.info,
-                side: BorderSide(
-                    color: AppColors.info.withValues(alpha: 0.45)),
+                side: BorderSide(color: AppColors.info.withValues(alpha: 0.45)),
                 padding: const EdgeInsets.symmetric(horizontal: 9),
                 minimumSize: const Size(0, 30),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1045,8 +1061,9 @@ class _HmLoanApplicationsListScreenState
           status
               .replaceAll('_', ' ')
               .split(' ')
-              .map((word) =>
-                  word.isEmpty ? word : '${word[0].toUpperCase()}${word.substring(1)}')
+              .map((word) => word.isEmpty
+                  ? word
+                  : '${word[0].toUpperCase()}${word.substring(1)}')
               .join(' ')
         ),
     };
@@ -1282,8 +1299,8 @@ class _HmLoanApplicationsListScreenState
             decoration: BoxDecoration(
               color: AppColors.deepNavy.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: AppColors.deepNavy.withValues(alpha: 0.14)),
+              border:
+                  Border.all(color: AppColors.deepNavy.withValues(alpha: 0.14)),
             ),
             child: const Row(
               mainAxisSize: MainAxisSize.min,
@@ -1319,8 +1336,8 @@ class _HmLoanApplicationsListScreenState
     };
     // Plain text lang — hindi pill/button style.
     return Text(label,
-        style: TextStyle(
-            fontSize: 13, color: color, fontWeight: FontWeight.w600));
+        style:
+            TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600));
   }
 
   Widget _buildInOfficeList(List<Map<String, dynamic>> apps) {
@@ -1378,13 +1395,12 @@ class _HmLoanApplicationsListScreenState
                 ),
               ),
               icon: const Icon(Icons.add, size: 14),
-              label: const Text('New Walk-in',
-                  style: TextStyle(fontSize: 11)),
+              label: const Text('New Walk-in', style: TextStyle(fontSize: 11)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.deepNavy,
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 minimumSize: const Size(0, 32),
               ),
             ),
@@ -1473,9 +1489,7 @@ class _HmLoanApplicationsListScreenState
               border: Border.all(color: AppColors.border),
             ),
             child: Icon(
-              isFiltered
-                  ? Icons.search_off_rounded
-                  : Icons.storefront_outlined,
+              isFiltered ? Icons.search_off_rounded : Icons.storefront_outlined,
               size: 32,
               color: AppColors.deepNavy.withValues(alpha: 0.75),
             ),
@@ -1561,7 +1575,8 @@ class _HmLoanApplicationsListScreenState
         ResponsiveCol('Status', icon: Icons.flag_outlined, flex: 2),
         ResponsiveCol('Applied', icon: Icons.event_outlined, flex: 3),
       ],
-      actionsCol: const ResponsiveActionsCol(width: 96, alignment: Alignment.topLeft),
+      actionsCol:
+          const ResponsiveActionsCol(width: 96, alignment: Alignment.topLeft),
       // Fixed row height so every row stays pantay-pantay even when the
       // Status cell stacks an extra "Rider: …" line under the status.
       rowHeight: 64,
@@ -1597,8 +1612,7 @@ class _HmLoanApplicationsListScreenState
                 Text(
                   lenderName.isEmpty ? '—' : lenderName,
                   style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textTertiary),
+                      fontSize: 11, color: AppColors.textTertiary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -1734,8 +1748,7 @@ class _HmLoanApplicationsListScreenState
                 ],
                 // Overdue CI: failed task needs a new rider.
                 if (loan.ciStatus != null &&
-                    (loan.ciStatus == 'failed' ||
-                        loan.ciStatus == 'expired') &&
+                    (loan.ciStatus == 'failed' || loan.ciStatus == 'expired') &&
                     loan.status == 'ci_assigned') ...[
                   const SizedBox(height: 6),
                   Row(
@@ -1784,8 +1797,7 @@ class _HmLoanApplicationsListScreenState
                   _timeAgo(loan.createdAt),
                   textAlign: TextAlign.start,
                   style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.textTertiary),
+                      fontSize: 11, color: AppColors.textTertiary),
                 ),
               ],
             ),
@@ -1867,9 +1879,8 @@ class _HmLoanApplicationsListScreenState
               style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.w800,
-                  color: outstanding > 0
-                      ? AppColors.deepNavy
-                      : AppColors.success),
+                  color:
+                      outstanding > 0 ? AppColors.deepNavy : AppColors.success),
             ),
             const SizedBox(height: 2),
             Text(
@@ -1887,8 +1898,7 @@ class _HmLoanApplicationsListScreenState
                         value: loan.totalPayable.toCurrency)),
                 const SizedBox(width: 12),
                 Expanded(
-                    child: _BalanceStat(
-                        label: 'Paid', value: paid.toCurrency)),
+                    child: _BalanceStat(label: 'Paid', value: paid.toCurrency)),
               ],
             ),
           ],
@@ -1937,8 +1947,8 @@ class _HmLoanApplicationsListScreenState
                           height: 10,
                           width: 160,
                           decoration: BoxDecoration(
-                              color:
-                                  AppColors.shimmerHighlight.withValues(alpha: 0.9),
+                              color: AppColors.shimmerHighlight
+                                  .withValues(alpha: 0.9),
                               borderRadius: BorderRadius.circular(6))),
                     ],
                   ),
@@ -2179,12 +2189,6 @@ class _HmLoanApplicationsListScreenState
 // Supporting widgets
 // ─────────────────────────────────────────────────────────────────────────────
 
-
-
-
-
-
-
 class _FrequencyInline extends StatelessWidget {
   final String frequency;
   const _FrequencyInline({required this.frequency});
@@ -2215,8 +2219,7 @@ class _FrequencyInline extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           f.isEmpty ? '-' : '${f[0].toUpperCase()}${f.substring(1)}',
-          style: TextStyle(
-              fontSize: 12, fontWeight: FontWeight.w600, color: c),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c),
         ),
       ],
     );
@@ -2289,7 +2292,12 @@ class _StatusInline extends StatelessWidget {
         break;
       default:
         c = AppColors.textSecondary;
-        label = s.replaceAll('_', ' ').split(' ').map((w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+        label = s
+            .replaceAll('_', ' ')
+            .split(' ')
+            .map(
+                (w) => w.isEmpty ? w : '${w[0].toUpperCase()}${w.substring(1)}')
+            .join(' ');
     }
     if (labelOverride != null) {
       label = labelOverride!;
@@ -2308,8 +2316,8 @@ class _StatusInline extends StatelessWidget {
         Flexible(
           child: Text(
             label,
-            style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.w600, color: c),
+            style:
+                TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -2387,6 +2395,14 @@ class _RowActions extends StatelessWidget {
     // Compact: primary action + overflow menu
     final needsRiderDot =
         canAssignRider || canAssignDeliveryRider || disbursementChosen;
+    // Walang "Open details" sa menu (nasa row na ang View action), kaya kapag
+    // wala nang natitirang aksyon ay hindi na rin ipinapakita ang 3-dot.
+    final hasMenuActions = canApprove ||
+        canAssignRider ||
+        canAssignDeliveryRider ||
+        canDisburseOffice ||
+        canReject ||
+        isOngoing;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -2399,136 +2415,126 @@ class _RowActions extends StatelessWidget {
         ),
         const SizedBox(width: 6),
         // 3-dot menu with notification dot when rider needs assignment
-        Stack(
-          clipBehavior: Clip.none,
-          children: [
-            PopupMenuButton<String>(
-              tooltip: 'Actions',
-              offset: const Offset(0, 36),
-              // Sapat ang lapad para sa "View Remaining Balance" — kung default
-              // (≈256px) lang, nag-o-overflow ang mahabang item.
-              constraints:
-                  const BoxConstraints(minWidth: 200, maxWidth: 380),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              itemBuilder: (_) => [
-                if (canApprove)
-                  const PopupMenuItem(
-                      value: 'approve',
-                      child: Row(children: [
-                        Icon(Icons.check_circle_outline,
-                            size: 16, color: AppColors.success),
-                        SizedBox(width: 8),
-                        Text('Approve')
-                      ])),
-                if (canAssignRider)
-                  PopupMenuItem(
-                      value: 'assign_ci',
-                      child: Row(children: [
-                        const Icon(Icons.search_rounded,
-                            size: 16, color: AppColors.info),
-                        const SizedBox(width: 8),
-                        Text(ciFailed ? 'Reassign CI Rider' : 'Assign CI Rider')
-                      ])),
-                if (canAssignDeliveryRider)
-                  const PopupMenuItem(
-                      value: 'assign_delivery',
-                      child: Row(children: [
-                        Icon(Icons.delivery_dining_rounded,
-                            size: 16, color: AppColors.goldDark),
-                        SizedBox(width: 8),
-                        Text('Assign Cash on Delivery Rider')
-                      ])),
-                if (canDisburseOffice)
-                  const PopupMenuItem(
-                      value: 'disburse_office',
-                      child: Row(children: [
-                        Icon(Icons.storefront_rounded,
-                            size: 16, color: AppColors.success),
-                        SizedBox(width: 8),
-                        Text('Disburse in Office')
-                      ])),
-                if (canReject)
-                  const PopupMenuItem(
-                      value: 'reject',
-                      child: Row(children: [
-                        Icon(Icons.cancel_outlined,
-                            size: 16, color: AppColors.error),
-                        SizedBox(width: 8),
-                        Text('Reject')
-                      ])),
-                if (isOngoing)
-                  const PopupMenuItem(
-                      value: 'remaining_balance',
-                      child: Row(children: [
-                        Icon(Icons.account_balance_wallet_outlined,
-                            size: 16, color: AppColors.deepNavy),
-                        SizedBox(width: 8),
-                        Text('View Remaining Balance')
-                      ]))
-                else
-                  const PopupMenuItem(
-                      value: 'view',
-                      child: Row(children: [
-                        Icon(Icons.open_in_new_rounded,
-                            size: 16, color: AppColors.textSecondary),
-                        SizedBox(width: 8),
-                        Text('Open details')
-                      ])),
-              ],
-              onSelected: (v) {
-                switch (v) {
-                  case 'approve':
-                    parent?._showApprove(loan);
-                    break;
-                  case 'reject':
-                    parent?._showReject(loan);
-                    break;
-                  case 'assign_ci':
-                    parent?._showAssignRider(loan);
-                    break;
-                  case 'assign_delivery':
-                    parent?._showAssignDisbursementRider(loan);
-                    break;
-                  case 'disburse_office':
-                    parent?._showDisburseOffice(loan);
-                    break;
-                  case 'remaining_balance':
-                    parent?._showRemainingBalance(loan);
-                    break;
-                  case 'view':
-                    parent?._openDetails(context, loan.id);
-                    break;
-                }
-              },
-              child: Container(
-                width: 30,
-                height: 30,
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceVariant,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: const Icon(Icons.more_horiz_rounded,
-                    size: 16, color: AppColors.textSecondary),
-              ),
-            ),
-            if (needsRiderDot)
-              Positioned(
-                right: -2,
-                top: -2,
+        if (hasMenuActions)
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              PopupMenuButton<String>(
+                tooltip: 'Actions',
+                offset: const Offset(0, 36),
+                // Sapat ang lapad para sa "View Remaining Balance" — kung default
+                // (≈256px) lang, nag-o-overflow ang mahabang item.
+                constraints: const BoxConstraints(minWidth: 200, maxWidth: 380),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                itemBuilder: (_) => [
+                  if (canApprove)
+                    const PopupMenuItem(
+                        value: 'approve',
+                        child: Row(children: [
+                          Icon(Icons.check_circle_outline,
+                              size: 16, color: AppColors.success),
+                          SizedBox(width: 8),
+                          Text('Approve')
+                        ])),
+                  if (canAssignRider)
+                    PopupMenuItem(
+                        value: 'assign_ci',
+                        child: Row(children: [
+                          const Icon(Icons.search_rounded,
+                              size: 16, color: AppColors.info),
+                          const SizedBox(width: 8),
+                          Text(ciFailed
+                              ? 'Reassign CI Rider'
+                              : 'Assign CI Rider')
+                        ])),
+                  if (canAssignDeliveryRider)
+                    const PopupMenuItem(
+                        value: 'assign_delivery',
+                        child: Row(children: [
+                          Icon(Icons.delivery_dining_rounded,
+                              size: 16, color: AppColors.goldDark),
+                          SizedBox(width: 8),
+                          Text('Assign Cash on Delivery Rider')
+                        ])),
+                  if (canDisburseOffice)
+                    const PopupMenuItem(
+                        value: 'disburse_office',
+                        child: Row(children: [
+                          Icon(Icons.storefront_rounded,
+                              size: 16, color: AppColors.success),
+                          SizedBox(width: 8),
+                          Text('Disburse in Office')
+                        ])),
+                  if (canReject)
+                    const PopupMenuItem(
+                        value: 'reject',
+                        child: Row(children: [
+                          Icon(Icons.cancel_outlined,
+                              size: 16, color: AppColors.error),
+                          SizedBox(width: 8),
+                          Text('Reject')
+                        ])),
+                  if (isOngoing)
+                    const PopupMenuItem(
+                        value: 'remaining_balance',
+                        child: Row(children: [
+                          Icon(Icons.account_balance_wallet_outlined,
+                              size: 16, color: AppColors.deepNavy),
+                          SizedBox(width: 8),
+                          Text('View Remaining Balance')
+                        ])),
+                ],
+                onSelected: (v) {
+                  switch (v) {
+                    case 'approve':
+                      parent?._showApprove(loan);
+                      break;
+                    case 'reject':
+                      parent?._showReject(loan);
+                      break;
+                    case 'assign_ci':
+                      parent?._showAssignRider(loan);
+                      break;
+                    case 'assign_delivery':
+                      parent?._showAssignDisbursementRider(loan);
+                      break;
+                    case 'disburse_office':
+                      parent?._showDisburseOffice(loan);
+                      break;
+                    case 'remaining_balance':
+                      parent?._showRemainingBalance(loan);
+                      break;
+                  }
+                },
                 child: Container(
-                  width: 9,
-                  height: 9,
+                  width: 30,
+                  height: 30,
                   decoration: BoxDecoration(
-                    color: AppColors.warning,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
+                    color: AppColors.surfaceVariant,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: const Icon(Icons.more_horiz_rounded,
+                      size: 16, color: AppColors.textSecondary),
+                ),
+              ),
+              if (needsRiderDot)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(
+                    width: 9,
+                    height: 9,
+                    decoration: BoxDecoration(
+                      color: AppColors.warning,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: Colors.white, width: 1.5),
+                    ),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
       ],
     );
   }
@@ -2613,9 +2619,7 @@ String _inOfficeLoanLabel(Map<String, dynamic> app) {
     final loanNumber = (loan['loan_number'] ?? '').toString();
     final loanStatus = (loan['status'] ?? '').toString();
     if (loanNumber.isNotEmpty) {
-      return loanStatus.isNotEmpty
-          ? '$loanNumber • $loanStatus'
-          : loanNumber;
+      return loanStatus.isNotEmpty ? '$loanNumber • $loanStatus' : loanNumber;
     }
   }
   return 'No loan yet';
@@ -2701,8 +2705,8 @@ class _PageBtn extends StatelessWidget {
         decoration: BoxDecoration(
           color: enabled ? Colors.white : AppColors.surfaceVariant,
           borderRadius: BorderRadius.circular(9),
-          border: Border.all(
-              color: enabled ? AppColors.border : AppColors.divider),
+          border:
+              Border.all(color: enabled ? AppColors.border : AppColors.divider),
         ),
         child: Icon(icon,
             size: 18,
@@ -2731,8 +2735,7 @@ class _EntranceState extends State<_Entrance>
     super.initState();
     _ctrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 420));
-    final curved =
-        CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
+    final curved = CurvedAnimation(parent: _ctrl, curve: Curves.easeOutCubic);
     _opacity = Tween<double>(begin: 0, end: 1).animate(curved);
     _offset = Tween<Offset>(begin: const Offset(0, 0.04), end: Offset.zero)
         .animate(curved);

@@ -3021,6 +3021,8 @@ class _AccountUpgradeGate extends StatelessWidget {
       final inCooldown = state.isInCooldown;
       final days = state.cooldownDaysRemaining;
       final resubmit = state.resubmitAfter;
+      // Dahilan mula sa staff — dapat makita ng lender kung bakit na-reject.
+      final reason = state.rejectionNotes?.trim();
       String? cooldownLine;
       if (inCooldown) {
         cooldownLine = (days != null && days > 0)
@@ -3044,6 +3046,18 @@ class _AccountUpgradeGate extends StatelessWidget {
                   color: AppColors.textPrimary,
                 ),
               ),
+              if (reason != null && reason.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'Reason: $reason',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textSecondary,
+                    height: 1.4,
+                  ),
+                ),
+              ],
               if (cooldownLine != null) ...[
                 const SizedBox(height: 8),
                 Text(

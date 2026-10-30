@@ -2111,6 +2111,8 @@ class _LenderAccountUpgradeSubmitScreenState
     final days = state.cooldownDaysRemaining;
     final permanent = state.isPermanentlyRejected;
     final resubmit = state.resubmitAfter;
+    // Dahilan mula sa staff — dapat makita ng lender kung bakit na-reject.
+    final reason = state.rejectionNotes?.trim();
     String cooldownLine;
     if (permanent) {
       cooldownLine =
@@ -2146,6 +2148,13 @@ class _LenderAccountUpgradeSubmitScreenState
                         fontSize: 14,
                         color: AppColors.error,
                         fontWeight: FontWeight.w700)),
+                if (reason != null && reason.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('Reason: $reason',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary)),
+                ],
                 const SizedBox(height: 8),
                 Text(cooldownLine,
                     textAlign: TextAlign.center,
@@ -2192,11 +2201,15 @@ class _LenderAccountUpgradeSubmitScreenState
         message = 'Documents under review';
         break;
       case 'rejected':
-        // No icon — text only per request.
+        // No icon — text only per request. Isama ang dahilan ng staff para
+        // makita ng lender kung bakit na-reject.
         bgColor = AppColors.errorLight;
         textColor = AppColors.error;
         icon = null;
-        message = 'Account upgrade submission rejected';
+        final reason = state.rejectionNotes?.trim();
+        message = (reason != null && reason.isNotEmpty)
+            ? 'Account upgrade submission rejected. Reason: $reason'
+            : 'Account upgrade submission rejected';
         break;
       default:
         // Per request: remove icon + text "Complete Account Upgrade to apply for a loan"
