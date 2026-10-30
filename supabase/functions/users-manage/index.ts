@@ -22,6 +22,17 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString, validateEmail, validatePhone, normalizeVehicleType, credentialEmailFor, phoneCredentialEmail } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
+import {
+  EMAIL_CHANGE_OTP_PURPOSE,
+  emailOtpKey,
+  generateOtpCode,
+  hashOtpCode,
+  OTP_CODE_LENGTH,
+  otpRejectionReason,
+  resendCooldownRemaining,
+} from '../_shared/otp.ts';
+import { guardRateLimit } from '../_shared/rate_limiter.ts';
+import { sendEmailChangeOtpEmail } from '../_shared/email.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
 import { getLenderAddress } from '../_shared/loan_financials.ts';
 import { embedAsObject } from '../_shared/types.ts';
@@ -55,6 +66,11 @@ serve(async (req) => {
         // ── escalation follow-up: accounts paused by
         //    apply_loan_term_penalties() (00152) ──────────────────────────
         return await handleUnpauseLender(req);
+      case 'request-email-change':
+        // Rider / lender: 6-digit OTP sa BAGONG email bago ito maisulat.
+        return await handleRequestEmailChange(req);
+      case 'confirm-email-change':
+        return await handleConfirmEmailChange(req);
       default:
         return errorResponse(`Unknown action: ${fn}`, 404, 'NOT_FOUND');
     }
@@ -162,6 +178,18 @@ async function handleUpdateProfile(req: Request) {
       // change is still an update, but not a duplicate of another user).
       const existingNorm = (existing.email ?? '').trim().toLowerCase();
       if (cleanEmail !== existingNorm) {
+        // ── Rider / lender: HINDI basta-basta maisusulat ang bagong email ──
+        // Kailangan muna ng 6-digit na code sa BAGONG address
+        // (`?fn=request-email-change` → `?fn=confirm-email-change`). Ang
+        // direktang pag-save dito ay para lang sa staff / Head Manager na
+        // nag-e-edit ng account ng iba.
+        if (targetId === user.id && ['rider', 'lender'].includes(targetRole)) {
+          return errorResponse(
+            'Enter the 6-digit code we sent to your new email address to finish the change.',
+            400,
+            'EMAIL_VERIFICATION_REQUIRED',
+          );
+        }
         const { data: takenEmail } = await db
           .from('users')
           .select('id')
@@ -827,4 +855,382 @@ async function handleUnpauseLender(req: Request) {
   });
 
   return jsonResponse({ success: true, account_status: 'active' });
+}
+
+// ══ Pagbabago ng email ng rider / lender — 6-digit OTP sa BAGONG address ═════
+// Ang email ay isa sa mga credential/contact ng account, kaya hindi na
+// basta-basta maisusulat: (1) humihingi ang app ng code, (2) ipinapadala ito sa
+// BAGONG email, at (3) dito lang naisusulat ang pagbabago pagkatapos ng
+// tamang code. Hiwalay ang purpose para hindi magamit ang login OTP.
+const EMAIL_CHANGE_PURPOSE = EMAIL_CHANGE_OTP_PURPOSE;
+/** Gaano katagal bago ma-expire ang code. */
+const EMAIL_CHANGE_OTP_EXPIRY_MINUTES = 10;
+/** Pagitan bago muling makapag-resend (iwas-spam / dobleng pindot). */
+const EMAIL_CHANGE_RESEND_SECONDS = 60;
+/** Bilang ng maling code bago kailangang humingi ng bago. */
+const EMAIL_CHANGE_MAX_ATTEMPTS = 5;
+const EMAIL_CHANGE_ROLES = ['rider', 'lender'];
+
+/** Tapat na paliwanag kung bakit hindi naipadala ang code (galing sa helper). */
+function emailChangeSendFailureMessage(result: {
+  kind?: string;
+  status?: number;
+}): string {
+  switch (result.kind) {
+    case 'no_api_key':
+      return 'Hindi pa naka-configure ang pagpapadala ng email. Please contact the office.';
+    case 'invalid_api_key':
+      return 'May problema sa email service (invalid API key). Please contact the office.';
+    case 'sender_not_verified':
+      return 'Hindi pa verified ang sender ng email, kaya hindi ito makakarating sa ibang address. Please contact the office.';
+    case 'recipient_rejected':
+      return 'Tinanggihan ng email service ang address na ito. Please check it and try again.';
+    case 'rate_limited':
+      return 'Masyadong maraming email na hiniling. Please wait a minute and try again.';
+    case 'timeout':
+      return 'Nag-timeout ang email service. Please try again.';
+    default:
+      return 'Hindi naipadala ang verification code. Please check the address or try again.';
+  }
+}
+
+/** Ang account na binabago (sarili lang — walang `user_id` na tinatanggap). */
+async function loadEmailChangeAccount(
+  db: ReturnType<typeof getAdminClient>,
+  userId: string,
+) {
+  const { data } = await db
+    .from('users')
+    .select('id, first_name, email, roles!users_role_id_fkey(name)')
+    .eq('id', userId)
+    .maybeSingle();
+  return data;
+}
+
+function emailChangeRoleOf(account: unknown): string | undefined {
+  const raw = (account as { roles?: unknown } | null)?.roles;
+  // Ang embed ay pwedeng object o one-item array (depende sa cardinality).
+  const obj = Array.isArray(raw) ? raw[0] : raw;
+  const name = (obj as { name?: unknown } | null)?.name;
+  return typeof name === 'string' ? name : undefined;
+}
+
+// ── ?fn=request-email-change ────────────────────────────────────────────────
+async function handleRequestEmailChange(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const email = sanitizeString(
+    String((body as { email?: unknown }).email ?? ''),
+  ).trim().toLowerCase();
+
+  if (!validateEmail(email)) {
+    return errorResponse('Enter a valid email address', 400, 'VALIDATION_ERROR');
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const account = await loadEmailChangeAccount(db, user.id);
+  if (!account) return errorResponse('User not found', 404, 'NOT_FOUND');
+
+  const role = emailChangeRoleOf(account);
+  if (!role || !EMAIL_CHANGE_ROLES.includes(role)) {
+    return errorResponse(
+      'Changing email here is for rider and lender accounts only',
+      403,
+      'FORBIDDEN',
+    );
+  }
+
+  if (email === String(account.email ?? '').trim().toLowerCase()) {
+    return errorResponse(
+      'That is already your email address',
+      400,
+      'EMAIL_UNCHANGED',
+    );
+  }
+
+  // Maagang 409 para malinaw sa app kung hindi available ang address.
+  const { data: taken } = await db
+    .from('users')
+    .select('id')
+    .ilike('email', email)
+    .neq('id', user.id)
+    .maybeSingle();
+  if (taken) return errorResponse('Email already registered', 409, 'DUPLICATE');
+
+  // Iwas-spam: 5 kahilingan kada oras kada account (may 60s na cooldown pa).
+  const guard = await guardRateLimit({
+    key: `email-change:${user.id}`,
+    maxAttempts: 5,
+    windowMinutes: 60,
+    blockMinutes: 60,
+    blockReason: 'Too many email change requests',
+    eventType: 'email_change_rate_limited',
+    userId: user.id,
+    ipAddress: ip,
+  });
+  if (!guard.allowed) {
+    return errorResponse(
+      'Too many verification codes requested. Please try again later.',
+      429,
+      'RATE_LIMITED',
+      { retry_after_seconds: guard.block?.retryAfterSeconds ?? 3600 },
+    );
+  }
+
+  // Ang `otp_codes.phone_number` ay ang salting key. Para sa email, stable na
+  // synthetic key ang gamit — 20 chars, kasya sa VARCHAR(20).
+  const key = await emailOtpKey(email);
+
+  const { data: latest } = await db
+    .from('otp_codes')
+    .select('created_at')
+    .eq('phone_number', key)
+    .eq('purpose', EMAIL_CHANGE_PURPOSE)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const wait = resendCooldownRemaining(
+    latest?.created_at as string | null,
+    EMAIL_CHANGE_RESEND_SECONDS,
+  );
+  if (wait > 0) {
+    return errorResponse(
+      `Please wait ${wait} second(s) before requesting another code.`,
+      429,
+      'RESEND_COOLDOWN',
+      { retry_after_seconds: wait },
+    );
+  }
+
+  const otp = generateOtpCode();
+  const otpHash = await hashOtpCode(otp, key);
+  const expiresAt = new Date(
+    Date.now() + EMAIL_CHANGE_OTP_EXPIRY_MINUTES * 60000,
+  ).toISOString();
+
+  // Isang buhay na code lang: patayin ang mga lumang hindi pa nagamit.
+  await db
+    .from('otp_codes')
+    .update({ used: true })
+    .eq('phone_number', key)
+    .eq('purpose', EMAIL_CHANGE_PURPOSE)
+    .eq('used', false);
+
+  const { error: insertErr } = await db.from('otp_codes').insert({
+    phone_number: key,
+    otp_hash: otpHash,
+    purpose: EMAIL_CHANGE_PURPOSE,
+    expires_at: expiresAt,
+  });
+  if (insertErr) {
+    console.error('[email-change] OTP insert failed:', insertErr.message);
+    return errorResponse(
+      'We could not create a verification code. Please try again.',
+      500,
+      'INSERT_FAILED',
+    );
+  }
+
+  const recipientName = typeof account.first_name === 'string'
+    ? account.first_name
+    : undefined;
+  const sendResult = await sendEmailChangeOtpEmail({
+    to: email,
+    otp,
+    recipientName,
+    expiresInMinutes: EMAIL_CHANGE_OTP_EXPIRY_MINUTES,
+  });
+
+  if (!sendResult.ok) {
+    console.error(
+      `[email-change] Resend failed [${sendResult.kind ?? 'http_error'}] ` +
+        `status=${sendResult.status ?? 'n/a'}:`,
+      sendResult.error,
+    );
+    // Huwag iwang buhay ang code na hindi naman naipadala.
+    await db.from('otp_codes').update({ used: true }).eq('otp_hash', otpHash);
+    return errorResponse(
+      emailChangeSendFailureMessage(sendResult),
+      502,
+      'EMAIL_SEND_FAILED',
+    );
+  }
+
+  console.log(`[email-change] verification code sent to ${email}`);
+  return jsonResponse({
+    message: `We sent a 6-digit verification code to ${email}.`,
+    email,
+    expires_in: EMAIL_CHANGE_OTP_EXPIRY_MINUTES * 60,
+    resend_in: EMAIL_CHANGE_RESEND_SECONDS,
+  });
+}
+
+// ── ?fn=confirm-email-change ────────────────────────────────────────────────
+async function handleConfirmEmailChange(req: Request) {
+  const authResult = await requireAuth(req);
+  if (!isAuthUser(authResult)) return authResult;
+  const user = authResult;
+
+  const body = await req.json().catch(() => ({} as Record<string, unknown>));
+  const email = sanitizeString(
+    String((body as { email?: unknown }).email ?? ''),
+  ).trim().toLowerCase();
+  const otp = String((body as { otp?: unknown }).otp ?? '').replace(/\D/g, '');
+
+  if (!validateEmail(email)) {
+    return errorResponse('Enter a valid email address', 400, 'VALIDATION_ERROR');
+  }
+  if (otp.length !== OTP_CODE_LENGTH) {
+    return errorResponse(
+      'Enter the 6-digit code sent to your new email address',
+      400,
+      'VALIDATION_ERROR',
+    );
+  }
+
+  const db = getAdminClient();
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown';
+
+  const account = await loadEmailChangeAccount(db, user.id);
+  if (!account) return errorResponse('User not found', 404, 'NOT_FOUND');
+
+  const role = emailChangeRoleOf(account);
+  if (!role || !EMAIL_CHANGE_ROLES.includes(role)) {
+    return errorResponse(
+      'Changing email here is for rider and lender accounts only',
+      403,
+      'FORBIDDEN',
+    );
+  }
+
+  const key = await emailOtpKey(email);
+  const { data: row } = await db
+    .from('otp_codes')
+    .select('id, otp_hash, attempts, expires_at, used, purpose')
+    .eq('phone_number', key)
+    .eq('purpose', EMAIL_CHANGE_PURPOSE)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const submittedHash = await hashOtpCode(otp, key);
+  const reason = otpRejectionReason(row, {
+    purpose: EMAIL_CHANGE_PURPOSE,
+    submittedHash,
+    maxAttempts: EMAIL_CHANGE_MAX_ATTEMPTS,
+  });
+
+  const rowId = (row as { id?: string } | null)?.id;
+  const attempts = Number((row as { attempts?: number } | null)?.attempts ?? 0);
+
+  if (reason) {
+    if (rowId && (reason === 'mismatch' || reason === 'too_many_attempts')) {
+      await db.from('otp_codes').update({ attempts: attempts + 1 }).eq('id', rowId);
+    }
+    if (reason === 'not_found' || reason === 'expired' || reason === 'used') {
+      return errorResponse(
+        'This code has expired. Please request a new one.',
+        400,
+        'OTP_EXPIRED',
+      );
+    }
+    if (reason === 'too_many_attempts') {
+      return errorResponse(
+        'Too many incorrect codes. Please request a new one.',
+        429,
+        'OTP_LOCKED',
+      );
+    }
+    const attemptsLeft = Math.max(
+      0,
+      EMAIL_CHANGE_MAX_ATTEMPTS - (attempts + 1),
+    );
+    return errorResponse(
+      `Incorrect code. ${attemptsLeft} attempt(s) left.`,
+      400,
+      'OTP_INVALID',
+      { attempts_left: attemptsLeft },
+    );
+  }
+
+  // Muling tsekan: baka may nakakuha na ng address habang hinihintay ang code.
+  const { data: taken } = await db
+    .from('users')
+    .select('id')
+    .ilike('email', email)
+    .neq('id', user.id)
+    .maybeSingle();
+  if (taken) return errorResponse('Email already registered', 409, 'DUPLICATE');
+
+  const nowIso = new Date().toISOString();
+
+  // GoTrue credential muna (kapareho ng update-profile) para hindi maiwang
+  // desynced ang login credential at ang canonical `users.email`.
+  try {
+    const { error: authEmailErr } = await db.auth.admin.updateUserById(
+      user.id,
+      { email: credentialEmailFor(email), email_confirm: true },
+    );
+    if (authEmailErr) {
+      const msg = (authEmailErr.message ?? '').toLowerCase();
+      if (
+        msg.includes('already') ||
+        msg.includes('duplicate') ||
+        msg.includes('exists')
+      ) {
+        return errorResponse('Email already registered', 409, 'DUPLICATE');
+      }
+      console.error('[email-change] auth email sync error:', authEmailErr);
+      return errorResponse(
+        `Failed to update email: ${authEmailErr.message}`,
+        400,
+        'UPDATE_FAILED',
+      );
+    }
+  } catch (e) {
+    console.error('[email-change] auth email sync unexpected:', e);
+  }
+
+  const { error: updateErr } = await db
+    .from('users')
+    .update({ email, email_verified_at: nowIso })
+    .eq('id', user.id);
+  if (updateErr) {
+    console.error('[email-change] users update error:', updateErr);
+    const msg = (updateErr.message ?? '').toLowerCase();
+    if (msg.includes('duplicate') || msg.includes('uq_users_email_lower')) {
+      return errorResponse('Email already registered', 409, 'DUPLICATE');
+    }
+    return errorResponse(
+      `Failed to update email: ${updateErr.message}`,
+      400,
+      'UPDATE_FAILED',
+    );
+  }
+
+  if (rowId) {
+    await db.from('otp_codes').update({ used: true }).eq('id', rowId);
+  }
+
+  await writeAuditLog({
+    performedBy: user.id,
+    action: 'update_email',
+    tableName: 'users',
+    recordId: user.id,
+    oldValues: { email: account.email },
+    newValues: { email, email_verified_at: nowIso },
+    ipAddress: ip,
+  });
+
+  return jsonResponse({
+    message: 'Email updated and verified.',
+    email,
+    verified_at: nowIso,
+  });
 }

@@ -2,13 +2,13 @@
 //
 // REQUIRED NA DOKUMENTO SA LENDER ACCOUNT UPGRADE (walk-in)
 //
-// GINUSTO: **Valid ID (front + back) lang ang required** — hindi na dapat
-// harangin ng Selfie with ID at Business Permit ang Submit/Next (opsyonal na
-// lang ang mga ito).
+// GINUSTO: **LAHAT ng dokumento ay required** — Valid ID (front + back,
+// iisang Upload flow sa UI), Selfie with ID, Face Recognition, at Business
+// Permit. Max 5MB bawat file.
 //
-// BUG NA NAAYOS: may **UI/backend mismatch**. Ang wizard ay Valid ID lang ang
-// hiningi, pero ang `in-office-view?fn=submit-account` ay nag-e-enforce pa rin
-// ng limang dokumento → ang step-3 Submit ay pumapalya nang generic na
+// BUG NA NAAYOS: may **UI/backend mismatch**. Dati Valid ID lang ang hiningi
+// ng wizard pero iba ang listahan ng `in-office-view?fn=submit-account`, kaya
+// pumapalya ang step-3 Submit nang generic na
 // "Account submit failed. Please try again." (INCOMPLETE_WIZARD 400).
 // Ang dalawang panig ay dapat pareho ang listahan.
 
@@ -19,54 +19,36 @@ import 'package:jireta_loans/presentation/features/head_manager/in_office/widget
 
 String _read(String path) => File(path).readAsStringSync();
 
+const _allDocs = [
+  'valid_id',
+  'valid_id_back',
+  'selfie',
+  'face_recognition',
+  'mayors_permit',
+];
+
 void main() {
   group('UI: kInOfficeRequiredDocTypes', () {
-    test('Valid ID (front + back) lang ang required', () {
-      expect(kInOfficeRequiredDocTypes, {'valid_id', 'valid_id_back'});
-    });
-
-    test('opsyonal ang selfie / business permit', () {
-      for (final type in const [
-        'selfie',
-        'mayors_permit',
-      ]) {
-        expect(kInOfficeRequiredDocTypes.contains(type), isFalse,
-            reason: '$type ay hindi na dapat required');
-      }
+    test('lahat ng dokumento ay required', () {
+      expect(kInOfficeRequiredDocTypes, _allDocs.toSet());
     });
   });
 
   group('Backend: in-office-view?fn=submit-account', () {
-    late final String src = _read(
-        'supabase/functions/in-office-view/index.ts');
+    late final String src =
+        _read('supabase/functions/in-office-view/index.ts');
 
-    test('hindi na hino-hold ang submit sa selfie / permit', () {
-      for (final type in const [
-        "'selfie'",
-        "'mayors_permit'",
-      ]) {
-        expect(
-          src.contains(RegExp(
-              r'STEP3_REQUIRED_DOCS\s*=\s*new Set\(\[[^\]]*' +
-                  type +
-                  r'[^\]]*\]',
-              dotAll: true)),
-          isFalse,
-          reason:
-              '$type ay hindi dapat kabilang sa STEP3_REQUIRED_DOCS — haharang '
-              'ito sa step-3 Submit kahit Valid ID lang ang kailangan ng UI',
-        );
-      }
-    });
-
-    test('valid_id at valid_id_back pa rin ang required', () {
-      final match = RegExp(r'STEP3_REQUIRED_DOCS\s*=\s*new Set\(\[([^\]]*)\]',
+    test('lahat ng doc types ay nasa STEP3_REQUIRED_DOCS', () {
+      final match = RegExp(
+              r'STEP3_REQUIRED_DOCS\s*=\s*new Set\(\[([^\]]*)\]',
               dotAll: true)
           .firstMatch(src);
       expect(match, isNotNull, reason: 'dapat may STEP3_REQUIRED_DOCS');
       final set = match!.group(1)!;
-      expect(set.contains("'valid_id'"), isTrue);
-      expect(set.contains("'valid_id_back'"), isTrue);
+      for (final type in _allDocs) {
+        expect(set.contains("'$type'"), isTrue,
+            reason: '$type ay dapat required sa step-3 Submit');
+      }
     });
   });
 }

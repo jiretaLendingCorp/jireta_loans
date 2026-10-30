@@ -55,7 +55,9 @@ class MpinLoginChoice {
   /// `true` kapag ang MPIN screen ang dapat ipakita.
   final bool showMpin;
 
-  /// Ang numerong isasama sa MPIN screen (at gagamitin ng Reset MPIN flow).
+  /// Ang identifier na ipapakita sa MPIN screen — ang GINAMIT sa login
+  /// (email kapag Gmail, numero kapag OTP), hindi lang basta ang
+  /// `phone_number` ng account. Ginagamit din itong fallback ng Reset MPIN.
   final String? phone;
 }
 
@@ -67,6 +69,10 @@ class MpinLoginGate {
   Future<MpinLoginChoice> resolve() async {
     try {
       final phone = await SecureStorage.getLoginPhone();
+      // Ipakita ang identifier na ginamit sa login: email kung email ang
+      // hiniling noon, numero kung OTP. Fallback sa natandaang numero.
+      final identifier =
+          await SecureStorage.getLoginIdentifier() ?? phone;
       // Fallback sa natandaang "lock owner" kung na-clear na ang session role.
       final role = await SecureStorage.getUserRole() ??
           await SecureStorage.getLoginOwnerRole();
@@ -74,7 +80,7 @@ class MpinLoginGate {
       final isKnownStaffRole = role == AppConstants.roleHeadManager ||
           role == AppConstants.roleEmployee;
       if (phone == null || isKnownStaffRole) {
-        return MpinLoginChoice(showMpin: false, phone: phone);
+        return MpinLoginChoice(showMpin: false, phone: identifier);
       }
       // TSEK: hindi na sinusuri dito kung may natitirang session (refresh
       // token). Dati ay sinusuri ito — at iyon ang dahilan kung bakit,
@@ -85,7 +91,7 @@ class MpinLoginGate {
       // Kapag wala nang ma-restore, sasabihin ito ng MPIN screen pagkatapos
       // ipasok ang MPIN at doon dadalhin ang user sa OTP.
       final hasMpin = await _mpin.isSet();
-      return MpinLoginChoice(showMpin: hasMpin, phone: phone);
+      return MpinLoginChoice(showMpin: hasMpin, phone: identifier);
     } catch (_) {
       return const MpinLoginChoice(showMpin: false);
     }

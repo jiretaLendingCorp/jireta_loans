@@ -47,6 +47,13 @@ class ApiEndpoints {
       'users-create?fn=create-head-manager';
   static const String usersUpdateProfile = 'users-manage?fn=update-profile';
   static const String usersGetProfile = 'users-manage?fn=get-profile';
+  // Pagbabago ng email ng rider / lender: 6-digit na OTP muna sa BAGONG email
+  // bago ito maisulat sa account. Hindi pinapayagan ng `update-profile` ang
+  // direktang pagpapalit ng email para sa dalawang role na ito.
+  static const String usersRequestEmailChange =
+      'users-manage?fn=request-email-change';
+  static const String usersConfirmEmailChange =
+      'users-manage?fn=confirm-email-change';
   // Escalation pause (00152) — HM o Employee lang ang makakapag-unpause
   static const String usersUnpauseLender = 'users-manage?fn=unpause-lender';
   static const String usersGetList = 'users-admin?fn=get-list';

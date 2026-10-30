@@ -4365,7 +4365,7 @@ class LenderTermsAgreementCheckbox extends StatelessWidget {
           'and correct. I authorize Jireta Loans & Credit Corp. to verify my '
           'information and assess my application. I understand that '
           'submitting this application does not guarantee approval, and that '
-          'the final loan amount, interest, fees, and payment schedule will '
+          'the final loan amount, interest, and payment schedule will '
           'be disclosed in the loan agreement.',
           style: TextStyle(
             fontSize: 12,

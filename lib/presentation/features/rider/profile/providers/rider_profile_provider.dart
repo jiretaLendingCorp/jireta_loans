@@ -68,29 +68,43 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
         try {
           final storedId = await SecureStorage.getUserId();
           final storedRole = await SecureStorage.getUserRole();
-          AppLogger.debug('[RiderProfile] fallback storedId=$storedId role=$storedRole');
+          AppLogger.debug(
+              '[RiderProfile] fallback storedId=$storedId role=$storedRole');
           if (storedId != null && storedId.isNotEmpty) {
             try {
               final user2 = await _ds.getProfile(userId: storedId);
-              AppLogger.debug('[RiderProfile] fallback with storedId succeeded ${user2.id}');
-              state = state.copyWith(user: user2, isLoading: false, error: null);
+              AppLogger.debug(
+                  '[RiderProfile] fallback with storedId succeeded ${user2.id}');
+              state =
+                  state.copyWith(user: user2, isLoading: false, error: null);
               return;
             } catch (e2, s2) {
-              AppLogger.e('[RiderProfile] fallback with storedId $storedId failed: $e2', e2, s2);
+              AppLogger.e(
+                  '[RiderProfile] fallback with storedId $storedId failed: $e2',
+                  e2,
+                  s2);
             }
             // Last resort: direct Supabase query bypassing Edge Function (RLS must allow)
             try {
               final supa = Supabase.instance.client;
               final raw = await supa
                   .from('users')
-                  .select('id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!users_role_id_fkey!inner(name), rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available)')
+                  .select(
+                      'id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!users_role_id_fkey!inner(name), rider_profiles(vehicle_type, plate_number, drivers_license_number, vehicle_brand, is_available)')
                   .eq('id', storedId)
                   .maybeSingle();
               if (raw != null) {
-                AppLogger.debug('[RiderProfile] direct Supabase fallback succeeded $raw');
-                final roleName = (raw['roles'] is Map ? (raw['roles'] as Map)['name'] : null) ?? storedRole ?? 'rider';
+                AppLogger.debug(
+                    '[RiderProfile] direct Supabase fallback succeeded $raw');
+                final roleName = (raw['roles'] is Map
+                        ? (raw['roles'] as Map)['name']
+                        : null) ??
+                    storedRole ??
+                    'rider';
                 final riderProf = raw['rider_profiles'] is List
-                    ? (raw['rider_profiles'] as List).isNotEmpty ? (raw['rider_profiles'] as List).first : null
+                    ? (raw['rider_profiles'] as List).isNotEmpty
+                        ? (raw['rider_profiles'] as List).first
+                        : null
                     : raw['rider_profiles'];
                 final flat = {
                   'id': raw['id'],
@@ -106,17 +120,24 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
                   'profile_photo_url': raw['profile_photo_url'],
                   'created_at': raw['created_at'],
                   'last_login_at': raw['last_login_at'],
-                  'vehicle_type': riderProf is Map ? riderProf['vehicle_type'] : null,
-                  'plate_number': riderProf is Map ? riderProf['plate_number'] : null,
-                  'drivers_license_number': riderProf is Map ? riderProf['drivers_license_number'] : null,
-                  'vehicle_brand': riderProf is Map ? riderProf['vehicle_brand'] : null,
+                  'vehicle_type':
+                      riderProf is Map ? riderProf['vehicle_type'] : null,
+                  'plate_number':
+                      riderProf is Map ? riderProf['plate_number'] : null,
+                  'drivers_license_number': riderProf is Map
+                      ? riderProf['drivers_license_number']
+                      : null,
+                  'vehicle_brand':
+                      riderProf is Map ? riderProf['vehicle_brand'] : null,
                 };
                 final user3 = UserModel.fromJson(flat);
-                state = state.copyWith(user: user3, isLoading: false, error: null);
+                state =
+                    state.copyWith(user: user3, isLoading: false, error: null);
                 return;
               }
             } catch (e3, s3) {
-              AppLogger.e('[RiderProfile] direct Supabase fallback failed: $e3', e3, s3);
+              AppLogger.e('[RiderProfile] direct Supabase fallback failed: $e3',
+                  e3, s3);
             }
           }
         } catch (_) {}
@@ -140,6 +161,32 @@ class RiderProfileNotifier extends StateNotifier<RiderProfileState>
       state = state.copyWith(
           isSaving: false, error: ErrorHandler.handle(e).message);
       return false;
+    }
+  }
+
+  /// Humihingi ng 6-digit na code sa BAGONG email. `null` = naipadala; kung
+  /// may error, ang mensahe ng server ang ibinabalik (hal. duplicate, cooldown).
+  Future<String?> requestEmailChange(String email) async {
+    try {
+      await _ds.requestEmailChange(email);
+      return null;
+    } catch (e) {
+      return ErrorHandler.handle(e).message;
+    }
+  }
+
+  /// Kinukumpirma ang code — dito lang nagbabago ang email sa account, at
+  /// agad na nire-refresh ang profile para lumabas ang bagong address.
+  Future<String?> confirmEmailChange({
+    required String email,
+    required String otp,
+  }) async {
+    try {
+      await _ds.confirmEmailChange(email: email, otp: otp);
+      await loadProfile();
+      return null;
+    } catch (e) {
+      return ErrorHandler.handle(e).message;
     }
   }
 

@@ -7,6 +7,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../core/constants/route_constants.dart';
+// Kapareho ng CI Task uploads: iisang 5MB limit at label sa buong app.
+import '../../../../../core/validation/ci_evidence_rules.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/utils/input_formatters.dart';
@@ -44,7 +46,20 @@ class _RiderCollectionDetailsScreenState
   final _amountCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
   final _imagePicker = ImagePicker();
-  XFile? _proofPhoto;
+  /// Payment proof photos — ISA o DALAWA, sa IISANG card. Ang unang photo ang
+  /// ipinapadala bilang `proof_photo`, ang pangalawa (kung meron) bilang
+  /// `scene_photo`. Basta ang KABUUANG laki ng dalawa ay hindi lalampas sa 5MB
+  /// (hindi per photo).
+  final List<XFile> _proofPhotos = <XFile>[];
+  final List<int> _proofSizes = <int>[];
+
+  /// Inline validation sa Payment Proof card — kapag lumampas sa 5MB TOTAL.
+  String? _proofError;
+
+  /// Kabuuang laki (bytes) ng lahat ng napiling proof — ito ang sinusuri laban
+  /// sa 5MB, at ito rin ang ipinapakita sa card.
+  int _proofTotalBytes = 0;
+
   String? _signatureBase64;
   bool _isSubmitting = false;
 
@@ -98,22 +113,77 @@ class _RiderCollectionDetailsScreenState
     return;
   }
 
-  Future<void> _pickImage() async {
-    final picked = await _imagePicker.pickImage(
-        source: ImageSource.camera, imageQuality: 80, maxWidth: 1920);
-    if (picked != null) setState(() => _proofPhoto = picked);
+  /// Pinakamalaking pinapayagang KABUUANG laki ng proof photos — KAPAREHO ng
+  /// CI Task uploads (`CiEvidenceRules`): 5MB. Isa O dalawang photo ang
+  /// pinapayagan, basta ang suma ng dalawa ay pasok sa 5MB. Base64 ang
+  /// ipapadala sa server (≈33% na mas malaki), kaya dito pa lang sa pagpili ay
+  /// hinaharangan na ang sobrang laki; hindi na hihintayin ang failure sa
+  /// upload.
+  static const int _maxProofBytes = CiEvidenceRules.maxBytes;
+
+  /// Idinaragdag ang piniling photo sa Payment Proof card — 2 photos lang ang
+  /// tinatanggap, at ang KABUUANG laki ng lahat ay dapat ≤ 5MB. Kapag sobra,
+  /// inline error + toast, at HINDI itatakda ang photo.
+  Future<void> _addProofPhoto(XFile picked) async {
+    if (_proofPhotos.length >= 2) return;
+    final size = await picked.length();
+    final total = _proofTotalBytes + size;
+    if (!mounted) return;
+    if (total > _maxProofBytes) {
+      final totalLabel = CiEvidenceRules.sizeLabel(total);
+      setState(() {
+        _proofError =
+            'Photos would total $totalLabel — over the ${CiEvidenceRules.maxLabel} '
+            'limit. Remove a photo or choose a smaller one.';
+      });
+      context.showSnackBarAsToast(
+        SnackBar(
+          content: Text(
+            'Total upload is too large ($totalLabel). Maximum is '
+            '${CiEvidenceRules.maxLabel} for 1–2 photos.',
+          ),
+          backgroundColor: AppColors.error,
+        ),
+      );
+      return;
+    }
+    setState(() {
+      _proofPhotos.add(picked);
+      _proofSizes.add(size);
+      _proofTotalBytes = total;
+      _proofError = null;
+    });
   }
 
-  Future<void> _pickImageGallery() async {
+  Future<void> _pickImage({bool fromCamera = true}) async {
+    if (_proofPhotos.length >= 2) return;
     final picked = await _imagePicker.pickImage(
-        source: ImageSource.gallery, imageQuality: 80, maxWidth: 1920);
-    if (picked != null) setState(() => _proofPhoto = picked);
+      source: fromCamera ? ImageSource.camera : ImageSource.gallery,
+      imageQuality: 80,
+      maxWidth: 1920,
+    );
+    if (picked == null || !mounted) return;
+    await _addProofPhoto(picked);
+  }
+
+  void _removeProofPhoto(int index) {
+    if (index < 0 || index >= _proofPhotos.length) return;
+    setState(() {
+      _proofPhotos.removeAt(index);
+      _proofSizes.removeAt(index);
+      _proofTotalBytes = _proofSizes.fold(0, (sum, size) => sum + size);
+      _proofError = null;
+    });
   }
 
   /// Preview ng na-upload na proof photo — buong screen, pwedeng i-zoom.
   /// May back arrow sa itaas para makabalik sa Proof step.
-  void _viewProofPhoto() {
-    final file = _proofPhoto;
+  void _viewProofPhoto(int index) {
+    if (index < 0 || index >= _proofPhotos.length) return;
+    _viewPhoto(_proofPhotos[index], 'Payment Proof ${index + 1}');
+  }
+
+  void _viewPhoto(XFile? file, String title) {
     if (file == null) return;
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -128,7 +198,7 @@ class _RiderCollectionDetailsScreenState
               tooltip: 'Back',
               onPressed: () => Navigator.of(viewerContext).pop(),
             ),
-            title: const Text('Payment Proof',
+            title: Text(title,
                 style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ),
           body: Center(
@@ -142,9 +212,11 @@ class _RiderCollectionDetailsScreenState
     );
   }
 
-  /// Pinipindot ng rider ang maliit na "Upload" button sa Payment Proof card —
-  /// dito pipiliin kung Camera o Gallery.
-  Future<void> _showProofSourceSheet() async {
+  Future<void> _showProofSourceSheet() => _showSourceSheet();
+
+  /// Pinipindot ng rider ang maliit na "Upload" button sa photo card — dito
+  /// pipiliin kung Camera o Gallery.
+  Future<void> _showSourceSheet() async {
     final source = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: context.cSurface,
@@ -178,7 +250,7 @@ class _RiderCollectionDetailsScreenState
     if (source == 'camera') {
       await _pickImage();
     } else {
-      await _pickImageGallery();
+      await _pickImage(fromCamera: false);
     }
   }
 
@@ -211,7 +283,7 @@ class _RiderCollectionDetailsScreenState
   }
 
   void _validateProofAndNext(CollectionAssignmentModel col) {
-    if (_proofPhoto == null && col.status != 'completed') {
+    if (_proofPhotos.isEmpty && col.status != 'completed') {
       context.showSnackBarAsToast(
           const SnackBar(content: Text('Payment proof photo is required')));
       return;
@@ -241,7 +313,7 @@ class _RiderCollectionDetailsScreenState
       }
     }
 
-    if (_proofPhoto == null) {
+    if (_proofPhotos.isEmpty) {
       context.showSnackBarAsToast(const SnackBar(
           content: Text('Please add payment proof in Proof step')));
       _goToStep(1);
@@ -331,7 +403,9 @@ class _RiderCollectionDetailsScreenState
       String? proofStatus =
           await ref.read(riderCollectionProvider.notifier).uploadProof(
                 assignmentId: widget.collectionId,
-                proofPhoto: _proofPhoto!,
+                proofPhoto: _proofPhotos.first,
+                scenePhoto:
+                    _proofPhotos.length > 1 ? _proofPhotos[1] : null,
                 signatureBase64: _signatureBase64,
                 amountCollected: recordAmount,
                 notes: _notesCtrl.text.trim().isEmpty
@@ -360,7 +434,10 @@ class _RiderCollectionDetailsScreenState
             proofStatus =
                 await ref.read(riderCollectionProvider.notifier).uploadProof(
                       assignmentId: widget.collectionId,
-                      proofPhoto: _proofPhoto!,
+                      proofPhoto: _proofPhotos.first,
+                      scenePhoto: _proofPhotos.length > 1
+                          ? _proofPhotos[1]
+                          : null,
                       signatureBase64: _signatureBase64,
                       amountCollected: retryAmount,
                       notes: _notesCtrl.text.trim().isEmpty
@@ -443,9 +520,11 @@ class _RiderCollectionDetailsScreenState
         _amountCtrl.text =
             ThousandsSeparatorInputFormatter.format(suggestedAmount);
       }
-      if (_notesCtrl.text.isEmpty && col.notes != null) {
-        _notesCtrl.text = col.notes!;
-      }
+      // HINDI na kinokopya sa editable na field ang `col.notes` (ang notes na
+      // ini-assign ng HM/Employee): hindi ito pag-aari ng rider, kaya basahin
+      // lang ito sa "Assigned Notes" na tile. Ang `_notesCtrl` ay para sa
+      // SARILING note ng rider (napupunta sa `payments.notes`, hiwalay sa
+      // `collection_assignments.collection_notes`).
     }
 
     try {
@@ -1087,7 +1166,7 @@ class _RiderCollectionDetailsScreenState
                   DateFormat('MMM d, yyyy h:mm a')
                       .format(col.collectionSchedule!)),
             if (col.notes != null && col.notes!.isNotEmpty)
-              _InfoTile('Notes', col.notes!),
+              _InfoTile('Assigned Notes', col.notes!),
             if (col.idempotencyKey != null)
               _InfoTile('Ref', col.idempotencyKey!),
           ],
@@ -1211,7 +1290,7 @@ class _RiderCollectionDetailsScreenState
                   _InfoTile('Due Date', schedule?['due_date'] ?? 'N/A'),
                   _InfoTile('Status', col.statusLabel),
                   if (col.notes != null && col.notes!.isNotEmpty)
-                    _InfoTile('Notes', col.notes!),
+                    _InfoTile('Assigned Notes', col.notes!),
                 ],
               ),
             ),
@@ -1385,7 +1464,7 @@ class _RiderCollectionDetailsScreenState
                     DateFormat('MMM d, yyyy h:mm a')
                         .format(col.collectionSchedule!)),
               if (col.notes != null && col.notes!.isNotEmpty)
-                _InfoTile('Notes', col.notes!),
+                _InfoTile('Assigned Notes', col.notes!),
             ],
           ),
         ),
@@ -1628,7 +1707,7 @@ class _RiderCollectionDetailsScreenState
                   prefixIcon: Icons.payments_outlined,
                   enabled: !alreadyRecorded),
               SizedBox(height: 14),
-              Text('Notes (optional)',
+              Text('Rider Notes (optional)',
                   style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
@@ -1636,8 +1715,8 @@ class _RiderCollectionDetailsScreenState
               SizedBox(height: 6),
               AppTextField(
                   controller: _notesCtrl,
-                  label: 'Notes',
-                  hint: 'Any notes about the collection...',
+                  label: 'Rider Notes',
+                  hint: 'Your own note about this collection...',
                   floatingLabelBehavior: FloatingLabelBehavior.never,
                   maxLines: 3,
                   prefixIcon: Icons.sticky_note_2_outlined),
@@ -1799,13 +1878,25 @@ class _RiderCollectionDetailsScreenState
             children: [
               if (needCollectFirst) warning,
               if (!needCollectFirst) ...[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 5, child: paymentCard),
-                    const SizedBox(width: 20),
-                    Expanded(flex: 6, child: signatureCard),
-                  ],
+                // PANTATAG na taas: ang Payment Proof card ang umabot sa
+                // aktwal na taas ng Lender Signature card (hindi na mas
+                // maikli/mabitin ang isa). IntrinsicHeight ang kailangan para
+                // mag-stretch sa loob ng scroll view, kung saan unbounded ang
+                // taas ng Row.
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        flex: 5,
+                        child: Column(
+                          children: [paymentCard],
+                        ),
+                      ),
+                      const SizedBox(width: 20),
+                      Expanded(flex: 6, child: signatureCard),
+                    ],
+                  ),
                 ),
                 const SizedBox(height: 20),
                 // Back + Next sa ibaba, naka-align sa KANAN — hindi nakaunat
@@ -1863,7 +1954,73 @@ class _RiderCollectionDetailsScreenState
     );
   }
 
-  /// Card ng Payment Proof photo (preview + Upload).
+  /// Inline na error/size caption sa ilalim ng Payment Proof card — isang
+  /// caption lang para sa BUONG upload (1–2 photos), kaya makikita agad kung
+  /// pasok pa sa 5MB ang suma.
+  List<Widget> _proofValidationNotice() {
+    if (_proofError != null) {
+      return [
+        SizedBox(height: 10),
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.errorLight,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.error.withValues(alpha: 0.25)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.error_outline_rounded,
+                  size: 16, color: AppColors.error),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  _proofError!,
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.35,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.error),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ];
+    }
+    if (_proofPhotos.isEmpty) {
+      return [
+        SizedBox(height: 8),
+        Text(
+          'Upload 1 or 2 photos — max ${CiEvidenceRules.maxLabel} in total.',
+          style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: context.cTextTertiary),
+        ),
+      ];
+    }
+    return [
+      SizedBox(height: 8),
+      // "Upload size" — aktwal na ipapadala pagkatapos i-resize/i-compress ng
+      // picker, hindi ang laki ng orihinal na file.
+      Text(
+        'Upload size: ${CiEvidenceRules.sizeLabel(_proofTotalBytes)} of '
+        '${CiEvidenceRules.maxLabel} · ${_proofPhotos.length}/2 photos',
+        style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: context.cTextTertiary),
+      ),
+    ];
+  }
+
+  /// Card ng Payment Proof — ISA o DALAWA na photo sa iisang card. Hindi per
+  /// photo ang limit: ang KABUUANG laki ng 1–2 photos ang dapat ≤ 5MB. Ang
+  /// unang photo ang `proof_photo`, ang pangalawa (kung meron) ang
+  /// `scene_photo` sa backend.
   Widget _paymentProofCard() {
     return Container(
       padding: EdgeInsets.all(16),
@@ -1893,15 +2050,143 @@ class _RiderCollectionDetailsScreenState
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
                       color: context.cTextPrimary)),
+              const Spacer(),
+              // Bilang ng napiling photo (max 2) — malinaw kung ilan pa ang
+              // puwedeng idagdag.
+              Text('${_proofPhotos.length}/2',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: context.cTextTertiary)),
             ],
           ),
           SizedBox(height: 12),
-          _PhotoPicker(
-            photo: _proofPhoto,
-            onPick: _showProofSourceSheet,
-            onView: _viewProofPhoto,
+          _proofPhotosStrip(),
+          SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerRight,
+            child: ElevatedButton.icon(
+              // Naka-disable kapag kumpleto na ang 2 photos — i-remove muna ang
+              // isa para makapagpalit.
+              onPressed:
+                  _proofPhotos.length >= 2 ? null : _showProofSourceSheet,
+              icon: const Icon(Icons.upload_file_outlined, size: 16),
+              label: const Text('Upload',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: context.cBrandGreen,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: context.cBorder,
+                disabledForegroundColor: context.cTextTertiary,
+                elevation: 0,
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+              ),
+            ),
           ),
+          // Inline validation + size caption para sa BUONG upload
+          // (kapareho ng CI Task, pero total ang sinusukat).
+          ..._proofValidationNotice(),
         ],
+      ),
+    );
+  }
+
+  /// ISANG design lang: iisang preview area sa card. Dito lumalabas ang mga
+  /// napiling photo (isa o dalawa) at ang "Add photo" tile — hindi dalawang
+  /// blangkong kahon agad. Kapag wala pa, isa lang ang blangkong tile.
+  Widget _proofPhotosStrip() {
+    final tiles = <Widget>[
+      for (var i = 0; i < _proofPhotos.length; i++) _proofPhotoTile(i),
+      if (_proofPhotos.length < 2) _proofAddTile(),
+    ];
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < tiles.length; i++) ...[
+          if (i > 0) const SizedBox(width: 10),
+          Expanded(child: tiles[i]),
+        ],
+      ],
+    );
+  }
+
+  /// Napiling photo — pindutin para i-view; may ✕ sa sulok para i-remove.
+  Widget _proofPhotoTile(int index) {
+    final photo = _proofPhotos[index];
+    return GestureDetector(
+      onTap: () => _viewProofPhoto(index),
+      child: Container(
+        height: 160,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            XFilePreview(file: photo, height: 160, width: double.infinity),
+            Positioned(
+              top: 6,
+              right: 6,
+              child: GestureDetector(
+                onTap: () => _removeProofPhoto(index),
+                child: Container(
+                  padding: const EdgeInsets.all(5),
+                  decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      shape: BoxShape.circle),
+                  child:
+                      const Icon(Icons.close, size: 14, color: Colors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Ang nag-iisang blangkong design — pinipindot para magdagdag ng photo.
+  /// Buong lapad kapag wala pa; kalahati na lang kapag may isa nang photo.
+  Widget _proofAddTile() {
+    final isEmpty = _proofPhotos.isEmpty;
+    return GestureDetector(
+      onTap: _showProofSourceSheet,
+      child: Container(
+        height: 160,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.add_photo_alternate_outlined,
+                  size: 26, color: AppColors.textTertiary),
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  isEmpty ? 'No photo uploaded yet' : 'Add second photo',
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 11.5,
+                      color: AppColors.textTertiary,
+                      fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1997,8 +2282,9 @@ class _RiderCollectionDetailsScreenState
         Expanded(
           child: ElevatedButton(
             // Kailangan muna ng payment proof bago makalipat sa Step 3.
-            onPressed:
-                _proofPhoto != null ? () => _validateProofAndNext(col) : null,
+            onPressed: _proofPhotos.isNotEmpty
+                ? () => _validateProofAndNext(col)
+                : null,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.riderGreen,
               foregroundColor: Colors.white,
@@ -2200,15 +2486,23 @@ class _RiderCollectionDetailsScreenState
   List<Widget> _reviewCollectionRows(CollectionAssignmentModel col) {
     final collectedStr = col.amountCollected?.toCurrency ??
         (_amountCtrl.text.isEmpty ? '—' : '₱${_amountCtrl.text}');
-    final notesStr = col.notes ?? _notesCtrl.text;
+    final riderNotes = _notesCtrl.text.trim();
     return [
       // Plain row na lang — hindi na green box/button ang itsura.
       _ReviewRow('Amount Collected', collectedStr, valueBold: true),
-      // Proof at Lender Signature — check kapag meron, `N/A` kapag wala.
-      _ReviewCheckRow('Proof', present: _proofPhoto != null),
+      // Proof at Lender Signature — check kapag meron, `N/A` kapag wala. Ang
+      // proof ay 1–2 photos sa iisang card, kaya bilang ang label.
+      _ReviewCheckRow('Proof',
+          present: _proofPhotos.isNotEmpty,
+          presentLabel: _proofPhotos.length > 1 ? '2 photos' : '1 photo'),
       _ReviewCheckRow('Lender Signature',
           present: _signatureBase64 != null, presentLabel: 'Captured'),
-      _ReviewRow('Notes', notesStr.isEmpty ? 'No notes' : notesStr),
+      // Hiwalay ang na-assign na notes (read-only, galing sa staff) sa sariling
+      // note ng rider — hindi na nito ginagamit ang `col.notes` bilang rider
+      // note kaya hindi ito maipapasa/papalitan ng rider.
+      if (col.notes != null && col.notes!.trim().isNotEmpty)
+        _ReviewRow('Assigned Notes', col.notes!.trim()),
+      if (riderNotes.isNotEmpty) _ReviewRow('Rider Notes', riderNotes),
       _ReviewRow('Status', col.statusLabel),
       // Business rule: ang `completed_at` ay may halaga lang kapag tapos na
       // talaga ang koleksyon (status = 'completed'). Hindi na ito sine-set ng
@@ -2351,98 +2645,3 @@ class _ReviewRow extends StatelessWidget {
   }
 }
 
-class _PhotoPicker extends StatelessWidget {
-  final XFile? photo;
-
-  /// Pinipindot ng maliit na "Upload" button — dito pinipili ang Camera o
-  /// Gallery (bottom sheet), kaya wala nang dalawang malaking button.
-  final VoidCallback onPick;
-
-  /// Buksan ang na-upload na photo — "View" button sa tabi ng Upload.
-  final VoidCallback onView;
-  const _PhotoPicker(
-      {required this.photo, required this.onPick, required this.onView});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Puting card box — dito nakalagay ang na-upload na photo. Kapag wala
-        // pa, placeholder lang; hindi ito nawawala kaya hindi rin nawawala ang
-        // Upload button sa ibaba.
-        Container(
-          height: 180,
-          width: double.infinity,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.border),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: photo == null
-              ? const Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add_photo_alternate_outlined,
-                          size: 30, color: AppColors.textTertiary),
-                      SizedBox(height: 6),
-                      Text('No photo uploaded yet',
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: AppColors.textTertiary,
-                              fontWeight: FontWeight.w600)),
-                    ],
-                  ),
-                )
-              : XFilePreview(file: photo!, height: 180, width: double.infinity),
-        ),
-        SizedBox(height: 12),
-        // Upload (+ View kapag may na-upload na) — nasa kanan ng card, at hindi
-        // nawawala kahit may photo na para makapag-palit pa rin.
-        Row(
-          mainAxisAlignment: MainAxisAlignment.end,
-          children: [
-            // View muna (kaliwa), tapos Upload (kanan). Filled buttons na
-            // `cBrandGreen` — mas kitang-kita kaysa outlined sa dark mode.
-            if (photo != null) ...[
-              ElevatedButton.icon(
-                onPressed: onView,
-                icon: const Icon(Icons.visibility_outlined, size: 16),
-                label: const Text('View',
-                    style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: context.cBrandGreen,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  minimumSize: const Size(0, 40),
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-              const SizedBox(width: 8),
-            ],
-            ElevatedButton.icon(
-              onPressed: onPick,
-              icon: const Icon(Icons.upload_file_outlined, size: 16),
-              label: const Text('Upload',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: context.cBrandGreen,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                minimumSize: const Size(0, 40),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}

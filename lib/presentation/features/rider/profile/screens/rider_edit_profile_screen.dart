@@ -17,6 +17,7 @@ import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
+import '../../../../shared/widgets/security/email_change_otp_dialog.dart';
 import '../providers/rider_profile_provider.dart';
 
 class RiderProfileEditScreen extends ConsumerStatefulWidget {
@@ -131,8 +132,7 @@ class _RiderEditProfileScreenState
     // ay pinapanatili pa rin (kasama sa dropdown items) para hindi basta-basta
     // mabago ang naka-save na halaga — ang susunod na save na ang bahala.
     final type = (user.vehicleType ?? '').toString().toLowerCase();
-    _vehicleType =
-        (type == 'bicycle' || type == 'car') ? type : 'motorcycle';
+    _vehicleType = (type == 'bicycle' || type == 'car') ? type : 'motorcycle';
 
     final brand = (user.vehicleBrand ?? '').toString().trim();
     if (brand.isEmpty) {
@@ -175,16 +175,24 @@ class _RiderEditProfileScreenState
       return;
     }
     if (_vehicleBrand == 'other' && _otherBrandCtrl.text.trim().isEmpty) {
-      await showErrorDialog(context, message: 'Please enter the vehicle brand.');
+      await showErrorDialog(context,
+          message: 'Please enter the vehicle brand.');
       return;
     }
+    // Ang email ay HINDI kasama sa payload na ito: kailangan muna itong
+    // ma-verify ng 6-digit code sa BAGONG address
+    // (`users-manage?fn=request-email-change` → `?fn=confirm-email-change`).
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final currentEmail =
+        (ref.read(riderProfileProvider).user?.email ?? '').trim().toLowerCase();
+    final emailChanged = email != currentEmail;
+
     final ok = await ref.read(riderProfileProvider.notifier).updateProfile({
       'first_name': _firstNameCtrl.text.trim(),
       'middle_name': _middleNameCtrl.text.trim(),
       'last_name': _lastNameCtrl.text.trim(),
       'suffix': _suffixCtrl.text.trim(),
       'phone_number': _phoneCtrl.text.trim(),
-      'email': _emailCtrl.text.trim(),
       'rider_profile': {
         'plate_number': _plateCtrl.text.trim(),
         'drivers_license_number': _licenseCtrl.text.trim(),
@@ -193,22 +201,48 @@ class _RiderEditProfileScreenState
       },
     });
     if (!mounted) return;
-    if (ok) {
-      await showDialog(
-        context: context,
-        builder: (_) => const SuccessDialog(
-          title: 'Profile Updated',
-          message: 'Your profile has been updated successfully.',
-        ),
-      );
-      if (mounted) context.go(RouteConstants.riderProfile);
-    } else {
+    if (!ok) {
       final err = ref.read(riderProfileProvider).error;
       await showErrorDialog(
         context,
         message: err ?? 'Failed to update profile. Please try again.',
       );
+      return;
     }
+
+    if (emailChanged) {
+      final notifier = ref.read(riderProfileProvider.notifier);
+      final sendError = await notifier.requestEmailChange(email);
+      if (!mounted) return;
+      if (sendError != null) {
+        await showErrorDialog(context, message: sendError);
+        return;
+      }
+      final verified = await showEmailChangeOtpDialog(
+        context,
+        email: email,
+        onVerify: (otp) => notifier.confirmEmailChange(email: email, otp: otp),
+        onResend: () => notifier.requestEmailChange(email),
+      );
+      if (!mounted) return;
+      if (!verified) {
+        await showErrorDialog(
+          context,
+          message: 'Your other details were saved, but your email was not '
+              'changed because the code was not verified.',
+        );
+        return;
+      }
+    }
+
+    await showDialog(
+      context: context,
+      builder: (_) => const SuccessDialog(
+        title: 'Profile Updated',
+        message: 'Your profile has been updated successfully.',
+      ),
+    );
+    if (mounted) context.go(RouteConstants.riderProfile);
   }
 
   String? Function(String?) _required(String label) =>
@@ -345,13 +379,12 @@ class _RiderEditProfileScreenState
                           value: _vehicleBrand,
                           hint: 'Select brand',
                           items: [
-                            ..._motorcycleBrands.map((b) => DropdownMenuItem(
-                                value: b, child: Text(b))),
+                            ..._motorcycleBrands.map((b) =>
+                                DropdownMenuItem(value: b, child: Text(b))),
                             const DropdownMenuItem(
                                 value: 'other', child: Text('Other')),
                           ],
-                          onChanged: (v) =>
-                              setState(() => _vehicleBrand = v),
+                          onChanged: (v) => setState(() => _vehicleBrand = v),
                         ),
                         if (_vehicleBrand == 'other') ...[
                           const SizedBox(height: 18),

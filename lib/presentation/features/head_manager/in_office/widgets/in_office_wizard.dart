@@ -11,17 +11,23 @@ import '../../../../../core/extensions/context_extensions.dart';
 import '../../../../../core/services/supabase_storage_service.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/document_viewer.dart';
+import '../../../lender/account_upgrade/screens/face_verification_screen.dart';
+import '../../../lender/account_upgrade/screens/valid_id_scanner_screen.dart';
+import '../../../lender/account_upgrade/screens/webcam_capture_screen.dart';
 import '../../../../shared/widgets/philippines_address_field.dart';
 import '../providers/hm_in_office_provider.dart';
 
 /// Mga dokumentong REQUIRED sa Lendee Account Upgrade (walk-in) wizard.
 ///
-/// Valid ID (front + back) lang ang kailangan — OPSYONAL na ang Selfie with ID
-/// at Business Permit (pwede pa ring i-upload, pero hindi hinaharang ang
-/// Next/Submit). Pampubliko ito para masusuri ng unit test.
+/// LAHAT required: Valid ID (front + back, iisang Upload flow), Selfie with
+/// ID, Face Recognition, at Business Permit. Max 5MB bawat file. Pampubliko
+/// ito para masusuri ng unit test.
 const Set<String> kInOfficeRequiredDocTypes = {
   'valid_id',
   'valid_id_back',
+  'selfie',
+  'face_recognition',
+  'mayors_permit',
 };
 
 class _DocFile {
@@ -64,23 +70,23 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
   /// "Full Name", "Valid ID (Front)", atbp.
   static const double _rowLabelWidth = 150;
 
-  static const List<(String, String)> _docTypes = [
-    ('valid_id', 'Valid ID (Front)'),
-    ('valid_id_back', 'Valid ID (Back)'),
+  /// Mga dokumentong may SARILING tile. Ang Valid ID (front + back) ay
+  /// IISANG row sa UI (`_validIdUploadCard`) pero dalawang doc type pa rin sa
+  /// backend (`valid_id` / `valid_id_back`).
+  static const List<(String, String)> _singleDocTypes = [
     ('selfie', 'Selfie with ID'),
+    ('face_recognition', 'Face Recognition'),
     ('mayors_permit', 'Business Permit'),
   ];
 
-  /// REQUIRED lang: Valid ID (front + back) — tingnan ang
-  /// [kInOfficeRequiredDocTypes]. Ang Selfie / Business Permit ay OPSYONAL —
-  /// hindi na hinaharang ng mga ito ang Next/Submit,
-  /// ngunit naka-upload pa rin kung may ibibigay ang lender.
+  /// LAHAT required — tingnan ang [kInOfficeRequiredDocTypes].
   static const Set<String> _requiredDocTypes = kInOfficeRequiredDocTypes;
 
   static const Map<String, String> _docAssetIcons = {
     'valid_id': 'assets/icons/id_card.png',
     'valid_id_back': 'assets/icons/id_card.png',
     'selfie': 'assets/icons/selfie with id.png',
+    'face_recognition': 'assets/icons/FACE RECOGNITION.jpg',
     'mayors_permit': 'assets/icons/PERMIT.png',
   };
 
@@ -961,20 +967,25 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           text: const TextSpan(
             style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
             children: [
-              TextSpan(text: 'Upload Valid ID (front & back) — '),
+              TextSpan(text: 'Upload all documents — '),
               TextSpan(
                   text: 'required',
                   style: TextStyle(fontWeight: FontWeight.w700)),
-              TextSpan(text: '. The rest are optional. '),
+              TextSpan(text: '. '),
               // Format + size limit sa TAAS na — hindi na inuulit sa bawat
               // card, at WALANG hard line break (tuloy-tuloy na pangungusap)
               // para hindi lumabas na hiwalay/hanging na linya.
-              TextSpan(text: 'JPG, PNG or PDF (max 5MB each).'),
+              TextSpan(text: 'JPG, PNG or PDF (max 5MB each). '),
+              // Face Recognition ay hindi file upload — live camera capture
+              // (ML Kit sa mobile, webcam sa browser).
+              TextSpan(text: 'Face Recognition opens the camera.'),
             ],
           ),
         ),
         const SizedBox(height: 20),
-        ..._docTypes.map((d) => _docUploadCard(d.$1, d.$2)),
+        // Valid ID front + back: ISANG upload flow.
+        _validIdUploadCard(),
+        ..._singleDocTypes.map((d) => _docUploadCard(d.$1, d.$2)),
         if (_docsError != null)
           Padding(
             padding: const EdgeInsets.only(top: 4, bottom: 8),
@@ -1018,8 +1029,12 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
           hasFile
               ? file.name
               : (_requiredDocTypes.contains(type)
-                  ? 'Required — not uploaded yet'
-                  : 'Optional — not uploaded yet'),
+                  ? (type == 'face_recognition'
+                      ? 'Required — not captured yet'
+                      : 'Required — not uploaded yet')
+                  : (type == 'face_recognition'
+                      ? 'Optional — not captured yet'
+                      : 'Optional — not uploaded yet')),
           style: TextStyle(
             fontSize: 12,
             color: hasFile ? AppColors.success : AppColors.textSecondary,
@@ -1049,8 +1064,17 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
                   _pickDocument(type);
                 }
               },
-              icon: Icon(hasFile ? Icons.close : Icons.upload_file, size: 16),
-              label: Text(hasFile ? 'Remove' : 'Upload'),
+              icon: Icon(
+                  hasFile
+                      ? Icons.close
+                      : (type == 'face_recognition'
+                          ? Icons.camera_front
+                          : Icons.upload_file),
+                  size: 16),
+              // Face Recognition ay live capture, hindi file upload.
+              label: Text(hasFile
+                  ? 'Remove'
+                  : (type == 'face_recognition' ? 'Verify' : 'Upload')),
               style: TextButton.styleFrom(foregroundColor: AppColors.deepNavy),
             ),
           ],
@@ -1059,7 +1083,231 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
+  /// Face Recognition: live face verification sa mobile (ML Kit face
+  /// detection + liveness), tunay na webcam snapshot sa browser. Parehong
+  /// iniimbak bilang `face_recognition` document.
+  Future<void> _captureFace(String docType) async {
+    if (FaceVerificationScreen.isSupported) {
+      final result = await Navigator.of(context).push<FaceVerifyResult>(
+        MaterialPageRoute(builder: (_) => const FaceVerificationScreen()),
+      );
+      if (result == null || !mounted || result.imageBytes.isEmpty) return;
+      _setDoc(
+        docType,
+        _DocFile(
+          name: 'face_recognition_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          mimeType: 'image/jpeg',
+          bytes: result.imageBytes,
+        ),
+      );
+      return;
+    }
+
+    // Browser: walang ML Kit liveness, pero puwedeng kumuha ng aktwal na
+    // litrato gamit ang webcam — nire-review naman ito ng staff.
+    if (WebcamCaptureScreen.isSupported) {
+      final result = await Navigator.of(context).push<WebcamCaptureResult>(
+        MaterialPageRoute(
+          builder: (_) => const WebcamCaptureScreen(
+            title: 'Face Recognition',
+            preferFrontCamera: true,
+          ),
+        ),
+      );
+      if (result == null || !mounted) return;
+      if (result.useFileFallback) {
+        await _pickFromGallery(docType);
+        return;
+      }
+      final bytes = result.bytes;
+      if (bytes == null || bytes.isEmpty) return;
+      _setDoc(
+        docType,
+        _DocFile(
+          name: 'face_recognition_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          mimeType: 'image/jpeg',
+          bytes: bytes,
+        ),
+      );
+      return;
+    }
+
+    _showMessage(
+        'Face Recognition needs a camera. Open this on the Jireta mobile app or a browser with a webcam.');
+  }
+
+  /// Isang row lang para sa Valid ID — FRONT at BACK sa iisang Upload flow.
+  /// Hiwalay pa rin ang doc types sa backend (`valid_id` / `valid_id_back`).
+  Widget _validIdUploadCard() {
+    final front = _docs['valid_id'];
+    final back = _docs['valid_id_back'];
+    final hasFront = front != null;
+    final hasBack = back != null;
+    final hasBoth = hasFront && hasBack;
+    final hasAny = hasFront || hasBack;
+    final status = hasBoth
+        ? 'Front and back captured'
+        : !hasAny
+            ? 'Required — not uploaded yet'
+            : hasFront
+                ? 'Required — back side missing'
+                : 'Required — front side missing';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: hasBoth
+              ? AppColors.success.withValues(alpha: 0.5)
+              : AppColors.border,
+        ),
+        borderRadius: BorderRadius.circular(8),
+        color:
+            hasBoth ? AppColors.success.withValues(alpha: 0.04) : Colors.white,
+      ),
+      child: ListTile(
+        dense: true,
+        leading: Image.asset('assets/icons/id_card.png',
+            width: 22,
+            height: 22,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high),
+        title: const Text('Valid ID (Front & Back)',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          status,
+          style: TextStyle(
+            fontSize: 12,
+            color: hasBoth ? AppColors.success : AppColors.textSecondary,
+          ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hasFront)
+              _compactIconButton(
+                icon: Icons.visibility_outlined,
+                tooltip: 'View front',
+                onPressed: () =>
+                    _viewDocument('valid_id', 'Valid ID (Front)'),
+              ),
+            if (hasBack)
+              _compactIconButton(
+                icon: Icons.visibility_outlined,
+                tooltip: 'View back',
+                onPressed: () =>
+                    _viewDocument('valid_id_back', 'Valid ID (Back)'),
+              ),
+            if (hasAny)
+              _compactIconButton(
+                icon: Icons.close,
+                tooltip: 'Remove front and back',
+                onPressed: () => setState(() {
+                  _docs.remove('valid_id');
+                  _docs.remove('valid_id_back');
+                  _existingDocPaths.remove('valid_id');
+                  _existingDocPaths.remove('valid_id_back');
+                  _docsError = null;
+                }),
+              ),
+            if (!hasBoth)
+              TextButton.icon(
+                onPressed: _pickValidId,
+                icon: Icon(
+                    hasAny ? Icons.add_a_photo_outlined : Icons.upload_file,
+                    size: 16),
+                label: Text(hasAny ? 'Complete' : 'Upload'),
+                style:
+                    TextButton.styleFrom(foregroundColor: AppColors.deepNavy),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactIconButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return IconButton(
+      icon: Icon(icon, size: 17),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 28, height: 28),
+      splashRadius: 18,
+      color: AppColors.deepNavy,
+    );
+  }
+
+  /// Read-only bersyon ng pinagsamang Valid ID row (View mode / review).
+  Widget _validIdReadOnlyTile({bool boxed = true}) {
+    final hasFront = _docs.containsKey('valid_id');
+    final hasBack = _docs.containsKey('valid_id_back');
+    final hasBoth = hasFront && hasBack;
+    final row = _readOnlyDataRow(
+      'Valid ID (Front & Back)',
+      Row(
+        children: [
+          Expanded(
+            child: Text(
+              hasBoth
+                  ? 'Front & Back ✓'
+                  : hasFront
+                      ? 'Back side missing'
+                      : hasBack
+                          ? 'Front side missing'
+                          : 'Missing',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: hasBoth ? AppColors.success : AppColors.error,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (hasFront) ...[
+            const SizedBox(width: 8),
+            _viewDocButton('valid_id', 'Valid ID (Front)'),
+          ],
+          if (hasBack) ...[
+            const SizedBox(width: 8),
+            _viewDocButton('valid_id_back', 'Valid ID (Back)'),
+          ],
+        ],
+      ),
+    );
+    if (!boxed) {
+      return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2), child: row);
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        border: Border.all(
+            color: hasBoth
+                ? AppColors.success.withValues(alpha: 0.5)
+                : AppColors.border),
+        color: hasBoth
+            ? AppColors.success.withValues(alpha: 0.04)
+            : Colors.white,
+      ),
+      child: row,
+    );
+  }
+
   Future<void> _pickDocument(String docType) async {
+    // Face Recognition has its own live-camera flow — walang camera/gallery/
+    // file bottom sheet.
+    if (docType == 'face_recognition') {
+      await _captureFace(docType);
+      return;
+    }
     final action = await showModalBottomSheet<String>(
       context: context,
       backgroundColor: Colors.white,
@@ -1133,6 +1381,123 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     final ext = (f.extension ?? 'jpg').toLowerCase();
     final mime = ext == 'pdf' ? 'application/pdf' : 'image/$ext';
     _setDoc(docType, _DocFile(name: f.name, mimeType: mime, bytes: bytes));
+  }
+
+  /// Isang flow para sa Valid ID: FRONT + BACK (max 5MB bawat side).
+  /// Mobile → live ID scanner; web → webcam front + back; desktop → isang
+  /// file dialog na may dalawang larawan.
+  Future<void> _pickValidId() async {
+    if (FaceVerificationScreen.isSupported) {
+      final result = await Navigator.of(context).push<IdScanResult>(
+        MaterialPageRoute(builder: (_) => const ValidIdScannerScreen()),
+      );
+      if (result == null || !mounted) return;
+      _setValidId(result.frontBytes, result.backBytes);
+      return;
+    }
+    if (WebcamCaptureScreen.isSupported) {
+      await _captureValidIdWithWebcam();
+      return;
+    }
+    await _pickValidIdFiles();
+  }
+
+  void _setValidId(Uint8List frontBytes, Uint8List backBytes) {
+    final stamp = DateTime.now().millisecondsSinceEpoch;
+    _setDoc(
+      'valid_id',
+      _DocFile(
+        name: 'valid_id_front_$stamp.jpg',
+        mimeType: 'image/jpeg',
+        bytes: frontBytes,
+      ),
+    );
+    _setDoc(
+      'valid_id_back',
+      _DocFile(
+        name: 'valid_id_back_$stamp.jpg',
+        mimeType: 'image/jpeg',
+        bytes: backBytes,
+      ),
+    );
+  }
+
+  /// Web: kunin sa webcam ang kulang na side(s) — front tapos back — sa
+  /// iisang Upload action.
+  Future<void> _captureValidIdWithWebcam() async {
+    if (!_docs.containsKey('valid_id')) {
+      final front = await _webcamShot('Valid ID — Front');
+      if (front == null || front.isEmpty || !mounted) return;
+      _setDoc(
+        'valid_id',
+        _DocFile(
+          name: 'valid_id_front_${DateTime.now().millisecondsSinceEpoch}.jpg',
+          mimeType: 'image/jpeg',
+          bytes: front,
+        ),
+      );
+    }
+    if (!mounted || _docs.containsKey('valid_id_back')) return;
+    final back = await _webcamShot('Valid ID — Back');
+    if (back == null || back.isEmpty || !mounted) return;
+    _setDoc(
+      'valid_id_back',
+      _DocFile(
+        name: 'valid_id_back_${DateTime.now().millisecondsSinceEpoch}.jpg',
+        mimeType: 'image/jpeg',
+        bytes: back,
+      ),
+    );
+  }
+
+  Future<Uint8List?> _webcamShot(String title) async {
+    final result = await Navigator.of(context).push<WebcamCaptureResult>(
+      MaterialPageRoute(
+        builder: (_) => WebcamCaptureScreen(title: title),
+      ),
+    );
+    if (!mounted || result == null) return null;
+    // Walang camera sa device: doon na lang sa file dialog kunin ang
+    // front + back.
+    if (result.useFileFallback) {
+      await _pickValidIdFiles();
+      return null;
+    }
+    return result.bytes;
+  }
+
+  /// Desktop/fallback: piliin ang front at back sa ISANG file dialog.
+  Future<void> _pickValidIdFiles() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['jpg', 'jpeg', 'png'],
+      allowMultiple: true,
+      withData: true,
+    );
+    if (result == null || !mounted) return;
+    final files = result.files.where((f) => f.bytes != null).toList();
+    if (files.isEmpty) return;
+    final targets = [
+      if (!_docs.containsKey('valid_id')) 'valid_id',
+      if (!_docs.containsKey('valid_id_back')) 'valid_id_back',
+    ];
+    if (files.length < targets.length) {
+      _showMessage(
+          'Select both the front and back of the Valid ID.');
+      return;
+    }
+    for (var i = 0; i < targets.length; i++) {
+      final f = files[i];
+      final ext = (f.extension ?? 'jpg').toLowerCase();
+      _setDoc(
+        targets[i],
+        _DocFile(
+          name: f.name,
+          mimeType: ext == 'png' ? 'image/png' : 'image/jpeg',
+          bytes: f.bytes!,
+        ),
+      );
+    }
   }
 
   void _setDoc(String docType, _DocFile file) {
@@ -1360,8 +1725,10 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     );
   }
 
-  List<Widget> _documentTiles({bool boxed = true}) =>
-      _docTypes.map((d) => _documentTile(d.$1, d.$2, boxed: boxed)).toList();
+  List<Widget> _documentTiles({bool boxed = true}) => [
+        _validIdReadOnlyTile(boxed: boxed),
+        ..._singleDocTypes.map((d) => _documentTile(d.$1, d.$2, boxed: boxed)),
+      ];
 
   Widget _buildDocumentsReadOnly() {
     return Column(
@@ -1514,6 +1881,20 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
         _ => uiStep + 1,
       };
 
+  /// Mga kulang na required na dokumento — ang Valid ID (front + back) ay
+  /// iisang label kahit dalawang doc type sa backend.
+  List<String> _missingDocLabels() {
+    final missing = <String>[];
+    if (!_docs.containsKey('valid_id') ||
+        !_docs.containsKey('valid_id_back')) {
+      missing.add('Valid ID (Front & Back)');
+    }
+    for (final d in _singleDocTypes) {
+      if (!_docs.containsKey(d.$1)) missing.add(d.$2);
+    }
+    return missing;
+  }
+
   Future<void> _nextStep() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       // 2 segundo lang ang error text (tingnan ang _ValidatedTextField) —
@@ -1530,11 +1911,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
     }
     // Documents live on UI step 2 — block Next until all uploads are present.
     if (_step == 2) {
-      final missingDocs = _docTypes
-          .where((d) =>
-              _requiredDocTypes.contains(d.$1) && !_docs.containsKey(d.$1))
-          .map((d) => d.$2)
-          .toList();
+      final missingDocs = _missingDocLabels();
       if (missingDocs.isNotEmpty) {
         setState(() => _docsError =
             'Please upload the required document(s): ${missingDocs.join(', ')}');
@@ -1653,11 +2030,7 @@ class _InOfficeWizardState extends ConsumerState<InOfficeWizard> {
       return;
     }
 
-    final missingDocs = _docTypes
-        .where((d) =>
-            _requiredDocTypes.contains(d.$1) && !_docs.containsKey(d.$1))
-        .map((d) => d.$2)
-        .toList();
+    final missingDocs = _missingDocLabels();
     if (missingDocs.isNotEmpty) {
       setState(() => _docsError =
           'Please upload the required document(s): ${missingDocs.join(', ')}');

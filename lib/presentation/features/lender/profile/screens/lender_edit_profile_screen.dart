@@ -17,6 +17,7 @@ import '../../../../shared/widgets/dialogs/success_dialog.dart';
 import '../../../../shared/widgets/dialogs/error_dialog.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
 import '../../../../shared/widgets/profile/modern_profile_widgets.dart';
+import '../../../../shared/widgets/security/email_change_otp_dialog.dart';
 import '../providers/lender_profile_provider.dart';
 
 /// Bottom nav na kapareho ng lender profile — pareho ito sa dalawang edit
@@ -72,8 +73,7 @@ Widget _lenderFormSection(
                 borderRadius: BorderRadius.circular(8),
               ),
               alignment: Alignment.center,
-              child:
-                  Icon(icon, size: 16, color: ModernProfileStyles.iconColor),
+              child: Icon(icon, size: 16, color: ModernProfileStyles.iconColor),
             ),
             const SizedBox(width: 10),
             Text(
@@ -175,16 +175,15 @@ Widget _lenderPinnedActions({
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.textSecondary,
                     backgroundColor: Colors.white,
-                    side: const BorderSide(
-                        color: ModernProfileStyles.cardBorder),
+                    side:
+                        const BorderSide(color: ModernProfileStyles.cardBorder),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: const Text(
                     'Cancel',
-                    style:
-                        TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -764,29 +763,76 @@ class _LenderEditEmailScreenState extends ConsumerState<LenderEditEmailScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Laging ipinapadala — blangko = alisin ang email (pinapayagan ito ng
-    // users-manage para sa lender; phone naman ang tunay na login).
-    final ok = await ref.read(lenderProfileProvider.notifier).updateProfile({
-      'email': _emailCtrl.text.trim().toLowerCase(),
-    });
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final notifier = ref.read(lenderProfileProvider.notifier);
 
-    if (!mounted) return;
-    if (ok) {
+    // Blangko = alisin ang email (pinapayagan ito ng users-manage para sa
+    // lender; phone naman ang tunay na login). Walang address na
+    // mapapatunayan, kaya direktang update pa rin ito.
+    if (email.isEmpty) {
+      final ok = await notifier.updateProfile({'email': ''});
+      if (!mounted) return;
+      if (ok) {
+        await showDialog(
+          context: context,
+          builder: (_) => const SuccessDialog(
+            title: 'Email Removed',
+            message: 'Your email address has been removed.',
+          ),
+        );
+        if (mounted) context.go(RouteConstants.lenderProfile);
+      } else {
+        final err = ref.read(lenderProfileProvider).error;
+        await showErrorDialog(
+          context,
+          message: err ?? 'Failed to update email. Please try again.',
+        );
+      }
+      return;
+    }
+
+    final current = (ref.read(lenderProfileProvider).user?.email ?? '')
+        .trim()
+        .toLowerCase();
+    if (email == current) {
       await showDialog(
         context: context,
         builder: (_) => const SuccessDialog(
           title: 'Email Updated',
-          message: 'Your email address has been updated successfully.',
+          message: 'Your email address is already up to date.',
         ),
       );
       if (mounted) context.go(RouteConstants.lenderProfile);
-    } else {
-      final err = ref.read(lenderProfileProvider).error;
-      await showErrorDialog(
-        context,
-        message: err ?? 'Failed to update email. Please try again.',
-      );
+      return;
     }
+
+    // (1) 6-digit code sa BAGONG email — hindi pa nagbabago ang account.
+    final sendError = await notifier.requestEmailChange(email);
+    if (!mounted) return;
+    if (sendError != null) {
+      await showErrorDialog(context, message: sendError);
+      return;
+    }
+
+    // (2) Dito lang isinusulat ng server ang bagong email pagkatapos ng code.
+    final verified = await showEmailChangeOtpDialog(
+      context,
+      email: email,
+      onVerify: (otp) => notifier.confirmEmailChange(email: email, otp: otp),
+      onResend: () => notifier.requestEmailChange(email),
+    );
+    if (!mounted) return;
+    if (!verified) return;
+
+    await showDialog(
+      context: context,
+      builder: (_) => const SuccessDialog(
+        title: 'Email Verified',
+        message:
+            'Your email address has been updated and verified successfully.',
+      ),
+    );
+    if (mounted) context.go(RouteConstants.lenderProfile);
   }
 
   /// Walang white card: ang email icon ay nasa TAAS ng screen; ang "Email"

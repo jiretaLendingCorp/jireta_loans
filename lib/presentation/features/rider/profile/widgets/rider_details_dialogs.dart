@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../../data/models/user_model.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
+import '../../../../shared/widgets/security/email_change_otp_dialog.dart';
 import '../providers/rider_profile_provider.dart';
 
 /// Motorcycle brands lang — kapareho ng Edit Profile screen.
@@ -360,26 +361,53 @@ class _RiderEmailDialogState extends ConsumerState<_RiderEmailDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final messenger = ScaffoldMessenger.of(context);
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final current =
+        (ref.read(riderProfileProvider).user?.email ?? '').trim().toLowerCase();
+    if (email == current) {
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Email unchanged.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      return;
+    }
+
+    final notifier = ref.read(riderProfileProvider.notifier);
+
+    // (1) Padalhan muna ng 6-digit code ang BAGONG email. Hindi pa nagbabago
+    // ang email sa account hangga't hindi ito na-verify.
     setState(() => _saving = true);
-    final ok = await ref.read(riderProfileProvider.notifier).updateProfile({
-      'email': _emailCtrl.text.trim(),
-    });
+    final sendError = await notifier.requestEmailChange(email);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (!ok) {
+    if (sendError != null) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(ref.read(riderProfileProvider).error ??
-              'Failed to update email. Please try again.'),
+          content: Text(sendError),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
+
+    // (2) I-verify ang code. Dito lang isinusulat ng server ang bagong email
+    // (`confirm-email-change`), kaya hindi ito basta-basta maisusubo.
+    final verified = await showEmailChangeOtpDialog(
+      context,
+      email: email,
+      onVerify: (otp) => notifier.confirmEmailChange(email: email, otp: otp),
+      onResend: () => notifier.requestEmailChange(email),
+    );
+    if (!mounted) return;
+    if (!verified) return;
+
     Navigator.of(context).pop();
     messenger.showSnackBar(
       const SnackBar(
-        content: Text('Email updated.'),
+        content: Text('Email updated and verified.'),
         backgroundColor: AppColors.success,
       ),
     );

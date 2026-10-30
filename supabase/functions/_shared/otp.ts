@@ -16,6 +16,21 @@ import { normalizePhMobile } from './validators.ts';
 
 export type OtpPurpose = 'login' | 'reset_mpin';
 
+/**
+ * Purpose para sa OTP na nagpapatunay ng BAGONG email ng rider / lender.
+ *
+ * SADYANG hindi ito kasama sa [OtpPurpose], [OTP_PURPOSES] at [isOtpPurpose]:
+ * ang `auth-otp?fn=send-otp` (public login endpoint) ay hindi dapat
+ * tumanggap ng `purpose=email_change`. Tanging ang `users-manage`
+ * (`request-email-change` / `confirm-email-change`) ang gumagamit nito.
+ */
+export type EmailChangeOtpPurpose = 'email_change';
+
+export const EMAIL_CHANGE_OTP_PURPOSE: EmailChangeOtpPurpose = 'email_change';
+
+/** Lahat ng purpose na pwedeng naka-store sa `otp_codes.purpose`. */
+export type AnyOtpPurpose = OtpPurpose | EmailChangeOtpPurpose;
+
 export const OTP_PURPOSES: readonly OtpPurpose[] = ['login', 'reset_mpin'];
 
 export const OTP_CODE_LENGTH = 6;
@@ -135,8 +150,8 @@ export type OtpRejectReason =
   | 'mismatch';
 
 export type OtpValidationParams = {
-  /** Purpose ng kasalukuyang request (login / reset_mpin). */
-  purpose: OtpPurpose;
+  /** Purpose ng kasalukuyang request (login / reset_mpin / email_change). */
+  purpose: AnyOtpPurpose;
   /** Ang hash ng code na isinumite (naka-hash na, hindi plain). */
   submittedHash: string;
   nowMs?: number;

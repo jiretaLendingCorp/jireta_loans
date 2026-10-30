@@ -117,22 +117,36 @@ class UserRemoteDataSource {
       );
       final raw = res.data;
       if (raw is! Map<String, dynamic>) {
-        AppLogger.e('[UserRemote] getProfile unexpected raw type: ${raw.runtimeType} $raw');
-        throw DioException(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), message: 'Invalid profile response');
+        AppLogger.e(
+            '[UserRemote] getProfile unexpected raw type: ${raw.runtimeType} $raw');
+        throw DioException(
+            requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile),
+            message: 'Invalid profile response');
       }
       final data = raw['user'];
       if (data == null) {
-        AppLogger.e('[UserRemote] getProfile user is null, raw=$raw userId=$userId');
-        throw DioException(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), message: 'User not found', response: Response(requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile), statusCode: 404, data: raw));
+        AppLogger.e(
+            '[UserRemote] getProfile user is null, raw=$raw userId=$userId');
+        throw DioException(
+            requestOptions: RequestOptions(path: ApiEndpoints.usersGetProfile),
+            message: 'User not found',
+            response: Response(
+                requestOptions:
+                    RequestOptions(path: ApiEndpoints.usersGetProfile),
+                statusCode: 404,
+                data: raw));
       }
-      return UserModel.fromJson(flattenRoleProfile(data as Map<String, dynamic>));
+      return UserModel.fromJson(
+          flattenRoleProfile(data as Map<String, dynamic>));
     } on DioException catch (e) {
       final status = e.response?.statusCode;
       final body = e.response?.data;
-      AppLogger.e('[UserRemote] getProfile failed userId=$userId status=$status body=$body path=${e.requestOptions.path} q=${e.requestOptions.queryParameters}');
+      AppLogger.e(
+          '[UserRemote] getProfile failed userId=$userId status=$status body=$body path=${e.requestOptions.path} q=${e.requestOptions.queryParameters}');
       rethrow;
     } catch (e, s) {
-      AppLogger.e('[UserRemote] getProfile unexpected error userId=$userId $e', e, s);
+      AppLogger.e(
+          '[UserRemote] getProfile unexpected error userId=$userId $e', e, s);
       rethrow;
     }
   }
@@ -147,7 +161,8 @@ class UserRemoteDataSource {
       if (data == null) throw Exception('User not found');
       return data as Map<String, dynamic>;
     } on DioException catch (e) {
-      AppLogger.e('[UserRemote] getProfileMap failed userId=$userId status=${e.response?.statusCode} body=${e.response?.data}');
+      AppLogger.e(
+          '[UserRemote] getProfileMap failed userId=$userId status=${e.response?.statusCode} body=${e.response?.data}');
       rethrow;
     }
   }
@@ -206,13 +221,11 @@ class UserRemoteDataSource {
       },
     );
     final raw = (res.data['data'] as List?) ?? [];
-    final items = raw
-        .map((e) => UserModel.fromJson(e as Map<String, dynamic>))
-        .toList();
+    final items =
+        raw.map((e) => UserModel.fromJson(e as Map<String, dynamic>)).toList();
     final total = (res.data['total'] as num?)?.toInt() ?? items.length;
     final reportedPages = (res.data['totalPages'] as num?)?.toInt();
-    final computedPages =
-        limit <= 0 ? 1 : (total / limit).ceil();
+    final computedPages = limit <= 0 ? 1 : (total / limit).ceil();
     final totalPages = reportedPages ?? computedPages;
     return PagedUsers(
       items: items,
@@ -226,6 +239,30 @@ class UserRemoteDataSource {
     await _client.patch(ApiEndpoints.usersUpdateProfile, data: data);
   }
 
+  /// Humihingi ng 6-digit na code sa BAGONG email (rider / lender). Hindi pa
+  /// binabago ang email sa account — ang [confirmEmailChange] lang ang
+  /// nagtatapos ng pagbabago pagkatapos ma-verify ang code.
+  Future<Map<String, dynamic>> requestEmailChange(String email) async {
+    final res = await _client.post(
+      ApiEndpoints.usersRequestEmailChange,
+      data: {'email': email},
+    );
+    final data = res.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  /// Isinusumite ang code na galing sa bagong email. Dito lang naisusulat ng
+  /// server ang bagong address.
+  Future<void> confirmEmailChange({
+    required String email,
+    required String otp,
+  }) async {
+    await _client.patch(
+      ApiEndpoints.usersConfirmEmailChange,
+      data: {'email': email, 'otp': otp},
+    );
+  }
+
   Future<void> archive(String userId) async {
     await _client.patch(ApiEndpoints.usersArchive, data: {'user_id': userId});
   }
@@ -235,8 +272,8 @@ class UserRemoteDataSource {
   /// Employee lang ang pinapayagan; lender accounts lang, at 'paused' →
   /// 'active' lamang ang maaaring baguhin ng action na ito.
   Future<void> unpauseLender(String userId) async {
-    await _client.patch(ApiEndpoints.usersUnpauseLender,
-        data: {'user_id': userId});
+    await _client
+        .patch(ApiEndpoints.usersUnpauseLender, data: {'user_id': userId});
   }
 
   /// Restore an archived user — sets account_status back to 'active'.
@@ -262,7 +299,8 @@ class UserRemoteDataSource {
 
   Future<List<Map<String, dynamic>>> getRoles() async {
     final res = await _client.get(ApiEndpoints.rolesGetList);
-    final list = (res.data['roles'] as List?) ?? (res.data['data'] as List?) ?? [];
+    final list =
+        (res.data['roles'] as List?) ?? (res.data['data'] as List?) ?? [];
     return list.cast<Map<String, dynamic>>();
   }
 

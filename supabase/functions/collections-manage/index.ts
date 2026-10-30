@@ -998,6 +998,10 @@ async function handleCollectionUploadProof(req: Request) {
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;
 
+  // Walang rate limit dito: ang tunay na gate ay ang 5MB per-proof size check
+  // sa ibaba (at sa client bago pa pumili) — kapag lumampas, 413 agad bago pa
+  // mag-record ng payment o umabot sa storage. Hindi na kailangang bilangin
+  // ang bilang ng upload; sapat na ang sukat ng file.
   const {
     assignment_id,
     proofs,
@@ -1012,6 +1016,44 @@ async function handleCollectionUploadProof(req: Request) {
   }
   if (!proofs.some((p) => p?.type === 'proof_photo')) {
     return errorResponse('At least one proof_photo is required', 400, 'VALIDATION_ERROR');
+  }
+
+  // ── Validation: max 5MB sa KABUUAN ng proof photos (1 o 2) — KAPAREHO ng CI
+  // Task evidence uploads (`_shared/ci_docs.ts`). BAGO ito mag-record ng
+  // payment o mag-upload sa storage. Puwedeng isa o dalawang photo ang
+  // ipadala, basta ang suma ay hindi lalampas sa 5MB; ang signature (maliit
+  // lang) ay hindi kasama sa sukat. Dati walang tsek: tinatanggap ang halos
+  // 5 MB (o mas malaki) na larawan at sa storage/upload timeout lang nabibigo,
+  // kaya parang "walang validation" ang rider.
+  const MAX_PROOF_BYTES = 5 * 1024 * 1024;
+  let totalProofBytes = 0;
+  for (const proof of proofs) {
+    if (proof?.type === 'signature') continue;
+    const base64 =
+      typeof proof?.content_base64 === 'string' ? proof.content_base64 : '';
+    if (!base64) continue;
+    const label = proof?.type === 'scene_photo'
+      ? 'Scene photo'
+      : 'Payment proof';
+    let size: number;
+    try {
+      size = decodeBase64(base64).length;
+    } catch {
+      return errorResponse(
+        `${label} is not a valid base64 image.`,
+        400,
+        'INVALID_PROOF',
+      );
+    }
+    totalProofBytes += size;
+  }
+  if (totalProofBytes > MAX_PROOF_BYTES) {
+    const totalMb = (totalProofBytes / (1024 * 1024)).toFixed(1);
+    return errorResponse(
+      `Proof photos are ${totalMb}MB in total — maximum is 5MB for 1–2 photos`,
+      413,
+      'PROOF_TOO_LARGE',
+    );
   }
 
   const db = getAdminClient();

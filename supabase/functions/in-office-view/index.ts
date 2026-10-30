@@ -35,7 +35,7 @@ const RELATIONSHIPS = new Set([
 ]);
 const DOCUMENT_TYPES = new Set([
   'valid_id', 'valid_id_back', 'proof_of_income', 'barangay_clearance', 'pay_slip', 'selfie',
-  'selfie_with_id', 'mayors_permit',
+  'selfie_with_id', 'mayors_permit', 'face_recognition',
   'proof_of_billing', 'certificate_of_employment', 'itr',
   'business_registration', 'co_maker', 'ci_photo', 'evidence', 'site_photo',
   'neighbor_interview', 'proof_of_residence', 'other',
@@ -792,12 +792,14 @@ async function handleSubmit(req: Request) {
 // Idempotent: re-submitting an application that already has a lender returns
 // the existing lender (and ensures it is verified).
 // ─────────────────────────────────────────────────────────────────────────────
-// REQUIRED lang: Valid ID (front + back) — pareho ng wizard UI. Ang Selfie /
-// Business Permit ay OPSYONAL (pwede pang i-upload ng staff kapag may dala ang
-// lender) kaya hindi na hinaharang ang step-3 submit.
+// LAHAT required — pareho ng wizard UI: Valid ID (front + back), Selfie with
+// ID, Face Recognition, at Business Permit (max 5MB bawat file).
 const STEP3_REQUIRED_DOCS = new Set([
   'valid_id',
   'valid_id_back',
+  'selfie',
+  'face_recognition',
+  'mayors_permit',
 ]);
 
 async function handleSubmitAccount(req: Request) {

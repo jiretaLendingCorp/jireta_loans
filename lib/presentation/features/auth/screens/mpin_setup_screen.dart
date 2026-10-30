@@ -60,10 +60,11 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
   /// ito kahit walang mensahe para hindi gumalaw ang keypad.
   static const _errorSlotMinHeight = 38.0;
 
-  /// Pagitan ng 4 na tuldok at ng keypad. Ang dating 196 ay binawasan ng
-  /// `_errorSlotMinHeight + 14` (ang slot ng mensahe), kaya kapareho pa rin ng
-  /// dating posisyon ang keypad.
-  static const _dotsToKeypadGap = 144.0;
+  /// Pagitan ng slot ng mensahe at ng keypad. Maliit lang ito para umakyat ang
+  /// keypad sa bakanteng espasyo sa ilalim ng mga tuldok — kung hindi, napaka-
+  /// laki ng agwat at napuputol ang 7–9 at 0 sa maiikling desktop browser.
+  /// Kapareho ng diwa ng pagitan sa login page (20).
+  static const _dotsToKeypadGap = 12.0;
 
   @override
   void initState() {
@@ -90,7 +91,10 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
   }
 
   Future<void> _loadPhone() async {
-    final phone = await SecureStorage.getLoginPhone();
+    // Ang identifier na GINAMIT sa login (email o numero) ang ipakita — kapag
+    // email (Gmail) ang login, email ang dapat lumabas, hindi ang numero.
+    final phone = (await SecureStorage.getLoginIdentifier()) ??
+        await SecureStorage.getLoginPhone();
     final resetToken = await SecureStorage.getMpinResetAuthorization();
     if (!mounted) return;
     setState(() {
@@ -317,10 +321,18 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
                                 children: [
                                   // Watawat ng Pilipinas — iginuhit (hindi
                                   // emoji) para lumabas sa lahat ng platform.
-                                  const PhilippineFlag(width: 20),
+                                  // Email naman ang icon kapag email (Gmail)
+                                  // ang identifier na ginamit sa login.
+                                  if (phone.contains('@'))
+                                    const Icon(Icons.mail_outline_rounded,
+                                        size: 16, color: AppColors.deepNavy)
+                                  else
+                                    const PhilippineFlag(width: 20),
                                   const SizedBox(width: 8),
                                   Text(
-                                    formatMpinPhone(phone),
+                                    phone.contains('@')
+                                        ? phone
+                                        : formatMpinPhone(phone),
                                     style: const TextStyle(
                                       fontSize: 14,
                                       fontWeight: FontWeight.w700,
@@ -392,7 +404,8 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
                                 ),
                         ),
 
-                        // Nasa ibaba ang keypad — may pagitan sa mga tuldok.
+                        // Keypad — agad sa ilalim ng slot ng mensahe, para
+                        // buo itong makita kahit sa maiikling browser window.
                         const SizedBox(height: _dotsToKeypadGap),
 
                         // ── Keypad (walang card sa likod nito) ──

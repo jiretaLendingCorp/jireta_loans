@@ -306,12 +306,14 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
         // app, kaya iisa ang takbo ng dalawang pagkakataon — iisang pinagmulan
         // na lang (`resolvePostAuthDestination`) dahil ginagamit din ito ng MFA
         // screen.
-        // Ang MPIN screen ay may numero (hindi email) — iyon ang nakaimbak na
-        // `phone_number` ng account, at iyon din ang ginagamit ng MPIN setup.
-        final accountPhone =
-            ref.read(authStateProvider).user?.phoneNumber ?? _phone;
+        // Ang IDENTIFIER na ginamit sa login (email o numero) ang ipinapakita
+        // sa MPIN screen — hindi ang `phone_number` ng account. Kapag email
+        // (Gmail) ang ginamit, email ang dapat lumabas doon, hindi ang numero.
+        final loginIdentifier =
+            await SecureStorage.getLoginIdentifier() ?? _phone;
+        if (!mounted) return;
         final destination =
-            await resolvePostAuthDestination(ref, phone: accountPhone);
+            await resolvePostAuthDestination(ref, phone: loginIdentifier);
         if (!mounted) return;
         await _showSuccessAndGo(
           destination.location,

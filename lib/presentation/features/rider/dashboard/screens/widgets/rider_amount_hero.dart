@@ -17,13 +17,23 @@ import '../../providers/rider_dashboard_provider.dart';
 /// Nasa LOOB nito ang quota (hal. weekly) — sa TAAS ng nakolektang halaga —
 /// kaya hindi na kailangan ng hiwalay pang quota card sa ibaba.
 
-class RiderAmountHero extends StatelessWidget {
+class RiderAmountHero extends ConsumerWidget {
   final RiderDashboardState state;
   const RiderAmountHero({super.key, required this.state});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final kpi = state.kpi;
+    final quota = ref.watch(riderQuotaProvider).data?.current;
+    // Saklaw ng TOTAL COLLECTED: ang KASALUKUYANG QUOTA — hindi ang calendar
+    // month. Kaya kapag bagong-assign ang quota, ₱0.00 agad ito kahit may
+    // nakolekta na noong nakaraang buwan. Kapag nagba-browse ng ibang
+    // buwan/petsa (history), iyon pa rin ang sinusunod.
+    final isDefaultPeriod = state.selectedDate == null &&
+        state.selectedMonth == RiderDashboardNotifier.currentMonthKey();
+    final usesQuota = quota != null && isDefaultPeriod;
+    final amount =
+        usesQuota ? quota.confirmedCollection : kpi.totalAmountCollected;
     // Ratio / progress indicators (ang "4/5 done" chip at ang horizontal
     // progress line) ay sadyang hindi na ipinapakita — ang halaga lang ang
     // pokus ng Total Collected card.
@@ -121,11 +131,14 @@ class RiderAmountHero extends StatelessWidget {
                         ),
                         const SizedBox(height: 2),
                         Text(
-                          state.selectedDate != null
-                              ? 'Collections on ${state.selectedDate}'
-                              : (state.selectedMonth != null
-                                  ? 'Monthly collections — ${RiderDashboardNotifier.monthLabel(state.selectedMonth!)}'
-                                  : 'All-time field collections'),
+                          usesQuota
+                              ? 'Collections within this '
+                                  '${RiderQuotaPeriod.label(quota.period).toLowerCase()} quota'
+                              : state.selectedDate != null
+                                  ? 'Collections on ${state.selectedDate}'
+                                  : (state.selectedMonth != null
+                                      ? 'Monthly collections — ${RiderDashboardNotifier.monthLabel(state.selectedMonth!)}'
+                                      : 'All-time field collections'),
                           style: TextStyle(
                               fontSize: 11,
                               color: Colors.white,
@@ -141,7 +154,7 @@ class RiderAmountHero extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerLeft,
                 child: CountUpAnimation(
-                  value: kpi.totalAmountCollected,
+                  value: amount,
                   prefix: '₱',
                   decimalPlaces: 2,
                   style: TextStyle(

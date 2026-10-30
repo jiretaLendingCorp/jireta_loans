@@ -10,6 +10,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../../core/theme/app_colors.dart';
 import '../../../../shared/widgets/forms/app_text_field.dart';
+import '../../../../shared/widgets/security/email_change_otp_dialog.dart';
 import '../providers/lender_profile_provider.dart';
 
 Future<void> showLenderPersonalDetailsDialog(BuildContext context) {
@@ -440,26 +441,79 @@ class _LenderEmailDialogState extends ConsumerState<_LenderEmailDialog> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     final messenger = ScaffoldMessenger.of(context);
+    final email = _emailCtrl.text.trim().toLowerCase();
+    final notifier = ref.read(lenderProfileProvider.notifier);
+
+    // Blangko = alisin ang email (phone naman ang tunay na login ng lender),
+    // kaya walang address na mapapatunayan — direktang update pa rin ito.
+    if (email.isEmpty) {
+      setState(() => _saving = true);
+      final ok = await notifier.updateProfile({'email': ''});
+      if (!mounted) return;
+      setState(() => _saving = false);
+      if (!ok) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(ref.read(lenderProfileProvider).error ??
+                'Failed to update email. Please try again.'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+        return;
+      }
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Email removed.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      return;
+    }
+
+    final current = (ref.read(lenderProfileProvider).user?.email ?? '')
+        .trim()
+        .toLowerCase();
+    if (email == current) {
+      Navigator.of(context).pop();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Email unchanged.'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+      return;
+    }
+
+    // (1) 6-digit code sa BAGONG email — hindi pa nagbabago ang account.
     setState(() => _saving = true);
-    final ok = await ref.read(lenderProfileProvider.notifier).updateProfile({
-      'email': _emailCtrl.text.trim().toLowerCase(),
-    });
+    final sendError = await notifier.requestEmailChange(email);
     if (!mounted) return;
     setState(() => _saving = false);
-    if (!ok) {
+    if (sendError != null) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(ref.read(lenderProfileProvider).error ??
-              'Failed to update email. Please try again.'),
+          content: Text(sendError),
           backgroundColor: AppColors.error,
         ),
       );
       return;
     }
+
+    // (2) Dito lang isinusulat ng server ang bagong email pagkatapos ng code.
+    final verified = await showEmailChangeOtpDialog(
+      context,
+      email: email,
+      onVerify: (otp) => notifier.confirmEmailChange(email: email, otp: otp),
+      onResend: () => notifier.requestEmailChange(email),
+    );
+    if (!mounted) return;
+    if (!verified) return;
+
     Navigator.of(context).pop();
     messenger.showSnackBar(
       const SnackBar(
-        content: Text('Email updated.'),
+        content: Text('Email updated and verified.'),
         backgroundColor: AppColors.success,
       ),
     );

@@ -682,7 +682,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
     // column ang content — hindi nakaunat sa buong browser. Mobile: buong lapad
     // pa rin (walang binago).
     final isDesktop = MediaQuery.sizeOf(context).width >= kDesktopBreakpoint;
-    final maxContentWidth = isDesktop ? 640.0 : double.infinity;
+    final maxContentWidth = isDesktop ? 560.0 : double.infinity;
     return MobileScaffold(
       title: 'Payment Method',
       accentColor: AppColors.lenderBlue,
@@ -695,7 +695,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: maxContentWidth),
                 child: ListView(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
+                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
                   children: [
                     // ── Halagang babayaran ──
                     // Nasa PINAKATAAS ito (bago ang mga paraan ng pagbabayad):
@@ -718,16 +718,23 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
                         setState(() => _amountError = _validateAmount());
                       },
                     ),
-                    const SizedBox(height: 22),
+                    const SizedBox(height: 24),
                     // Pangkalahatan ang label — dalawang paraan na ang
                     // pwedeng piliin (Cash on Delivery at GCash via Xendit).
-                    const Text('Choose how to pay this installment:',
-                        textAlign: TextAlign.center,
+                    const Text('Choose how to pay',
                         style: TextStyle(
                             fontSize: 15,
                             fontWeight: FontWeight.w800,
                             color: AppColors.textPrimary)),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Select how you want to settle this installment.',
+                      style: TextStyle(
+                          fontSize: 12,
+                          height: 1.4,
+                          color: AppColors.textSecondary),
+                    ),
+                    const SizedBox(height: 14),
                     _MethodCard(
                       value: 'rider',
                       groupValue: _selected,
@@ -741,7 +748,7 @@ class _State extends ConsumerState<LenderPaymentMethodScreen>
                     // HIDDEN: "Office" option — hindi ito ipinapakita. Nasa code
                     // pa rin ang handler (`_onPay` → `/lender/pay-office`) kung
                     // ibabalik ito.
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 12),
                     // GCash (Xendit) — SELECTABLE na. Ang napiling GCash ay
                     // pumupunta sa `/lender/pay-gcash`, kung saan bubuo ang
                     // `payments-xendit-link?fn=generate` ng invoice at
@@ -964,19 +971,61 @@ class _AmountDue extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return Container(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.cBorder.withValues(alpha: 0.7)),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.lenderBlue.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Amount to Pay',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w700,
-            letterSpacing: 0.3,
-            color: AppColors.textSecondary,
-          ),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Amount to Pay',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ),
+            if (dueDate.isNotEmpty && !resolving)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.lenderBlue.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.event_outlined,
+                        size: 12, color: AppColors.textSecondary),
+                    const SizedBox(width: 4),
+                    Text('Due $dueDate',
+                        style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textSecondary)),
+                  ],
+                ),
+              ),
+          ],
         ),
-        const SizedBox(height: 2),
+        const SizedBox(height: 6),
         if (resolving)
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 4),
@@ -989,13 +1038,10 @@ class _AmountDue extends StatelessWidget {
           )
         else
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Padding(
-                padding: EdgeInsets.only(top: 5),
-                child: Text('₱', style: _amountStyle),
-              ),
-              const SizedBox(width: 4),
+              const Text('₱', style: _amountStyle),
+              const SizedBox(width: 6),
               Expanded(
                 child: TextField(
                   key: const Key('payment_amount_field'),
@@ -1012,24 +1058,42 @@ class _AmountDue extends StatelessWidget {
                   ],
                   onChanged: onChanged,
                   style: _amountStyle,
+                  // Lahat ng border state ay `none` at `filled: false` —
+                  // kung hindi, ipinipinta ng global InputDecorationTheme ang
+                  // white fill + outline nito sa ILALIM ng card (lumalabas na
+                  // parang puting box na putol sa ibabaw ng halaga).
                   decoration: InputDecoration(
                     isDense: true,
+                    filled: false,
                     border: InputBorder.none,
                     enabledBorder: InputBorder.none,
                     focusedBorder: InputBorder.none,
+                    disabledBorder: InputBorder.none,
+                    errorBorder: InputBorder.none,
+                    focusedErrorBorder: InputBorder.none,
                     contentPadding: EdgeInsets.zero,
                     hintText: '0.00',
                     hintStyle: _amountStyle.copyWith(
                         color: AppColors.textSecondary.withValues(alpha: 0.5)),
                     // Pencil kapag pwedeng i-edit, lock kapag fixed (GCash) —
                     // malinaw agad kung pwedeng palitan ang halaga.
-                    suffixIcon: Icon(
-                      editable ? Icons.edit_outlined : Icons.lock_outline,
-                      size: 17,
-                      color: AppColors.textSecondary,
+                    suffixIcon: Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: AppColors.lenderBlue
+                            .withValues(alpha: editable ? 0.08 : 0.05),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        editable ? Icons.edit_rounded : Icons.lock_outline_rounded,
+                        size: 15,
+                        color: AppColors.lenderBlue
+                            .withValues(alpha: editable ? 0.75 : 0.45),
+                      ),
                     ),
                     suffixIconConstraints:
-                        const BoxConstraints(minWidth: 26, minHeight: 26),
+                        const BoxConstraints(minWidth: 30, minHeight: 30),
                   ),
                 ),
               ),
@@ -1050,22 +1114,8 @@ class _AmountDue extends StatelessWidget {
             ),
           ),
         ],
-        if (dueDate.isNotEmpty && !resolving) ...[
-          const SizedBox(height: 6),
-          Text(
-            'Due $dueDate',
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: context.cTextTertiary,
-            ),
-          ),
-        ],
-        const SizedBox(height: 14),
-        // Manipis na linya lang ang naghihiwalay nito sa mga paraan ng
-        // pagbabayad — hindi ito card.
-        Divider(height: 1, thickness: 1, color: context.cBorder),
       ],
+      ),
     );
   }
 }
@@ -1109,9 +1159,9 @@ class _MethodCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: onSelect == null ? null : () => onSelect!(value),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(
               color: selected ? AppColors.lenderBlue : AppColors.border,
               width: selected ? 1.6 : 1,

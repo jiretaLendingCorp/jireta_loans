@@ -215,7 +215,7 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
         Consumer(builder: (context, ref, _) {
           final settings = ref.watch(appSettingsProvider);
           final notifier = ref.read(appSettingsProvider.notifier);
-          return ModernMenuCard(flat: true, items: [
+          return ModernMenuCard(flat: true, showIcon: true, items: [
             ModernMenuItem(
               icon: Icons.dark_mode_outlined,
               title: 'Dark Mode',
@@ -251,16 +251,16 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
         // MPIN — 4-digit na pang-kumpirma sa lahat ng submission kapag
         // walang password o biometrics ang phone.
         const ModernSectionLabel('Security'),
-        const MpinSettingsCard(flat: true),
+        const MpinSettingsCard(flat: true, showIcon: true),
         const SizedBox(height: 12),
         // Google Authenticator (TOTP) — second factor sa login, kapareho ng
         // lender: status, enrollment (QR + manual key) at disable dito; ang
         // pagsusuri ng code ay Supabase Auth (`mfa.challenge` /
         // `mfa.verify`).
-        const MfaSettingsCard(flat: true),
+        const MfaSettingsCard(flat: true, showIcon: true),
         const SizedBox(height: 20),
         const ModernSectionLabel('General'),
-        ModernMenuCard(flat: true, items: [
+        ModernMenuCard(flat: true, showIcon: true, items: [
           ModernMenuItem(
             icon: Icons.description_outlined,
             title: 'Terms & Conditions',
@@ -472,6 +472,9 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
       icon: icon,
       rows: const [],
       flat: true,
+      // Ipakita ang icon ng bawat item kahit flat ang card — mas madaling
+      // i-scan at kapareho ng lender profile.
+      showIcon: true,
       onTap: onTap,
     );
   }

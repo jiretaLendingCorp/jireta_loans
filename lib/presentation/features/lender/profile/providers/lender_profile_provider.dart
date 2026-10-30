@@ -64,29 +64,43 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
         try {
           final storedId = await SecureStorage.getUserId();
           final storedRole = await SecureStorage.getUserRole();
-          AppLogger.debug('[LenderProfile] fallback storedId=$storedId role=$storedRole');
+          AppLogger.debug(
+              '[LenderProfile] fallback storedId=$storedId role=$storedRole');
           if (storedId != null && storedId.isNotEmpty) {
             try {
               final user2 = await _ds.getProfile(userId: storedId);
-              AppLogger.debug('[LenderProfile] fallback with storedId succeeded ${user2.id}');
-              state = state.copyWith(user: user2, isLoading: false, error: null);
+              AppLogger.debug(
+                  '[LenderProfile] fallback with storedId succeeded ${user2.id}');
+              state =
+                  state.copyWith(user: user2, isLoading: false, error: null);
               return;
             } catch (e2, s2) {
-              AppLogger.e('[LenderProfile] fallback with storedId $storedId failed: $e2', e2, s2);
+              AppLogger.e(
+                  '[LenderProfile] fallback with storedId $storedId failed: $e2',
+                  e2,
+                  s2);
             }
             // Last resort: direct Supabase query
             try {
               final supa = Supabase.instance.client;
               final raw = await supa
                   .from('users')
-                  .select('id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!users_role_id_fkey!inner(name), lender_profiles(account_upgrade_status, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, source_of_funds, gcash_number)')
+                  .select(
+                      'id, first_name, middle_name, last_name, suffix, email, phone_number, account_status, profile_photo_url, created_at, last_login_at, roles!users_role_id_fkey!inner(name), lender_profiles(account_upgrade_status, gender, civil_status, date_of_birth, employment_type, employer_name, monthly_income, source_of_funds, gcash_number)')
                   .eq('id', storedId)
                   .maybeSingle();
               if (raw != null) {
-                AppLogger.debug('[LenderProfile] direct Supabase fallback succeeded $raw');
-                final roleName = (raw['roles'] is Map ? (raw['roles'] as Map)['name'] : null) ?? storedRole ?? 'lender';
+                AppLogger.debug(
+                    '[LenderProfile] direct Supabase fallback succeeded $raw');
+                final roleName = (raw['roles'] is Map
+                        ? (raw['roles'] as Map)['name']
+                        : null) ??
+                    storedRole ??
+                    'lender';
                 final lenderProf = raw['lender_profiles'] is List
-                    ? (raw['lender_profiles'] as List).isNotEmpty ? (raw['lender_profiles'] as List).first : null
+                    ? (raw['lender_profiles'] as List).isNotEmpty
+                        ? (raw['lender_profiles'] as List).first
+                        : null
                     : raw['lender_profiles'];
                 final flat = {
                   'id': raw['id'],
@@ -103,21 +117,34 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
                   'created_at': raw['created_at'],
                   'last_login_at': raw['last_login_at'],
                   'gender': lenderProf is Map ? lenderProf['gender'] : null,
-                  'civil_status': lenderProf is Map ? lenderProf['civil_status'] : null,
-                  'date_of_birth': lenderProf is Map ? lenderProf['date_of_birth'] : null,
-                  'employment_type': lenderProf is Map ? lenderProf['employment_type'] : null,
-                  'employer_name': lenderProf is Map ? lenderProf['employer_name'] : null,
-                  'monthly_income': lenderProf is Map ? lenderProf['monthly_income'] : null,
-                  'source_of_funds': lenderProf is Map ? lenderProf['source_of_funds'] : null,
-                  'gcash_number': lenderProf is Map ? lenderProf['gcash_number'] : null,
-                  'account_upgrade_status': lenderProf is Map ? lenderProf['account_upgrade_status'] : null,
+                  'civil_status':
+                      lenderProf is Map ? lenderProf['civil_status'] : null,
+                  'date_of_birth':
+                      lenderProf is Map ? lenderProf['date_of_birth'] : null,
+                  'employment_type':
+                      lenderProf is Map ? lenderProf['employment_type'] : null,
+                  'employer_name':
+                      lenderProf is Map ? lenderProf['employer_name'] : null,
+                  'monthly_income':
+                      lenderProf is Map ? lenderProf['monthly_income'] : null,
+                  'source_of_funds':
+                      lenderProf is Map ? lenderProf['source_of_funds'] : null,
+                  'gcash_number':
+                      lenderProf is Map ? lenderProf['gcash_number'] : null,
+                  'account_upgrade_status': lenderProf is Map
+                      ? lenderProf['account_upgrade_status']
+                      : null,
                 };
                 final user3 = UserModel.fromJson(flat);
-                state = state.copyWith(user: user3, isLoading: false, error: null);
+                state =
+                    state.copyWith(user: user3, isLoading: false, error: null);
                 return;
               }
             } catch (e3, s3) {
-              AppLogger.e('[LenderProfile] direct Supabase fallback failed: $e3', e3, s3);
+              AppLogger.e(
+                  '[LenderProfile] direct Supabase fallback failed: $e3',
+                  e3,
+                  s3);
             }
           }
         } catch (_) {}
@@ -141,6 +168,32 @@ class LenderProfileNotifier extends StateNotifier<LenderProfileState>
       state = state.copyWith(
           isSaving: false, error: ErrorHandler.handle(e).message);
       return false;
+    }
+  }
+
+  /// Humihingi ng 6-digit na code sa BAGONG email. `null` = naipadala; kung
+  /// may error, ang mensahe ng server ang ibinabalik (hal. duplicate, cooldown).
+  Future<String?> requestEmailChange(String email) async {
+    try {
+      await _ds.requestEmailChange(email);
+      return null;
+    } catch (e) {
+      return ErrorHandler.handle(e).message;
+    }
+  }
+
+  /// Kinukumpirma ang code — dito lang nagbabago ang email sa account, at
+  /// agad na nire-refresh ang profile para lumabas ang bagong address.
+  Future<String?> confirmEmailChange({
+    required String email,
+    required String otp,
+  }) async {
+    try {
+      await _ds.confirmEmailChange(email: email, otp: otp);
+      await loadProfile();
+      return null;
+    } catch (e) {
+      return ErrorHandler.handle(e).message;
     }
   }
 

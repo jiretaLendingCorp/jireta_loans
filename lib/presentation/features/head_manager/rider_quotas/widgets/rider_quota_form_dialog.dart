@@ -210,15 +210,13 @@ class _RiderQuotaFormDialogState extends ConsumerState<RiderQuotaFormDialog> {
                             items: riders
                                 .map((r) => DropdownMenuItem(
                                       value: r.riderId,
+                                      // Pangalan lang ang ipinapakita —
+                                      // walang numero, para malinis at madaling
+                                      // i-scan ang listahan ng rider.
                                       child: Text(
-                                        [
-                                          r.riderName.isEmpty
-                                              ? 'Unnamed rider'
-                                              : r.riderName,
-                                          if (r.phoneNumber != null &&
-                                              r.phoneNumber!.isNotEmpty)
-                                            r.phoneNumber!,
-                                        ].join(' · '),
+                                        r.riderName.isEmpty
+                                            ? 'Unnamed rider'
+                                            : r.riderName,
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                       ),
@@ -227,10 +225,9 @@ class _RiderQuotaFormDialogState extends ConsumerState<RiderQuotaFormDialog> {
                             onChanged: saving
                                 ? null
                                 : (v) => setState(() => _riderId = v),
-                            validator: (v) =>
-                                (v == null || v.isEmpty)
-                                    ? 'Select a rider'
-                                    : null,
+                            validator: (v) => (v == null || v.isEmpty)
+                                ? 'Select a rider'
+                                : null,
                           ),
                         ),
                         const SizedBox(height: 18),
@@ -260,9 +257,8 @@ class _RiderQuotaFormDialogState extends ConsumerState<RiderQuotaFormDialog> {
                           return TextFormField(
                             controller: _amountCtrl,
                             enabled: !saving,
-                            keyboardType:
-                                const TextInputType.numberWithOptions(
-                                    decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                                decimal: true),
                             inputFormatters: const [
                               ThousandsSeparatorInputFormatter(decimalDigits: 2)
                             ],
@@ -397,8 +393,8 @@ class _RiderQuotaFormDialogState extends ConsumerState<RiderQuotaFormDialog> {
               borderRadius: BorderRadius.circular(12),
               border: Border.all(color: AppColors.gold.withValues(alpha: 0.5)),
             ),
-            child: const Icon(Icons.flag_rounded,
-                color: AppColors.gold, size: 21),
+            child:
+                const Icon(Icons.flag_rounded, color: AppColors.gold, size: 21),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -652,8 +648,8 @@ class _DateTile extends StatelessWidget {
                 children: [
                   Text(
                     label,
-                    style: TextStyle(
-                        fontSize: 10.5, color: context.cTextTertiary),
+                    style:
+                        TextStyle(fontSize: 10.5, color: context.cTextTertiary),
                   ),
                   const SizedBox(height: 2),
                   Text(

@@ -91,6 +91,23 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
   /// are actually handed out.
   LoanModel? _pickLoan(LenderLoanState state) => state.activeLoan;
 
+  /// Ang unang DALAWANG bayad-pa (unpaid at walang nakabinbing collection)
+  /// na installment lang ang may Pay button — hindi lahat ng row, at hindi na
+  /// kasama ang mga susunod pang installment.
+  Set<int> _topPayableIndexes(
+    List<LoanScheduleModel> schedules,
+    Map<String, String> collectionBySchedule,
+  ) {
+    final indexes = <int>{};
+    for (var i = 0; i < schedules.length && indexes.length < 2; i++) {
+      final s = schedules[i];
+      if (s.status == 'paid') continue;
+      if (collectionBySchedule[s.id] != null) continue;
+      indexes.add(i);
+    }
+    return indexes;
+  }
+
   @override
   Widget build(BuildContext context) {
     final loanState = ref.watch(lenderLoanProvider);
@@ -129,6 +146,9 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
             (item['collection_type'] as String? ?? 'rider');
       }
     }
+
+    // Ang unang DALAWANG bayad-pa na installment lang ang may Pay button.
+    final payIndexes = _topPayableIndexes(schedules, collectionBySchedule);
 
     return MobileScaffold(
       title: 'Payment Schedule',
@@ -268,6 +288,9 @@ class _State extends ConsumerState<LenderPaymentScheduleScreen> {
                                       collectionBySchedule[schedules[i].id],
                                   collectionType:
                                       collectionTypeBySchedule[schedules[i].id],
+                                  // false sa mga row na lampas sa unang dalawa
+                                  // → walang Pay button.
+                                  showPay: payIndexes.contains(i),
                                 ),
                               ),
                             ),
@@ -425,13 +448,18 @@ class _ScheduleTile extends ConsumerWidget {
   final String? loanStatus;
   final String? collectionStatus;
   final String? collectionType;
+
+  /// `true` lang sa unang DALAWANG bayad-pa na installment — ang mga row na
+  /// ito lang ang may Pay button.
+  final bool showPay;
   const _ScheduleTile(
       {required this.schedule,
       required this.index,
       required this.activeLoanId,
       this.loanStatus,
       this.collectionStatus,
-      this.collectionType});
+      this.collectionType,
+      this.showPay = false});
 
   void _showPendingDialog(BuildContext context) {
     showDialog<void>(
@@ -477,9 +505,11 @@ class _ScheduleTile extends ConsumerWidget {
     // Additionally the parent LOAN must be active/overdue — approved/under_review
     // loans are not yet disbursed so the backend correctly rejects with
     // "Loan is not in a payable status". We surface that upfront.
-    final canPay = !isPaid && collectionStatus == null && isLoanPayable;
+    // Pay button lang sa unang dalawang bayad-pa na installment.
+    final canPay =
+        showPay && !isPaid && collectionStatus == null && isLoanPayable;
     final canPayButLoanNotReady =
-        !isPaid && collectionStatus == null && !isLoanPayable;
+        showPay && !isPaid && collectionStatus == null && !isLoanPayable;
 
     return Container(
       padding: const EdgeInsets.all(14),
