@@ -46,7 +46,7 @@ fun resolveKeystore(path: String): File {
 }
 
 android {
-    namespace = "com.example.jireta_loans"
+    namespace = "com.jiretalendingcorp.app"
     // ✅ FIX: flutter_plugin_android_lifecycle (via file_picker) requires
     //    compileSdk 36+. Pin it explicitly — flutter.compileSdkVersion resolved
     //    to 34 on this Flutter version, breaking assembleDebug with
@@ -66,8 +66,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.example.jireta_loans"
+        applicationId = "com.jiretalendingcorp.app"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         //

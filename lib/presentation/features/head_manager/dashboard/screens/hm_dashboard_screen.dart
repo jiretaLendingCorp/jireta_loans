@@ -295,7 +295,9 @@ class _HmDashboardScreenState extends ConsumerState<HmDashboardScreen> {
     return _buildGridRow([
       _KpiCard(label: 'Total Applications', value: kpi.totalLoanApplications.toDouble(), icon: Icons.description_rounded, color: AppColors.info, isCurrency: false),
       _KpiCard(label: 'Approved Loans', value: kpi.totalApprovedLoans.toDouble(), icon: Icons.check_circle_rounded, color: AppColors.riderGreen, isCurrency: false),
-      _KpiCard(label: 'Active Loans', value: kpi.totalActiveLoans.toDouble(), icon: Icons.account_balance_wallet_rounded, color: AppColors.deepNavy, isCurrency: false),
+      // `active` sa backend = ongoing pa ang loan (na-release, may natitirang
+      // balanse) — "Ongoing Loans" ang label, kapareho ng Loan Records.
+      _KpiCard(label: 'Ongoing Loans', value: kpi.totalActiveLoans.toDouble(), icon: Icons.account_balance_wallet_rounded, color: AppColors.deepNavy, isCurrency: false),
       _KpiCard(label: 'Completed Loans', value: kpi.totalCompletedLoans.toDouble(), icon: Icons.done_all_rounded, color: AppColors.info, isCurrency: false),
       _KpiCard(label: 'Rejected Loans', value: kpi.totalRejectedLoans.toDouble(), icon: Icons.cancel_rounded, color: AppColors.error, isCurrency: false),
       _KpiCard(label: 'Overdue Loans', value: kpi.totalOverdueLoans.toDouble(), icon: Icons.warning_rounded, color: AppColors.statusOverdue, isCurrency: false),

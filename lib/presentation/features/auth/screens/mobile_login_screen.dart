@@ -813,7 +813,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   }
 
   void _showAppVersion() async {
-    const packageName = 'com.example.jireta_loans';
+    const packageName = 'com.jiretalendingcorp.app';
     final marketUri = Uri.parse('market://details?id=$packageName');
     final playStoreUri =
         Uri.parse('https://play.google.com/store/apps/details?id=$packageName');

@@ -80,7 +80,7 @@ open ios/Runner.xcworkspace     # workspace, HINDI .xcodeproj
 
 1. **Runner target → Signing & Capabilities**
    - Team: piliin ang Apple Developer team.
-   - Bundle Identifier: `com.example.jiretaLoans` (o sariling id — kung
+   - Bundle Identifier: `com.jiretalendingcorp.app` (o sariling id — kung
      papalitan, i-update din ang `iosBundleId` sa `lib/firebase_options.dart`
      at ang Firebase iOS app).
 2. **+ Capability → Push Notifications** (may `aps-environment` na sa

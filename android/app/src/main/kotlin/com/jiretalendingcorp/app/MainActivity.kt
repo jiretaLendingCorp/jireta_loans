@@ -1,4 +1,4 @@
-package com.example.jireta_loans
+package com.jiretalendingcorp.app
 
 import io.flutter.embedding.android.FlutterFragmentActivity
 

@@ -20,6 +20,7 @@ import 'package:go_router/go_router.dart';
 import 'package:jireta_loans/data/datasources/remote/notification_remote_datasource.dart';
 import 'package:jireta_loans/data/models/notification_model.dart';
 import 'package:jireta_loans/data/models/user_model.dart';
+import 'package:jireta_loans/presentation/features/head_manager/notifications/providers/hm_notification_provider.dart';
 import 'package:jireta_loans/presentation/features/rider/notifications/providers/rider_notification_provider.dart';
 import 'package:jireta_loans/presentation/shared/providers/auth_state_provider.dart';
 import 'package:jireta_loans/presentation/shared/widgets/notification_dropdown.dart';
@@ -36,9 +37,25 @@ UserModel _rider() => UserModel(
       createdAt: DateTime.now(),
     );
 
+UserModel _headManager() => UserModel(
+      id: 'hm-1',
+      role: 'head_manager',
+      firstName: 'Mylene',
+      lastName: 'Cayabyab',
+      accountStatus: 'active',
+      forcePasswordChange: false,
+      createdAt: DateTime.now(),
+    );
+
 class _FakeAuthNotifier extends AuthStateNotifier {
   _FakeAuthNotifier() {
     state = AuthState(isAuthenticated: true, user: _rider());
+  }
+}
+
+class _FakeHmAuthNotifier extends AuthStateNotifier {
+  _FakeHmAuthNotifier() {
+    state = AuthState(isAuthenticated: true, user: _headManager());
   }
 }
 
@@ -71,6 +88,19 @@ NotificationModel _notification({
       createdAt: DateTime.now(),
     );
 
+class _StubHmNotifications extends HmNotificationNotifier {
+  _StubHmNotifications(List<NotificationModel> items)
+      : super(NotificationRemoteDataSource(_OfflineDio())) {
+    state = HmNotificationState(
+      notifications: items,
+      unreadCount: items.where((n) => !n.isRead).length,
+    );
+  }
+
+  @override
+  Future<void> loadNotifications({bool silent = false}) async {}
+}
+
 class _StubRiderNotifications extends RiderNotificationNotifier {
   _StubRiderNotifications(List<NotificationModel> items)
       : super(NotificationRemoteDataSource(_OfflineDio())) {
@@ -86,8 +116,9 @@ class _StubRiderNotifications extends RiderNotificationNotifier {
 
 Future<void> _pumpBell(
   WidgetTester tester,
-  List<NotificationModel> items,
-) async {
+  List<NotificationModel> items, {
+  bool headManager = false,
+}) async {
   tester.view.physicalSize = const Size(1366, 900);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -111,9 +142,13 @@ Future<void> _pumpBell(
 
   await tester.pumpWidget(ProviderScope(
     overrides: [
-      authStateProvider.overrideWith((ref) => _FakeAuthNotifier()),
-      riderNotificationProvider
-          .overrideWith((ref) => _StubRiderNotifications(items)),
+      authStateProvider.overrideWith(
+          (ref) => headManager ? _FakeHmAuthNotifier() : _FakeAuthNotifier()),
+      if (headManager)
+        hmNotificationProvider.overrideWith((ref) => _StubHmNotifications(items))
+      else
+        riderNotificationProvider
+            .overrideWith((ref) => _StubRiderNotifications(items)),
     ],
     child: MaterialApp.router(
       // Tunay na Inter ang gamitin — ang default test font ay sobrang lapad,
@@ -168,6 +203,36 @@ void main() {
 
     // Rider icons: scooter para sa collection notifications — hindi van
     // (`local_shipping`).
+    expect(find.byIcon(Icons.delivery_dining_rounded), findsNWidgets(2));
+    expect(find.byIcon(Icons.local_shipping_outlined), findsNothing);
+  });
+
+  testWidgets(
+      'head manager: rider ang icon ng collection notifications — hindi truck',
+      (tester) async {
+    await _pumpBell(
+      tester,
+      [
+        _notification(
+          id: 'n1',
+          title: 'New Collection Request',
+          body: 'A lender has requested a rider to collect ₱200.',
+        ),
+        _notification(
+          id: 'n2',
+          title: 'Rider Collection Collected',
+          body: 'A rider collected ₱200.',
+          isRead: true,
+        ),
+      ],
+      headManager: true,
+    );
+
+    await tester.tap(find.byTooltip('Notifications'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('New Collection Request'), findsOneWidget);
+    // Rider icon pa rin sa staff view — dati van/truck (`local_shipping`).
     expect(find.byIcon(Icons.delivery_dining_rounded), findsNWidgets(2));
     expect(find.byIcon(Icons.local_shipping_outlined), findsNothing);
   });

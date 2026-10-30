@@ -34,18 +34,17 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyB3wpsq5s6ftVVggrN-L7QINbK_z0WIp3E',
-    appId: '1:263204697735:android:0ffe29791b1a43d2fb6a22',
+    appId: '1:263204697735:android:37add9b8958eddf8fb6a22',
     messagingSenderId: '263204697735',
     projectId: 'lmsnotif',
     storageBucket: 'lmsnotif.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyA6vecanJ3gKGMW0L4bnXychOJWvS-_B-Q',
-    appId: '1:263204697735:ios:d5933f81e60c15f1fb6a22',
+    appId: '1:263204697735:ios:f55c6e9d1a82ca68fb6a22',
     messagingSenderId: '263204697735',
     projectId: 'lmsnotif',
     storageBucket: 'lmsnotif.firebasestorage.app',
-    iosBundleId: 'com.example.jiretaLoans',
+    iosBundleId: 'com.jiretalendingcorp.app',
   );
 }

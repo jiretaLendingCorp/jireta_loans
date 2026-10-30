@@ -186,7 +186,7 @@ workflows:
       groups:
         - jireta_env
       vars:
-        BUNDLE_ID: com.example.jiretaLoans
+        BUNDLE_ID: com.jiretalendingcorp.app
     scripts:
       - name: Write assets/env/.env
         script: |

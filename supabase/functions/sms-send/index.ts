@@ -16,7 +16,7 @@ import { getAdminClient } from '../_shared/db.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { isAuthorizedWebhook } from '../_shared/webhook_auth.ts';
-import { getSchedulePayment } from '../_shared/loan_financials.ts';
+import { getLoanFinancials, getSchedulePayment } from '../_shared/loan_financials.ts';
 import { otpSmsBodyTemplate } from '../_shared/otp.ts';
 import { embedAsObject } from '../_shared/types.ts';
 
@@ -28,6 +28,26 @@ function manilaDatePlusDays(days: number): string {
   const d = new Date(Date.now() + MANILA_OFFSET_MS);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().split('T')[0];
+}
+
+// `YYYY-MM-DD` (calendar date, walang oras) → "Oct 30, 2026" para sa SMS.
+// UTC ang parsing dahil due_date ay Manila calendar date na walang timezone.
+function formatDueDate(isoDate: string): string {
+  const d = new Date(`${isoDate}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return isoDate;
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(d);
+}
+
+function peso(amount: number): string {
+  return new Intl.NumberFormat('en-PH', {
+    style: 'currency',
+    currency: 'PHP',
+  }).format(amount);
 }
 
 // ══ ROUTER ══════════════════════════════════════════════════════════════════
@@ -125,12 +145,16 @@ async function handleSendReminder(req: Request) {
 
   const targetDateStr = manilaDatePlusDays(reminderDays);
 
+  // `!inner` sa loans embed ay KAILANGAN (hindi cosmetic): kapag ang embed
+  // ay to-one pero left join, tinatanggihan ng PostgREST ang filter sa
+  // embedded column (`.in('loan.status', ...)`) at nabibigo ang buong query —
+  // kaya walang SMS na naipapadala. Pareho ito ng notes sa collections-view.
   const { data: dueSchedules, error } = await db
     .from('loan_schedules')
     .select(
       `id, due_date, amount_due,
-       loan:loans!loan_schedules_loan_id_fkey(
-         loan_number, status,
+       loan:loans!loan_schedules_loan_id_fkey!inner(
+         id, status,
          lender_profiles!loans_lender_id_fkey(
            id,
            users!lender_profiles_id_fkey(id, first_name, last_name, phone_number)
@@ -154,31 +178,65 @@ async function handleSendReminder(req: Request) {
     const schedulePayment = await getSchedulePayment(db, schedule.id);
     if (schedulePayment.amount_paid >= Number(schedule.amount_due)) continue;
 
+    // Net amount pa lang ang babayaran sa installment na ito — kapag may
+    // partial payment na, hindi na dapat buo ang amount_due ang i-remind.
+    const dueAmount = Math.max(
+      0,
+      Math.round((Number(schedule.amount_due) - schedulePayment.amount_paid) * 100) / 100,
+    );
+    if (dueAmount <= 0) continue;
+
+    // Natitirang balanse ng buong loan (total payable + penalties - verified
+    // payments). Ito ang kailangang mabayad para matapos ang term.
+    const loanId = String(loan.id ?? '');
+    const financials = loanId ? await getLoanFinancials(db, loanId) : null;
+    const remainingBalance = financials?.outstanding_balance ?? null;
+
     const name = `${lender.first_name} ${lender.last_name}`;
-    const amount = new Intl.NumberFormat('en-PH', {
-      style: 'currency', currency: 'PHP',
-    }).format(Number(schedule.amount_due));
-    const message = `Hello ${name}, this is a friendly reminder that your Jireta Loans payment of ${amount} is due on ${targetDateStr}. Please pay on time to avoid penalties. Thank you!`;
+    const amount = peso(dueAmount);
+    const dueLabel = formatDueDate(targetDateStr);
+    const remainingLine = remainingBalance != null && remainingBalance > 0
+      ? ` Your remaining balance is ${peso(remainingBalance)}.`
+      : '';
+    const message = `Hello ${name}, this is a friendly reminder that your Jireta Loans payment of ${amount} is due on ${dueLabel}.${remainingLine} Please pay on time to avoid penalties. Thank you!`;
 
     const smsResult = await sendSms({ to: lender.phone_number, message, userId: lender.id, loanScheduleId: schedule.id });
 
-    // In-app + push notification. migration 00151's
+    // In-app + push notification. migration 00151/00193's
     // send_payment_due_reminders() is the primary inserter; only insert here
     // when no 'payment_due' notification exists for this schedule yet, so the
     // DB sweep and this function can never produce a duplicate.
     try {
-      const { count } = await db
+      const { claimAndSendPush, sendPushNotification } = await import(
+        '../_shared/notifications.ts'
+      );
+
+      const { data: existing } = await db
         .from('notifications')
-        .select('id', { count: 'exact', head: true })
+        .select('id, fcm_sent')
         .eq('type', 'payment_due')
         .eq('reference_id', schedule.id)
-        .eq('user_id', lender.id);
-      if ((count ?? 0) === 0) {
-        const { sendPushNotification } = await import('../_shared/notifications.ts');
+        .eq('user_id', lender.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (existing?.id) {
+        // Nasa DB na ang notification (gawa ng send_payment_due_reminders),
+        // pero maaaring hindi pa ito naipasa sa FCM: walang retry ang pg_net
+        // trigger, kaya isang pumalyang webhook call lang ay tuluyan nang
+        // walang push. Claim + push dito para ang TextBee sweep na rin ang
+        // backup ng FCM delivery (at most once pa rin ang claim).
+        if (!existing.fcm_sent) {
+          await claimAndSendPush(existing.id);
+        }
+      } else {
+        // Walang DB sweep (hal. manual na trigger ng staff) — isulat at
+        // i-push dito ang reminder.
         await sendPushNotification({
           userId: lender.id,
           title: `Payment Due in ${reminderDays} Days`,
-          body: `Hello ${name}, your payment of ${amount} is due on ${targetDateStr}. Please pay on time to avoid penalties. Tap to view details.`,
+          body: `Hello ${name}, your payment of ${amount} is due on ${dueLabel}.${remainingLine} Please pay on time to avoid penalties. Tap to view details.`,
           type: 'payment_due',
           referenceId: schedule.id,
         });

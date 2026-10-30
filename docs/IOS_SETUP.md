@@ -149,7 +149,7 @@ baguhin ang `PRODUCT_BUNDLE_IDENTIFIER` sa Xcode at ang `BUNDLE_ID` sa
 2. **Signing**
 
    Xcode → Runner target → *Signing & Capabilities* → piliin ang Team.
-   Ang bundle id ay `com.example.jiretaLoans` (nasa `Runner.xcodeproj` at
+   Ang bundle id ay `com.jiretalendingcorp.app` (nasa `Runner.xcodeproj` at
    `lib/firebase_options.dart`). Kung palitan ito ng tunay na reverse-DNS id:
 
    - baguhin ang `PRODUCT_BUNDLE_IDENTIFIER` sa Xcode,

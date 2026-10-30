@@ -671,7 +671,6 @@ class NotificationDropdownPanel extends ConsumerWidget {
               onMarkRead: onMarkRead,
               onOpen: onOpen,
               onRefresh: onRefresh,
-              rider: isRider,
             ),
           ),
           const Divider(height: 1, color: AppColors.divider),
@@ -691,7 +690,6 @@ class NotificationDropdownPanel extends ConsumerWidget {
     required void Function(String id) onMarkRead,
     required void Function(NotificationModel n) onOpen,
     required VoidCallback onRefresh,
-    required bool rider,
   }) {
     if (isLoading && visible.isEmpty) {
       return const Padding(
@@ -809,7 +807,7 @@ class NotificationDropdownPanel extends ConsumerWidget {
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          _typeIcon(n.type, rider: rider),
+                          _typeIcon(n.type),
                           size: 17,
                           color: _typeColor(n.type),
                         ),
@@ -905,19 +903,16 @@ class NotificationDropdownPanel extends ConsumerWidget {
   /// `ci_completed`), kaya ang dating exact-match na `switch` ay hindi tumutugma
   /// kahit isa at puro generic na bell ang icon sa lahat ng notification.
   ///
-  /// [rider] = ang tumitingin ay rider: scooter (`delivery_dining`) ang icon ng
-  /// mga collection notification — dating van (`local_shipping`) kahit rider
-  /// naman ang tatanggap ng gawain.
-  IconData _typeIcon(String? type, {required bool rider}) {
+  /// Mga collection notification (kahit sino ang tumitingin — rider, staff, o
+  /// head manager) ay scooter (`delivery_dining`) ang icon: rider ang gumagawa
+  /// ng gawain, kaya van/truck (`local_shipping`) ang dating lumalabas sa bell
+  /// ng staff.
+  IconData _typeIcon(String? type) {
     final t = (type ?? '').toLowerCase().trim();
     if (t.startsWith('account_upgrade_verified')) return Icons.verified_rounded;
     if (t.startsWith('account_upgrade_rejected')) return Icons.gpp_bad_outlined;
     if (t.startsWith('account_upgrade')) return Icons.verified_user_outlined;
-    if (t.startsWith('collection')) {
-      return rider
-          ? Icons.delivery_dining_rounded
-          : Icons.local_shipping_outlined;
-    }
+    if (t.startsWith('collection')) return Icons.delivery_dining_rounded;
     if (t == 'ci' || t.startsWith('ci_')) return Icons.search_outlined;
     if (t.startsWith('payment')) return Icons.payment_outlined;
     if (t.startsWith('disbursement')) {

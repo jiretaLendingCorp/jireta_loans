@@ -127,7 +127,8 @@ class EmpNotificationsScreen extends ConsumerWidget {
       case 'account_upgrade':
         return Icons.verified_user_outlined;
       case 'collection':
-        return Icons.local_shipping_outlined;
+        // Rider ang gumagawa ng koleksyon — scooter, hindi van/truck.
+        return Icons.delivery_dining_rounded;
       default:
         return Icons.notifications_outlined;
     }
