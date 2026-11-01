@@ -590,7 +590,10 @@ deno_version = 2
 #                          errorCode). Walang dagdag na paghihintay sa Send OTP
 #                          button. Makukuha rin ito sa
 #                          scripts/textbee_sms_diagnose.ts.
-#   OTP_EXPIRY_MINUTES          — OTP validity in minutes (default: 5)
+#   OTP_EXPIRY_MINUTES          — login OTP validity in minutes (default: 1,
+#                                 tugma sa email na "expires in 1 minute").
+#                                 Ang reset-MPIN OTP ay 5 minuto (hiwalay na
+#                                 constant sa `auth-otp`, tugma sa reset email).
 #   OTP_RESEND_COOLDOWN_SECONDS — server-side resend cooldown (default: 60)
 #   MPIN_RESET_TOKEN_MINUTES    — reset authorization validity (default: 10)
 #   OTP_SMS_TEMPLATE            — optional. Ang eksaktong body ng OTP SMS;

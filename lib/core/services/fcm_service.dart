@@ -543,6 +543,7 @@ class FcmService {
           referenceId: referenceId,
           notifications: RouteConstants.hmNotifications,
           loan: RouteConstants.hmLoanDetails,
+          loanApplication: RouteConstants.hmLoanApplicationDetails,
           ci: RouteConstants.hmCiDetails,
           collection: RouteConstants.hmCollectionDetails,
           payment: RouteConstants.hmPaymentDetails,
@@ -556,6 +557,7 @@ class FcmService {
           referenceId: referenceId,
           notifications: RouteConstants.empNotifications,
           loan: RouteConstants.empLoanDetails,
+          loanApplication: RouteConstants.empLoanApplicationDetails,
           ci: RouteConstants.empCiDetails,
           collection: RouteConstants.empCollectionDetails,
           payment: RouteConstants.empPaymentDetails,
@@ -602,6 +604,7 @@ class FcmService {
     required String referenceId,
     required String notifications,
     required String? loan,
+    required String? loanApplication,
     required String? ci,
     required String? collection,
     required String? payment,
@@ -609,6 +612,13 @@ class FcmService {
     required String? accountUpgrade,
     required String? Function(String base, {required bool needsRef}) detail,
   }) {
+    // Bagong loan application ang `loan_applied` — dapat buksan ang Loan
+    // Application Details (review screen), hindi ang Loan Details ng
+    // existing/active loan. Ang ibang `loan*` (hal. `penalty_applied`) ay
+    // nananatili sa loan details.
+    if (type == 'loan_applied' && loanApplication != null) {
+      return detail(loanApplication, needsRef: true);
+    }
     final bool loanish = type.startsWith('loan') || type == 'penalty_applied';
     if (loanish && loan != null) {
       return detail(loan, needsRef: true);

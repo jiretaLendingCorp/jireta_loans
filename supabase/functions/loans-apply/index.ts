@@ -35,6 +35,10 @@ function cleanPhone(value: string | undefined | null): string | null {
   return digits;
 }
 
+// 00147: Co-maker Valid ID (Front + Back) — 5MB cap per side, mirroring the
+// client guard in `lib/core/validation/co_maker_document_rules.dart`.
+const MAX_CO_MAKER_VALID_ID_BYTES = 5 * 1024 * 1024;
+
 // 00147: co-maker Valid ID images ride along with the loan application. They
 // are uploaded to the private co-maker-documents bucket and linked through
 // co_maker_documents so staff reviewers can view them after submission.
@@ -193,6 +197,27 @@ serve(async (req) => {
         disbursementAccount = gcash;
       }
       disbursementMethod = method || null;
+    }
+
+    // 00147: Co-maker Valid ID rides along as base64 — cap each side at 5MB
+    // before any DB writes so an oversized upload fails fast.
+    const coMakerValidIdDoc = co_maker?.valid_id_document;
+    const coMakerValidIdBackDoc = co_maker?.valid_id_back_document;
+    const coMakerDocSides = [
+      ['Front', coMakerValidIdDoc],
+      ['Back', coMakerValidIdBackDoc],
+    ];
+    for (const [side, doc] of coMakerDocSides) {
+      const content = doc?.content_base64;
+      if (!content) continue;
+      const sizeBytes = base64ToBytes(String(content)).length;
+      if (sizeBytes > MAX_CO_MAKER_VALID_ID_BYTES) {
+        return errorResponse(
+          `Co-maker Valid ID (${side}) is too large — maximum size is 5MB`,
+          400,
+          'VALIDATION_ERROR',
+        );
+      }
     }
 
     const db = getAdminClient();
@@ -468,7 +493,7 @@ serve(async (req) => {
 
       // 00147: co-maker Valid ID Front + Back — upload to storage, link via
       // co_maker_documents (valid_id + valid_id_back, gaya sa Account Upgrade).
-      const validIdDoc = (co_maker as any).valid_id_document;
+      const validIdDoc = coMakerValidIdDoc;
       if (validIdDoc && validIdDoc.content_base64) {
         const vExt =
           (validIdDoc.file_name ?? 'valid_id.jpg').split('.').pop()?.toLowerCase() ?? 'jpg';
@@ -510,7 +535,7 @@ serve(async (req) => {
           );
         }
       }
-      const validIdBackDoc = (co_maker as any).valid_id_back_document;
+      const validIdBackDoc = coMakerValidIdBackDoc;
       if (validIdBackDoc && validIdBackDoc.content_base64) {
         const bExt =
           (validIdBackDoc.file_name ?? 'valid_id_back.jpg').split('.').pop()?.toLowerCase() ?? 'jpg';

@@ -915,208 +915,227 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                 ),
               ),
               Expanded(
-                child: SingleChildScrollView(
-                  physics: const ClampingScrollPhysics(),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 8),
-                      // ── Brand ──
-                      const Text(
-                        'Jireta Loans',
-                        style: TextStyle(
-                          fontFamily: 'PlayfairDisplay',
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.deepNavy,
-                          height: 1.1,
-                        ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) => SingleChildScrollView(
+                    physics: const ClampingScrollPhysics(),
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        '& CREDIT CORP 1966',
-                        style: TextStyle(
-                          fontSize: 10.5,
-                          fontWeight: FontWeight.w700,
-                          letterSpacing: 1.6,
-                          color: AppColors.gold,
-                        ),
-                      ),
-                      // Ibaba ang "Enter MPIN" mula sa brand header.
-                      const SizedBox(height: 112),
-
-                      // ── Numero na ginamit sa login ──
-                      // PINAKATAAS ito (inutos ng user): sa ilalim agad ng brand
-                      // header, at nasa ITAAS ng "Enter MPIN" at ng 4 na tuldok.
-                      // Ang "Use another number" ay nasa numerong ito:
-                      // i-tap ito (ang switch icon) para bumalik sa
-                      // "Mobile Number" form.
-                      if (phone.isNotEmpty)
-                        Center(
-                          child: Tooltip(
-                            message: 'Use another number',
-                            child: Material(
-                              color: const Color(0xFFF2F3F7),
-                              borderRadius: BorderRadius.circular(12),
-                              child: InkWell(
-                                onTap: _mpinBusy ? null : _useAnotherNumber,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Container(
-                                  padding: const EdgeInsets.symmetric(
-                                      horizontal: 12, vertical: 8),
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(
-                                        color: const Color(0xFFE3E5EB)),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      // Watawat ng Pilipinas — iginuhit (hindi
-                                      // emoji) para lumabas sa lahat ng platform.
-                                      // Email naman ang icon kapag email (Gmail)
-                                      // ang identifier na ginamit sa login.
-                                      if (phone.contains('@'))
-                                        const Icon(
-                                          Icons.mail_outline_rounded,
-                                          size: 16,
-                                          color: AppColors.deepNavy,
-                                        )
-                                      else
-                                        const PhilippineFlag(width: 20),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        phone.contains('@')
-                                            ? phone
-                                            : formatMpinPhone(phone),
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          fontWeight: FontWeight.w700,
-                                          letterSpacing: 0.4,
-                                          color: AppColors.deepNavy,
-                                          fontFeatures: [
-                                            FontFeature.tabularFigures()
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 10),
-                                      // Modern switch icon — i-tap para
-                                      // lumipat sa ibang numero.
-                                      Container(
-                                        width: 24,
-                                        height: 24,
-                                        decoration: BoxDecoration(
-                                          color: AppColors.deepNavy
-                                              .withValues(alpha: 0.08),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                          Icons.swap_horiz_rounded,
-                                          size: 16,
-                                          color: AppColors.deepNavy,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      // Bahagyang ibinaba mula sa numero (inutos ng user).
-                      const SizedBox(height: 32),
-
-                      // ── "Enter MPIN" — nasa ITAAS ng 4 na tuldok (inutos ng
-                      // user). Nasa LABAS ito ng card; ang keypad lang ang nasa
-                      // loob. ──
-                      const Center(
-                        child: Text(
-                          'Enter MPIN',
-                          style: TextStyle(
-                            fontFamily: 'PlayfairDisplay',
-                            fontSize: 20,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.deepNavy,
-                            height: 1.1,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-
-                      // ── 4 na tuldok ──
-                      Center(
-                        child: MpinDots(
-                          controller: _padController,
-                          hasError: _mpinError != null && !locked,
-                        ),
-                      ),
-
-                      // ── Mga mensahe: sa ILALIM ng 4 na tuldok ──
-                      // Dalawa ang pwedeng lumabas dito:
-                      //   • maling MPIN ("Incorrect MPIN. 2 attempts left.")
-                      //     — kusang nawawala pagkatapos ng 1 segundo
-                      //     (tingnan ang `_showMpinError`),
-                      //   • lockout ("Too many attempts. Try again in …")
-                      //     — nananatili hangga't naka-lock.
-                      // Nakalaan ang espasyo (14 + 38) para hindi gumalaw ang
-                      // keypad kapag lumabas ang mensahe. ──
-                      const SizedBox(height: 14),
-                      SizedBox(
-                        height: 38,
-                        child: _buildMpinStatus(locked: locked),
-                      ),
-
-                      // Nasa ibaba ang keypad — sapat lang ang pagitan sa mga
-                      // tuldok/mensahe para buo pa rin itong makita sa mas
-                      // maiikling desktop browser (hindi na kailangang i-scroll
-                      // para maabot ang 7–9 at 0).
-                      const SizedBox(height: 20),
-
-                      // ── Keypad (walang card) + Reset MPIN ──
-                      Column(
+                      // spaceBetween: dito napupunta ang natitirang espasyo sa
+                      // ilalim, kaya bumababa ang keypad habang nananatili ang
+                      // brand, numero, "Enter MPIN", at 4 na tuldok sa itaas.
+                      // Sa maiikling browser (hal. 1366x687) wala itong
+                      // natitirang espasyo — dating puwesto pa rin ang keypad,
+                      // kaya buo pa rin ang 1–9 at 0 sa unang view.
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          MpinKeypadField(
-                            controller: _padController,
-                            enabled: !_mpinBusy && !locked,
-                            hasError: _mpinError != null && !locked,
-                            // Nasa itaas na (sa ilalim ng "Enter MPIN") ang
-                            // 4 na tuldok.
-                            showDots: false,
-                            onCompleted: _submitMpin,
-                          ),
-
-                          // Ang "Too many attempts. Try again in …" ay nasa
-                          // ITAAS na ngayon — sa ilalim ng 4 na tuldok, kasama
-                          // ng mensahe ng maling MPIN.
-
-                          // Nasa gitna ng screen na loading modal ang
-                          // ipinapakita habang nag-ve-verify/nag-reset.
-                          const SizedBox(height: 14),
-                          Center(
-                            child: TextButton(
-                              onPressed:
-                                  (_mpinBusy || _resetCooldownSeconds > 0)
-                                      ? null
-                                      : _resetMpin,
-                              child: Text(
-                                _resetCooldownSeconds > 0
-                                    ? 'Try again in ${_resetCooldownSeconds}s'
-                                    : 'Reset MPIN',
+                          // ── Pang-itaas na grupo: hindi ito gumagalaw ──
+                          Column(
+                            children: [
+                              const SizedBox(height: 8),
+                              // ── Brand ──
+                              const Text(
+                                'Jireta Loans',
                                 style: TextStyle(
-                                  fontSize: 12.5,
+                                  fontFamily: 'PlayfairDisplay',
+                                  fontSize: 26,
                                   fontWeight: FontWeight.w700,
-                                  letterSpacing: 0.2,
-                                  color: _resetCooldownSeconds > 0
-                                      ? AppColors.textTertiary
-                                      : AppColors.deepNavy,
+                                  color: AppColors.deepNavy,
+                                  height: 1.1,
                                 ),
                               ),
-                            ),
+                              const SizedBox(height: 4),
+                              const Text(
+                                '& CREDIT CORP 1966',
+                                style: TextStyle(
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: 1.6,
+                                  color: AppColors.gold,
+                                ),
+                              ),
+                              // Ibaba ang "Enter MPIN" mula sa brand header.
+                              const SizedBox(height: 112),
+
+                              // ── Numero na ginamit sa login ──
+                              // PINAKATAAS ito (inutos ng user): sa ilalim agad ng brand
+                              // header, at nasa ITAAS ng "Enter MPIN" at ng 4 na tuldok.
+                              // Ang "Use another number" ay nasa numerong ito:
+                              // i-tap ito (ang switch icon) para bumalik sa
+                              // "Mobile Number" form.
+                              if (phone.isNotEmpty)
+                                Center(
+                                  child: Tooltip(
+                                    message: 'Use another number',
+                                    child: Material(
+                                      color: const Color(0xFFF2F3F7),
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: InkWell(
+                                        onTap: _mpinBusy ? null : _useAnotherNumber,
+                                        borderRadius: BorderRadius.circular(12),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(
+                                                color: const Color(0xFFE3E5EB)),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              // Watawat ng Pilipinas — iginuhit (hindi
+                                              // emoji) para lumabas sa lahat ng platform.
+                                              // Email naman ang icon kapag email (Gmail)
+                                              // ang identifier na ginamit sa login.
+                                              if (phone.contains('@'))
+                                                const Icon(
+                                                  Icons.mail_outline_rounded,
+                                                  size: 16,
+                                                  color: AppColors.deepNavy,
+                                                )
+                                              else
+                                                const PhilippineFlag(width: 20),
+                                              const SizedBox(width: 8),
+                                              Text(
+                                                phone.contains('@')
+                                                    ? phone
+                                                    : formatMpinPhone(phone),
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 0.4,
+                                                  color: AppColors.deepNavy,
+                                                  fontFeatures: [
+                                                    FontFeature.tabularFigures()
+                                                  ],
+                                                ),
+                                              ),
+                                              const SizedBox(width: 10),
+                                              // Modern switch icon — i-tap para
+                                              // lumipat sa ibang numero.
+                                              Container(
+                                                width: 24,
+                                                height: 24,
+                                                decoration: BoxDecoration(
+                                                  color: AppColors.deepNavy
+                                                      .withValues(alpha: 0.08),
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.swap_horiz_rounded,
+                                                  size: 16,
+                                                  color: AppColors.deepNavy,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              // Bahagyang ibinaba mula sa numero (inutos ng user).
+                              const SizedBox(height: 32),
+
+                              // ── "Enter MPIN" — nasa ITAAS ng 4 na tuldok (inutos ng
+                              // user). Nasa LABAS ito ng card; ang keypad lang ang nasa
+                              // loob. ──
+                              const Center(
+                                child: Text(
+                                  'Enter MPIN',
+                                  style: TextStyle(
+                                    fontFamily: 'PlayfairDisplay',
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.deepNavy,
+                                    height: 1.1,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 14),
+
+                              // ── 4 na tuldok ──
+                              Center(
+                                child: MpinDots(
+                                  controller: _padController,
+                                  hasError: _mpinError != null && !locked,
+                                ),
+                              ),
+
+                              // ── Mga mensahe: sa ILALIM ng 4 na tuldok ──
+                              // Dalawa ang pwedeng lumabas dito:
+                              //   • maling MPIN ("Incorrect MPIN. 2 attempts left.")
+                              //     — kusang nawawala pagkatapos ng 1 segundo
+                              //     (tingnan ang `_showMpinError`),
+                              //   • lockout ("Too many attempts. Try again in …")
+                              //     — nananatili hangga't naka-lock.
+                              // Nakalaan ang espasyo (14 + 38) para hindi gumalaw ang
+                              // keypad kapag lumabas ang mensahe. ──
+                              const SizedBox(height: 14),
+                              SizedBox(
+                                height: 38,
+                                child: _buildMpinStatus(locked: locked),
+                              ),
+                            ],
+                          ),
+                          // ── Pang-ibabang grupo: keypad + Reset MPIN ──
+                          // Ito lang ang gumagalaw pababa, papunta sa
+                          // natitirang espasyo sa ilalim.
+                          Column(
+                            children: [
+                              // Sapat na pagitan sa mga tuldok/mensahe para
+                              // buo pa rin ang keypad sa maiikling browser.
+                              const SizedBox(height: 20),
+                              MpinKeypadField(
+                                controller: _padController,
+                                enabled: !_mpinBusy && !locked,
+                                hasError: _mpinError != null && !locked,
+                                // Nasa itaas na (sa ilalim ng "Enter MPIN") ang
+                                // 4 na tuldok.
+                                showDots: false,
+                                onCompleted: _submitMpin,
+                              ),
+
+                              // Ang "Too many attempts. Try again in …" ay nasa
+                              // ITAAS na ngayon — sa ilalim ng 4 na tuldok, kasama
+                              // ng mensahe ng maling MPIN.
+
+                              // Nasa gitna ng screen na loading modal ang
+                              // ipinapakita habang nag-ve-verify/nag-reset.
+                              const SizedBox(height: 14),
+                              Center(
+                                child: TextButton(
+                                  onPressed:
+                                      (_mpinBusy || _resetCooldownSeconds > 0)
+                                          ? null
+                                          : _resetMpin,
+                                  child: Text(
+                                    _resetCooldownSeconds > 0
+                                        ? 'Try again in ${_resetCooldownSeconds}s'
+                                        : 'Reset MPIN',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: 0.2,
+                                      color: _resetCooldownSeconds > 0
+                                          ? AppColors.textTertiary
+                                          : AppColors.deepNavy,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              // Iniaangat nang bahagya mula sa ilalim para
+                              // hindi nakadikit ang keypad sa edge.
+                              const SizedBox(height: 68),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 20),
-                    ],
+                    ),
                   ),
                 ),
               ),

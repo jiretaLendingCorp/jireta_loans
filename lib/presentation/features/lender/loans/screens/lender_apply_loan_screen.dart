@@ -13,6 +13,7 @@ import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/num_extensions.dart';
 import '../../../../../core/security/submission_guard.dart';
 import '../../../../../core/theme/app_colors.dart';
+import '../../../../../core/validation/co_maker_document_rules.dart';
 import '../../../../shared/widgets/app_button.dart';
 import '../../../../shared/widgets/dialogs/confirmation_dialog.dart';
 import '../../../../shared/widgets/dialogs/success_dialog.dart';
@@ -79,6 +80,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   int _step = 0;
   final _coMakerFormKey = GlobalKey<_CoMakerFormState>();
   String? _coMakerSignature;
+
+  /// Bytes ng naka-attach na signature file (JPG/PNG) para sa preview — null
+  /// kapag galing sa drawing pad ang signature.
+  Uint8List? _coMakerSignatureBytes;
   String? _signatureError;
   // 00147: co-maker Valid ID captured with the signature (uploaded to
   // co_maker_documents so HM/employee reviewers can view it).
@@ -91,6 +96,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   bool get _hasCoMakerValidIdBack => _coMakerValidIdBack != null;
   bool get _hasCoMakerValidIdComplete =>
       _hasCoMakerValidIdFront && _hasCoMakerValidIdBack;
+  bool get _hasUploadedSignature => _coMakerSignatureBytes != null;
   // Panandaliang "Signature confirmed" feedback para sa co-maker signature:
   // lumalabas kapag pinindot ang Confirm (3s bago mawala) at agad ding
   // nawawala kapag Clear.
@@ -100,6 +106,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   bool _acceptedTerms = false;
   String? _termsError;
   Timer? _coMakerSignatureTimer;
+  Timer? _signatureErrorTimer;
 
   /// Gaano katagal nakikita ang red na validation text pagkatapos pindutin ang
   /// Next/Submit bago ito awtomatikong mawala — 1 segundo lang, para hindi
@@ -107,6 +114,11 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   /// `validate()` / `_isFinancialValid` pa rin ang humaharang sa Next.
   static const Duration _errorVisibleFor = Duration(seconds: 1);
   Timer? _errorHideTimer;
+
+  /// Red na error text ng Co-Maker Valid ID (hal. sobra sa 5MB): 3 segundo
+  /// bago itago para may oras itong mabasa, pero hindi ito nagtatambak.
+  static const Duration _validIdErrorVisibleFor = Duration(seconds: 3);
+  Timer? _validIdErrorTimer;
 
   // 00128: financial + emergency are declared PER APPLICATION (this loan).
   final _employerNameCtrl = TextEditingController();
@@ -138,6 +150,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
   final _ecPhoneKey = GlobalKey();
   final _coMakerSignatureKey = GlobalKey();
   final _coMakerValidIdKey = GlobalKey();
+  final _termsAgreementKey = GlobalKey();
 
   /// False habang hindi pa pumipili ng loan purpose: ito ang unang full-screen
   /// na nakikita pagkapindot ng Apply Loan, bago ang Loan Details step.
@@ -302,6 +315,8 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     _previewDebounce?.cancel();
     _coMakerSignatureTimer?.cancel();
     _errorHideTimer?.cancel();
+    _validIdErrorTimer?.cancel();
+    _signatureErrorTimer?.cancel();
     _purposeCtrl.removeListener(_onPurposeChanged);
     _purposeCtrl.dispose();
     _amountCtrl.dispose();
@@ -501,6 +516,29 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     });
   }
 
+  /// Ipakita ang error ng Co-Maker Valid ID at awtomatikong itago pagkatapos
+  /// ng 3 segundo. Hiwalay sa `_autoHideErrorsSoon` (1 segundo) para may oras
+  /// basahin ang dahilan ng pagtanggi ng file.
+  void _showValidIdError(String message) {
+    _validIdErrorTimer?.cancel();
+    setState(() => _validIdError = message);
+    _validIdErrorTimer = Timer(_validIdErrorVisibleFor, () {
+      if (!mounted) return;
+      setState(() => _validIdError = null);
+    });
+  }
+
+  /// Error ng attach-signature flow — 3 segundo lang pagkatapos mawala, gaya
+  /// ng validation text ng Co-Maker Valid ID.
+  void _showSignatureError(String message) {
+    _signatureErrorTimer?.cancel();
+    setState(() => _signatureError = message);
+    _signatureErrorTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted) return;
+      setState(() => _signatureError = null);
+    });
+  }
+
   /// Diretso sa field na may red validation message (scroll habang visible).
   void _focusOn(GlobalKey key) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -574,7 +612,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
       setState(() {
         _step = 3;
-        _signatureError = 'Co-maker must sign the pad before submission';
+        _signatureError = 'Co-maker signature is required — draw or attach a signature file.';
       });
       _focusOn(_coMakerSignatureKey);
       _autoHideErrorsSoon();
@@ -592,6 +630,15 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       });
       _focusOn(_coMakerValidIdKey);
       _autoHideErrorsSoon();
+      return;
+    }
+    // ── Step 4: Review — required ang Terms and Conditions agreement ─────
+    if (!_acceptedTerms) {
+      setState(() {
+        _step = 4;
+        _termsError = 'Please agree to the Terms and Conditions to continue.';
+      });
+      _focusOn(_termsAgreementKey);
       return;
     }
     // ── Confirm modal + device credential authentication ─────────────────
@@ -815,7 +862,7 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     } else if (_step == 3) {
       if (_coMakerSignature == null || _coMakerSignature!.isEmpty) {
         setState(() =>
-            _signatureError = 'Co-maker must sign the pad before submission');
+            _signatureError = 'Co-maker signature is required — draw or attach a signature file.');
         _focusOn(_coMakerSignatureKey);
         _autoHideErrorsSoon();
         return;
@@ -1235,11 +1282,13 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
     );
   }
 
-  /// Terms and Conditions checkbox — required bago mag-submit sa 2-step
-  /// re-apply. Nasa ilalim ito ng Payment Schedule Preview card (scroll kasama
-  /// ng content), hindi naka-pin sa ilalim ng screen.
+  /// Terms and Conditions checkbox — required bago mag-submit, pareho sa
+  /// 2-step re-apply (sa ilalim ng Payment Schedule Preview) at sa review step
+  /// ng buong wizard (sa ilalim ng Review Details). Scroll kasama ng content,
+  /// hindi naka-pin sa ilalim ng screen.
   Widget _buildTermsAgreement() {
     return Padding(
+      key: _termsAgreementKey,
       padding: const EdgeInsets.only(top: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1373,33 +1422,52 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SignaturePad(
-            onSignatureChanged: (sig) {
-              // Kapag na-confirm (at kapag na-clear), agad nawawala ang
-              // status at validation text — hindi ito nananatiling
-              // naka-display.
-              setState(() {
-                _coMakerSignature = sig;
-                _signatureError = null;
-              });
-            },
-            onConfirmed: () {
-              // Panandaliang kumpirmasyon: 3 segundo lang tapos mawawala.
-              _coMakerSignatureTimer?.cancel();
-              setState(() => _showCoMakerSignatureConfirmed = true);
-              _coMakerSignatureTimer = Timer(const Duration(seconds: 3), () {
-                if (mounted) {
+          if (_hasUploadedSignature)
+            _buildUploadedSignaturePreview()
+          else
+            SignaturePad(
+              onSignatureChanged: (sig) {
+                // Kapag na-confirm (at kapag na-clear), agad nawawala ang
+                // status at validation text — hindi ito nananatiling
+                // naka-display.
+                _signatureErrorTimer?.cancel();
+                setState(() {
+                  _coMakerSignature = sig;
+                  _coMakerSignatureBytes = null;
+                  _signatureError = null;
+                });
+              },
+              onConfirmed: () {
+                // Panandaliang kumpirmasyon: 3 segundo lang tapos mawawala.
+                _coMakerSignatureTimer?.cancel();
+                setState(() => _showCoMakerSignatureConfirmed = true);
+                _coMakerSignatureTimer = Timer(const Duration(seconds: 3), () {
+                  if (mounted) {
+                    setState(() => _showCoMakerSignatureConfirmed = false);
+                  }
+                });
+              },
+              onCleared: () {
+                _coMakerSignatureTimer?.cancel();
+                if (_showCoMakerSignatureConfirmed) {
                   setState(() => _showCoMakerSignatureConfirmed = false);
                 }
-              });
-            },
-            onCleared: () {
-              _coMakerSignatureTimer?.cancel();
-              if (_showCoMakerSignatureConfirmed) {
-                setState(() => _showCoMakerSignatureConfirmed = false);
-              }
-            },
-            height: 200,
+              },
+              height: 200,
+            ),
+          const SizedBox(height: 4),
+          TextButton.icon(
+            onPressed: _pickCoMakerSignatureFile,
+            icon: const Icon(Icons.attach_file_rounded, size: 16),
+            label: Text(_hasUploadedSignature
+                ? 'Replace signature file'
+                : 'Attach signature file'),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.lenderBlue,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
           ),
           if (_showCoMakerSignatureConfirmed) ...[
             const SizedBox(height: 8),
@@ -1428,6 +1496,98 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         ],
       ),
     );
+  }
+
+  /// Preview ng naka-attach na signature file — kapalit ng drawing pad.
+  Widget _buildUploadedSignaturePreview() {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Image.memory(
+                _coMakerSignatureBytes!,
+                fit: BoxFit.contain,
+                gaplessPlayback: true,
+                errorBuilder: (_, __, ___) => const Center(
+                  child: Icon(Icons.broken_image_outlined,
+                      color: AppColors.textTertiary),
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              tooltip: 'Remove signature file',
+              onPressed: _removeCoMakerSignatureFile,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              style: IconButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: AppColors.textSecondary,
+                side: const BorderSide(color: AppColors.border),
+                minimumSize: const Size(32, 32),
+                padding: EdgeInsets.zero,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Pumipili ng signature image (JPG/PNG) kapalit ng drawing sa pad. Base64
+  /// pa rin ang itinatago sa `co_makers.signature`, kaya walang pagbabago sa
+  /// viewer ng Head Manager / Employee.
+  Future<void> _pickCoMakerSignatureFile() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty || !mounted) return;
+    final file = result.files.first;
+    final sizeError =
+        CoMakerDocumentRules.validateSignatureSize(sizeBytes: file.size);
+    if (sizeError != null) {
+      _showSignatureError(sizeError);
+      return;
+    }
+    var bytes = file.bytes;
+    if (bytes == null && file.path != null) {
+      bytes = await File(file.path!).readAsBytes();
+    }
+    if (!mounted) return;
+    if (bytes == null || bytes.isEmpty) {
+      _showSignatureError('Could not read the selected file.');
+      return;
+    }
+    final signatureBytes = bytes;
+    _signatureErrorTimer?.cancel();
+    setState(() {
+      _coMakerSignatureBytes = signatureBytes;
+      _coMakerSignature = base64Encode(signatureBytes);
+      _signatureError = null;
+      _showCoMakerSignatureConfirmed = false;
+    });
+  }
+
+  void _removeCoMakerSignatureFile() {
+    _signatureErrorTimer?.cancel();
+    setState(() {
+      _coMakerSignatureBytes = null;
+      _coMakerSignature = null;
+      _signatureError = null;
+    });
   }
 
   /// 00147: co-maker Valid ID Front + Back — gaya sa Account Upgrade scanner.
@@ -1567,6 +1727,20 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         MaterialPageRoute(builder: (_) => const ValidIdScannerScreen()),
       );
       if (result != null && mounted) {
+        // 5MB cap bawat side — pareho sa server guard ng loans-apply.
+        final sizeError = CoMakerDocumentRules.validateSize(
+              side: 'Front',
+              sizeBytes: result.frontBytes.length,
+            ) ??
+            CoMakerDocumentRules.validateSize(
+              side: 'Back',
+              sizeBytes: result.backBytes.length,
+            );
+        if (sizeError != null) {
+          _showValidIdError(sizeError);
+          return;
+        }
+        _validIdErrorTimer?.cancel();
         final stamp = DateTime.now().millisecondsSinceEpoch;
         setState(() {
           _coMakerValidId = PlatformFile(
@@ -1591,19 +1765,38 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
         withData: true,
       );
       if (result == null || result.files.isEmpty || !mounted) return;
+      final files = result.files;
+      // Back side lang ang hinihingi kapag kumpleto na ang Front.
+      final backOnly = _hasCoMakerValidIdFront &&
+          !_hasCoMakerValidIdBack &&
+          files.length == 1;
+      final front = backOnly ? null : files.first;
+      final back =
+          backOnly ? files.first : (files.length > 1 ? files[1] : null);
+      // 5MB cap bawat side — pareho sa server guard ng loans-apply.
+      final sizeError = (front == null
+              ? null
+              : CoMakerDocumentRules.validateSize(
+                  side: 'Front',
+                  sizeBytes: front.size,
+                )) ??
+          (back == null
+              ? null
+              : CoMakerDocumentRules.validateSize(
+                  side: 'Back',
+                  sizeBytes: back.size,
+                ));
+      if (sizeError != null) {
+        _showValidIdError(sizeError);
+        return;
+      }
+      _validIdErrorTimer?.cancel();
       setState(() {
-        final files = result.files;
-        if (_hasCoMakerValidIdFront &&
-            !_hasCoMakerValidIdBack &&
-            files.length == 1) {
+        if (backOnly) {
           _coMakerValidIdBack = files.first;
         } else {
           _coMakerValidId = files.first;
-          if (files.length > 1) {
-            _coMakerValidIdBack = files[1];
-          } else {
-            _coMakerValidIdBack = null;
-          }
+          _coMakerValidIdBack = files.length > 1 ? files[1] : null;
         }
         _validIdError = null;
       });
@@ -1887,6 +2080,10 @@ class _LenderApplyLoanScreenState extends ConsumerState<LenderApplyLoanScreen> {
             totalPayable: totalPayable,
             installment: installment,
           ),
+          const SizedBox(height: 20),
+          // T&C bago ang final submit ng buong wizard — pareho sa 2-step
+          // re-apply. Hinihingi ito sa `_submit()` bago ang confirmation.
+          _buildTermsAgreement(),
         ],
       ),
     );

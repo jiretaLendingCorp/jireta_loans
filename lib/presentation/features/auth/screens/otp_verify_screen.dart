@@ -71,6 +71,13 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   String _otp = '';
   String? _error;
 
+  /// Auto-hide ng validation message — 5 segundo lang, para hindi ito
+  /// manatiling nakabitin habang nagta-type muli ang user.
+  Timer? _errorTimer;
+
+  /// Tagal bago kusang mawala ang validation message sa ilalim ng OTP boxes.
+  static const _errorVisibleDuration = Duration(seconds: 5);
+
   /// Ang numerong ginagamit ng screen. Karaniwang galing sa [widget.phone]; sa
   /// reset flow ay maaaring ma-resolve pa lang mula sa secure storage kapag
   /// na-refresh ang page.
@@ -152,8 +159,20 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
     });
   }
 
+  /// Ipinapakita ang validation message sa ilalim ng OTP boxes, tapos kusang
+  /// tinatanggal pagkatapos ng [_errorVisibleDuration] (5 segundo).
+  void _showError(String message) {
+    _errorTimer?.cancel();
+    setState(() => _error = message);
+    _errorTimer = Timer(_errorVisibleDuration, () {
+      if (!mounted) return;
+      setState(() => _error = null);
+    });
+  }
+
   void _startLockCountdown(int seconds) {
     _lockTimer?.cancel();
+    _errorTimer?.cancel();
     setState(() {
       _lockSecondsLeft = seconds;
       _error = null;
@@ -174,6 +193,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   void dispose() {
     _timer?.cancel();
     _lockTimer?.cancel();
+    _errorTimer?.cancel();
     _fadeController.dispose();
     for (final c in _controllers) {
       c.dispose();
@@ -185,7 +205,10 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   }
 
   void _onChanged(int index, String value) {
-    if (_error != null) setState(() => _error = null);
+    if (_error != null) {
+      _errorTimer?.cancel();
+      setState(() => _error = null);
+    }
     if (value.length > 1) {
       final digits = value.replaceAll(RegExp(r'[^0-9]'), '');
       for (int i = 0; i < digits.length && (index + i) < 6; i++) {
@@ -210,12 +233,13 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
   Future<void> _submit([String? forcedOtp]) async {
     final otp = forcedOtp ?? _otp;
     if (otp.length != 6) {
-      setState(() => _error = 'Please enter the complete 6-digit code.');
+      _showError('Please enter the complete 6-digit code.');
       return;
     }
     // Dismiss the keyboard right away so the loading state / next screen is
     // not covered by it.
     FocusManager.instance.primaryFocus?.unfocus();
+    _errorTimer?.cancel();
     setState(() {
       _loading = true;
       _error = null;
@@ -244,7 +268,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           final resetToken = ref.read(authProvider.notifier).mpinResetToken;
           if (resetToken == null || resetToken.isEmpty) {
             if (!mounted) return;
-            setState(() => _error =
+            _showError(
                 'We could not verify the reset session. Please request a new code.');
             return;
           }
@@ -252,7 +276,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
           final stored = await SecureStorage.getMpinResetAuthorization();
           if (!mounted) return;
           if (stored == null) {
-            setState(() => _error =
+            _showError(
                 'We could not save the reset session. Please request a new code.');
             return;
           }
@@ -334,6 +358,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
             ref.read(authProvider.notifier).extractOtpLockoutSeconds(err ?? '');
         if (lockSecs != null && lockSecs > 0) {
           if (!mounted) return;
+          _errorTimer?.cancel();
           setState(() {
             _error = message;
           });
@@ -350,7 +375,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
                 '$attemptsLeft attempt${attemptsLeft == 1 ? '' : 's'} left.'
             : ' Attempt $_attemptsUsed of $_maxOtpAttempts — '
                 'no attempts left. Please request a new code.';
-        setState(() => _error = '$message$attemptSuffix');
+        _showError('$message$attemptSuffix');
       }
     } finally {
       // Balik sa normal ang redirect pagkatapos ng dialog / navigation (o ng
@@ -402,6 +427,7 @@ class _OtpVerifyScreenState extends ConsumerState<OtpVerifyScreen>
       for (final c in _controllers) {
         c.clear();
       }
+      _errorTimer?.cancel();
       setState(() {
         _error = null;
         _otp = '';

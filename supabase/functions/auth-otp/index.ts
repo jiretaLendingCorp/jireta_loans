@@ -78,8 +78,11 @@ function envInt(name: string, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-/** Configurable sa Edge Function secrets — default 5 minuto. */
-const OTP_EXPIRY_MINUTES = envInt('OTP_EXPIRY_MINUTES', 5);
+/** Login OTP validity — default 1 minuto, tugma sa email copy
+ * ("This code expires in 1 minute"). Configurable sa Edge Function secrets. */
+const OTP_EXPIRY_MINUTES = envInt('OTP_EXPIRY_MINUTES', 1);
+/** Reset-MPIN OTP validity — 5 minuto, tugma sa reset email copy. */
+const MPIN_RESET_OTP_EXPIRY_MINUTES = 5;
 /** Cooldown bago pwede ulit mag-request (default 60s, tugma sa UI timer). */
 const OTP_RESEND_COOLDOWN_SECONDS = envInt('OTP_RESEND_COOLDOWN_SECONDS', 60);
 /** Gaano katagal valid ang reset authorization na ibinibigay pagkatapos ng OTP. */
@@ -433,6 +436,12 @@ async function handleSendOtp(req: Request) {
   const db = getAdminClient();
   const viaEmail = emailInput !== '';
 
+  // Tagal ng bisa ng code: 1 minuto sa login, 5 sa reset-MPIN (may email na
+  // bubuksan at code na isusulat).
+  const otpValidityMinutes = purpose === MPIN_RESET_PURPOSE
+    ? MPIN_RESET_OTP_EXPIRY_MINUTES
+    : OTP_EXPIRY_MINUTES;
+
   // Generic na sagot para sa reset flow: hindi nito sinasabi kung may account
   // ba ang numero (enumeration protection). Kung walang account, walang SMS na
   // ipapadala, at ang verify ay bibigo rin nang generic.
@@ -463,7 +472,7 @@ async function handleSendOtp(req: Request) {
       // Ang app ay nagpapakita ng "check your Gmail" na kopya kapag email ang
       // channel — hindi ito ang SMS queue (`sms_status`).
       ...(viaEmail ? { channel: 'email' } : {}),
-      expires_in: OTP_EXPIRY_MINUTES * 60,
+      expires_in: otpValidityMinutes * 60,
       resend_in: OTP_RESEND_COOLDOWN_SECONDS,
     });
 
@@ -640,7 +649,7 @@ async function handleSendOtp(req: Request) {
   // Cryptographically secure random code — walang fixed/default na value.
   const code = generateOtpCode();
   const codeHash = await hashOtpCode(code, phone);
-  const expiresAt = new Date(Date.now() + OTP_EXPIRY_MINUTES * 60000).toISOString();
+  const expiresAt = new Date(Date.now() + otpValidityMinutes * 60000).toISOString();
 
   const { error: insertErr } = await db.from('otp_codes').insert({
     phone_number: phone,
@@ -719,7 +728,7 @@ async function handleSendOtp(req: Request) {
   // ipadala. Ang buong message (may code) ay HINDI nilo-log sa totoong send —
   // redacted ang ipinapasa sa sms_logs.
   const useMock = isMockSmsEnabled();
-  const messageTemplate = otpMessageTemplate(OTP_EXPIRY_MINUTES);
+  const messageTemplate = otpMessageTemplate(otpValidityMinutes);
   const smsStartedAt = Date.now();
   const smsResult = await sendSms({
     to: phone,
@@ -729,7 +738,7 @@ async function handleSendOtp(req: Request) {
     // read in Supabase Studio. In real mode the stored message is redacted.
     logMessage: useMock
       ? messageTemplate.replace('{otp}', code)
-      : otpLogMessage(OTP_EXPIRY_MINUTES),
+      : otpLogMessage(otpValidityMinutes),
     userId: userId ?? undefined,
   });
 

@@ -269,159 +269,178 @@ class _MpinSetupScreenState extends ConsumerState<MpinSetupScreen> {
               children: [
                 const SizedBox(height: 8),
                 Expanded(
-                  child: SingleChildScrollView(
-                    physics: const ClampingScrollPhysics(),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Column(
-                      children: [
-                        // Walang icon sa itaas. Pagkakasunod-sunod:
-                        // pamagat → subtitle → numero → "Enter MPIN" → 4 na
-                        // tuldok → keypad (walang card sa likod nito).
-                        const SizedBox(height: 76),
-                        Text(
-                          title,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: 'PlayfairDisplay',
-                            fontSize: 22,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.deepNavy,
-                            height: 1.15,
-                          ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      physics: const ClampingScrollPhysics(),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          minHeight: constraints.maxHeight,
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          subtitle,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12.5,
-                            height: 1.45,
-                            color: AppColors.textSecondary,
-                          ),
-                        ),
-                        const SizedBox(height: 22),
-
-                        // ── Number, "Enter MPIN", at ang 4 na tuldok: nasa
-                        // LABAS ng card (ang keypad lang ang nasa loob nito).
-                        // Nasa itaas ang numero ng account, sa ibaba nito ang
-                        // "Enter MPIN", at sa ibaba ng MPIN ang 4 na tuldok. ──
-                        if (phone != null)
-                          Center(
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFFF2F3F7),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                    color: const Color(0xFFE3E5EB)),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  // Watawat ng Pilipinas — iginuhit (hindi
-                                  // emoji) para lumabas sa lahat ng platform.
-                                  // Email naman ang icon kapag email (Gmail)
-                                  // ang identifier na ginamit sa login.
-                                  if (phone.contains('@'))
-                                    const Icon(Icons.mail_outline_rounded,
-                                        size: 16, color: AppColors.deepNavy)
-                                  else
-                                    const PhilippineFlag(width: 20),
-                                  const SizedBox(width: 8),
+                        // spaceBetween: dito napupunta ang natitirang espasyo sa ilalim,
+                        // kaya bumababa ang keypad habang nananatili ang title, subtitle,
+                        // numero, "Enter MPIN", at 4 na tuldok sa itaas.
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // ── Pang-itaas na grupo: hindi ito gumagalaw ──
+                            Column(
+                              children: [
+                                  const SizedBox(height: 76),
                                   Text(
-                                    phone.contains('@')
-                                        ? phone
-                                        : formatMpinPhone(phone),
+                                    title,
+                                    textAlign: TextAlign.center,
                                     style: const TextStyle(
-                                      fontSize: 14,
+                                      fontFamily: 'PlayfairDisplay',
+                                      fontSize: 22,
                                       fontWeight: FontWeight.w700,
-                                      letterSpacing: 0.4,
                                       color: AppColors.deepNavy,
-                                      fontFeatures: [
-                                        FontFeature.tabularFigures()
-                                      ],
+                                      height: 1.15,
                                     ),
                                   ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        const SizedBox(height: 40),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    subtitle,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 12.5,
+                                      height: 1.45,
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 22),
 
-                        const Center(
-                          child: Text(
-                            'Enter MPIN',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontFamily: 'PlayfairDisplay',
-                              fontSize: 20,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.deepNavy,
-                              height: 1.1,
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: 20),
-
-                        Center(
-                          child: MpinDots(
-                            controller: _padController,
-                            hasError: _error != null,
-                          ),
-                        ),
-                        // ── Validation message: nasa ILALIM ng 4 na tuldok ──
-                        // (dati ay nasa ibaba pa ng keypad). Nakalaan ang
-                        // taas kahit walang mensahe, kaya hindi gumagalaw ang
-                        // keypad kapag lumabas o nawala ito.
-                        const SizedBox(height: 14),
-                        ConstrainedBox(
-                          constraints: const BoxConstraints(
-                              minHeight: _errorSlotMinHeight),
-                          child: _error == null
-                              ? const SizedBox.shrink()
-                              : Center(
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      const Icon(Icons.error_outline_rounded,
-                                          size: 16, color: AppColors.error),
-                                      const SizedBox(width: 8),
-                                      Flexible(
-                                        child: Text(
-                                          _error!,
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            fontSize: 12.5,
-                                            fontWeight: FontWeight.w600,
-                                            height: 1.35,
-                                            color: AppColors.error,
-                                          ),
+                                  // ── Number, "Enter MPIN", at ang 4 na tuldok: nasa
+                                  // LABAS ng card (ang keypad lang ang nasa loob nito).
+                                  // Nasa itaas ang numero ng account, sa ibaba nito ang
+                                  // "Enter MPIN", at sa ibaba ng MPIN ang 4 na tuldok. ──
+                                  if (phone != null)
+                                    Center(
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 12, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFF2F3F7),
+                                          borderRadius: BorderRadius.circular(12),
+                                          border: Border.all(
+                                              color: const Color(0xFFE3E5EB)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            // Watawat ng Pilipinas — iginuhit (hindi
+                                            // emoji) para lumabas sa lahat ng platform.
+                                            // Email naman ang icon kapag email (Gmail)
+                                            // ang identifier na ginamit sa login.
+                                            if (phone.contains('@'))
+                                              const Icon(Icons.mail_outline_rounded,
+                                                  size: 16, color: AppColors.deepNavy)
+                                            else
+                                              const PhilippineFlag(width: 20),
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              phone.contains('@')
+                                                  ? phone
+                                                  : formatMpinPhone(phone),
+                                              style: const TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w700,
+                                                letterSpacing: 0.4,
+                                                color: AppColors.deepNavy,
+                                                fontFeatures: [
+                                                  FontFeature.tabularFigures()
+                                                ],
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
+                                    ),
+                                  const SizedBox(height: 40),
+
+                                  const Center(
+                                    child: Text(
+                                      'Enter MPIN',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: 'PlayfairDisplay',
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w700,
+                                        color: AppColors.deepNavy,
+                                        height: 1.1,
+                                      ),
+                                    ),
                                   ),
-                                ),
-                        ),
+                                  const SizedBox(height: 20),
 
-                        // Keypad — agad sa ilalim ng slot ng mensahe, para
-                        // buo itong makita kahit sa maiikling browser window.
-                        const SizedBox(height: _dotsToKeypadGap),
+                                  Center(
+                                    child: MpinDots(
+                                      controller: _padController,
+                                      hasError: _error != null,
+                                    ),
+                                  ),
+                                  // ── Validation message: nasa ILALIM ng 4 na tuldok ──
+                                  // (dati ay nasa ibaba pa ng keypad). Nakalaan ang
+                                  // taas kahit walang mensahe, kaya hindi gumagalaw ang
+                                  // keypad kapag lumabas o nawala ito.
+                                  const SizedBox(height: 14),
+                                  ConstrainedBox(
+                                    constraints: const BoxConstraints(
+                                        minHeight: _errorSlotMinHeight),
+                                    child: _error == null
+                                        ? const SizedBox.shrink()
+                                        : Center(
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(Icons.error_outline_rounded,
+                                                    size: 16, color: AppColors.error),
+                                                const SizedBox(width: 8),
+                                                Flexible(
+                                                  child: Text(
+                                                    _error!,
+                                                    textAlign: TextAlign.center,
+                                                    style: const TextStyle(
+                                                      fontSize: 12.5,
+                                                      fontWeight: FontWeight.w600,
+                                                      height: 1.35,
+                                                      color: AppColors.error,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                  ),
+                              ],
+                            ),
+                            // ── Pang-ibabang grupo: keypad lang ang bumaba ──
+                            Column(
+                              children: [
+                                  // Keypad — agad sa ilalim ng slot ng mensahe, para
+                                  // buo itong makita kahit sa maiikling browser window.
+                                  const SizedBox(height: _dotsToKeypadGap),
 
-                        // ── Keypad (walang card sa likod nito) ──
-                        Center(
-                          child: MpinKeypadField(
-                            controller: _padController,
-                            enabled: !_busy,
-                            hasError: _error != null,
-                            // Nasa itaas na (sa ibaba ng "Enter MPIN") ang
-                            // tuldok.
-                            showDots: false,
-                            onCompleted: _onCompleted,
-                          ),
+                                  // ── Keypad (walang card sa likod nito) ──
+                                  Center(
+                                    child: MpinKeypadField(
+                                      controller: _padController,
+                                      enabled: !_busy,
+                                      hasError: _error != null,
+                                      // Nasa itaas na (sa ibaba ng "Enter MPIN") ang
+                                      // tuldok.
+                                      showDots: false,
+                                      onCompleted: _onCompleted,
+                                    ),
+                                  ),
+                                  // Iniaangat nang bahagya mula sa ilalim
+                                  // para hindi nakadikit ang keypad sa edge.
+                                  const SizedBox(height: 72),
+                              ],
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 24),
-                      ],
+                      ),
                     ),
                   ),
                 ),

@@ -124,4 +124,37 @@ void main() {
           lessThan(quick.indexOf('_confirmAndAuthenticate()')));
     });
   });
+
+  group('Source guard: required din sa buong 5-step wizard', () {
+    late String src;
+
+    setUpAll(() {
+      src = _readNormalized(
+          'lib/presentation/features/lender/loans/screens/lender_apply_loan_screen.dart');
+    });
+
+    test('visible ang terms sa Review Details step', () {
+      final start = src.indexOf('Widget _buildReviewStep(');
+      final end = src.indexOf('Widget _buildStepNav(');
+      expect(start, greaterThan(-1));
+      expect(end, greaterThan(start));
+      final review = src.substring(start, end);
+
+      expect(review, contains('_buildTermsAgreement()'));
+    });
+
+    test('hindi makakapag-submit ng wizard kapag hindi naka-check', () {
+      final start = src.indexOf('Future<void> _submit() async {');
+      final end = src.indexOf('Future<void> _handleApplyResult(');
+      expect(start, greaterThan(-1));
+      expect(end, greaterThan(start));
+      final full = src.substring(start, end);
+
+      expect(full, contains('if (!_acceptedTerms)'));
+      expect(full, contains('Please agree to the Terms and Conditions'));
+      // Bago pa man humingi ng confirm/auth, hinarang na ang submit.
+      expect(full.indexOf('if (!_acceptedTerms)'),
+          lessThan(full.indexOf('_confirmAndAuthenticate()')));
+    });
+  });
 }
