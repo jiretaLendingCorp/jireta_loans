@@ -12,6 +12,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser, type AuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { requireNonReviewer } from '../_shared/reviewer.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import {
   createInvoice,
@@ -124,6 +125,9 @@ serve(async (req) => {
 async function handleGenerate(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang tunay na Xendit invoice o payment sync.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.LENDER);
   if (roleCheck) return roleCheck;
@@ -253,6 +257,9 @@ async function handleGenerate(req: Request) {
 async function handleSyncPayment(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang tunay na Xendit invoice o payment sync.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.LENDER);
   if (roleCheck) return roleCheck;
@@ -466,6 +473,9 @@ async function requireHeadManager(
 ): Promise<{ user: AuthUser } | Response> {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang tunay na Xendit invoice o payment sync.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER);
   if (roleCheck) return roleCheck;
   return { user: authResult };

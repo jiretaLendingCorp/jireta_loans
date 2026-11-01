@@ -9,6 +9,10 @@ class ApiEndpoints {
   static const String authRegisterVerifyOtp = 'auth-register?fn=verify-otp';
   static const String authSendOtp = 'auth-otp?fn=send-otp';
   static const String authVerifyOtp = 'auth-otp?fn=verify-otp';
+  // Google Play Store reviewer sign-in. Ang allowlist at ang password ay
+  // nasa Supabase Edge Function secrets — walang reviewer credential na
+  // naka-hardcode sa Flutter build.
+  static const String authReviewerLogin = 'auth-reviewer?fn=login';
   static const String authForceChangePassword =
       'auth-password?fn=force-change-password';
   static const String authChangePassword = 'auth-password?fn=change-password';

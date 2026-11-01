@@ -21,6 +21,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { requireNonReviewer } from '../_shared/reviewer.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validateUUID } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
@@ -42,6 +43,9 @@ serve(async (req) => {
 
     const authResult = await requireAuth(req);
     if (!isAuthUser(authResult)) return authResult;
+    // Reviewer test accounts: walang disbursement preference/release.
+    const reviewerCheck = requireNonReviewer(authResult);
+    if (reviewerCheck) return reviewerCheck;
     const roleCheck = requireRole(authResult, ROLES.LENDER);
     if (roleCheck) return roleCheck;
 

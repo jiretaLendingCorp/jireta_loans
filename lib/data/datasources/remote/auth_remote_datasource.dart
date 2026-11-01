@@ -99,6 +99,24 @@ class AuthRemoteDataSource {
     return res.data as Map<String, dynamic>;
   }
 
+  /// Google Play reviewer sign-in — walang OTP. Ang server ang nagpapatunay
+  /// ng allowlist at ng reviewer password (Edge Function secrets).
+  Future<Map<String, dynamic>> reviewerLogin({
+    required String phone,
+    required String password,
+    String? sessionId,
+  }) async {
+    final res = await _client.post(
+      ApiEndpoints.authReviewerLogin,
+      data: {
+        'phone': phone,
+        'password': password,
+        if (sessionId != null && sessionId.isNotEmpty) 'session_id': sessionId,
+      },
+    );
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<void> logout() async {
     await _client.post(ApiEndpoints.authLogout, data: {});
   }

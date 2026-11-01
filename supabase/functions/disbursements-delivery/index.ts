@@ -13,6 +13,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { requireNonReviewer } from '../_shared/reviewer.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { sendPushNotification } from '../_shared/notifications.ts';
@@ -122,6 +123,9 @@ serve(async (req) => {
 async function handleOfficeCash(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang cash release / delivery confirmation.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
 
@@ -223,6 +227,9 @@ async function handleOfficeCash(req: Request) {
 async function handleRiderDelivery(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang cash release / delivery confirmation.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
 
@@ -316,6 +323,9 @@ async function handleRiderDelivery(req: Request) {
 async function handleUploadProof(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang cash release / delivery confirmation.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;

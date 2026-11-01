@@ -424,6 +424,12 @@ verify_jwt = false
 verify_jwt = false
 [functions.auth-register]
 verify_jwt = false
+[functions.auth-reviewer]
+# verify_jwt = false: ito ang LOGIN endpoint (walang session pa). Ang function
+# mismo ang nagpapatunay ng reviewer credentials sa loob, gamit ang Edge
+# Function secrets. Naka-OFF by default — 404 kapag hindi naka-set ang
+# REVIEWER_LOGIN_ENABLED at ang reviewer account secrets.
+verify_jwt = false
 [functions.auth-session]
 verify_jwt = false
 [functions.auth-email-verify]

@@ -15,6 +15,7 @@ const _noRefreshPaths = {
   'auth-login?fn=login',
   'auth-otp?fn=send-otp',
   'auth-otp?fn=verify-otp',
+  'auth-reviewer?fn=login',
   'auth-password?fn=forgot-password',
   'auth-password?fn=verify-otp',
   'auth-password?fn=reset-password',

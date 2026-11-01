@@ -13,6 +13,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { requireNonReviewer } from '../_shared/reviewer.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
@@ -49,6 +50,9 @@ serve(async (req) => {
 async function handleRecordOffice(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang payment recording o reversal.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const roleCheck = requireRole(authResult, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
 
@@ -286,6 +290,9 @@ async function handleRecordOffice(req: Request) {
 async function handleReverse(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: walang payment recording o reversal.
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER);
   if (roleCheck) return roleCheck;

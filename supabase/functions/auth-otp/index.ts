@@ -52,6 +52,7 @@ import {
   syncAuthUserIdentity,
 } from '../_shared/auth.ts';
 import { fetchUserMfaState } from '../_shared/mfa.ts';
+import { isReviewerPhone, reviewerConfigFromEnv } from '../_shared/reviewer.ts';
 
 // ── [moved from auth-send-otp] ──────────────────────────────────────────────
 const OTP_RATE_LIMIT = 10;
@@ -571,6 +572,26 @@ async function handleSendOtp(req: Request) {
   }
 
   let userId: string | null = null;
+
+  // ── Google Play reviewer accounts ──────────────────────────────────────
+  // Ang reviewer test accounts ay may SARILING entry point (`auth-reviewer`)
+  // na gumagamit ng password mula sa Edge Function secrets. Sadyang hindi
+  // sila nakakakuha ng SMS at hindi ito inihahayag: parehong generic na
+  // "if registered, we sent a code" ang sagot. Hindi ito nagbabago ng OTP
+  // behavior ng ordinaryong user.
+  const reviewerConfig = reviewerConfigFromEnv();
+  if (reviewerConfig.enabled && isReviewerPhone(reviewerConfig, phone)) {
+    await recordSecurityEvent({
+      eventType: 'reviewer_otp_blocked',
+      key: `otp:reviewer:${phone}`,
+      ipAddress: ip,
+      detail: { reason: 'reviewer_account_uses_auth_reviewer' },
+    });
+    // Kaparehong hugis ng isang queued na SMS (walang `sms_delivery` na
+    // "delivered" na kasinungalingan) para hindi mahalata ng client na
+    // espesyal ang numerong ito.
+    return sentResponse({ status: 'pending', delivery: 'queued' });
+  }
   if (user) {
     if (user.account_status === 'archived' || user.account_status === 'inactive') {
       // Sa reset flow, generic ang sagot para hindi malaman ang account status.
@@ -980,6 +1001,25 @@ async function handleVerifyOtp(req: Request) {
       .eq('email', emailInput)
       .maybeSingle();
     user = singleWithObjectEmbeds(emailUserRow);
+  }
+
+  // Reviewer test account: tanging `auth-reviewer` ang pwedeng magbigay ng
+  // session. Kahit may OTP na naipadala bago pa ito maging reviewer account,
+  // generic pa rin ang sagot — walang session, walang enumeration signal.
+  const otpReviewerConfig = reviewerConfigFromEnv();
+  if (otpReviewerConfig.enabled && isReviewerPhone(otpReviewerConfig, phone)) {
+    await recordSecurityEvent({
+      eventType: 'reviewer_otp_blocked',
+      key: `otp:verify:reviewer:${phone}`,
+      userId: user?.id ?? null,
+      ipAddress: ip,
+      detail: { reason: 'reviewer_account_uses_auth_reviewer' },
+    });
+    return errorResponse(
+      'Invalid or expired code. Please request a new one.',
+      401,
+      'INVALID_OTP',
+    );
   }
 
   if (purpose === MPIN_RESET_PURPOSE) {

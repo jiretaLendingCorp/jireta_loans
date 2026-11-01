@@ -22,6 +22,15 @@ export interface AuthUser {
 
   /** Ang `amr` claims (hal. `password`, `otp`, `totp`) ng token. */
   amr?: string[];
+
+  /**
+   * Google Play reviewer test account ba ito?
+   *
+   * Galing sa `auth.users.app_metadata.reviewer` — service-role lang ang
+   * makakapagsulat doon (hindi kayang baguhin ng app o ng request body).
+   * Ginagamit ng `requireNonReviewer` para harangin ang pera/disbursement.
+   */
+  isReviewer?: boolean;
 }
 
 /**
@@ -404,6 +413,8 @@ export async function requireAuth(req: Request): Promise<AuthUser | Response> {
     // sa client. Ginagamit ng `requireMfaIfEnrolled` sa mga sensitibong aksyon.
     aal: tokenAal(token),
     amr: tokenAmr(token),
+    // Reviewer flag mula sa GoTrue app_metadata (service-role only).
+    isReviewer: user.app_metadata?.['reviewer'] === true,
   };
 }
 

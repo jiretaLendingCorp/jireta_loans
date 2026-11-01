@@ -26,6 +26,7 @@ import '../../../shared/widgets/philippine_flag.dart';
 import '../../../shared/widgets/security/mpin_keypad.dart';
 import '../providers/auth_provider.dart';
 import 'otp_verify_screen.dart';
+import 'reviewer_login_screen.dart';
 import 'package:jireta_loans/core/extensions/context_extensions.dart';
 
 class MobileLoginScreen extends ConsumerStatefulWidget {
@@ -99,6 +100,13 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
   int _resetCooldownSeconds = 0;
   Timer? _resetCooldownTimer;
 
+  /// Hidden entry para sa Google Play Store reviewer sign-in: 7 taps sa
+  /// copyright line sa ilalim ng card (naka-document sa Play Console).
+  /// Sadyang hindi ito lantarang menu item — ang endpoint ay naka-OFF din sa
+  /// server maliban kung naka-configure ang reviewer secrets.
+  int _reviewerTapCount = 0;
+  Timer? _reviewerTapTimer;
+
   /// Tagal bago kusang mawala ang mensahe ng maling MPIN.
   static const _mpinErrorDuration = Duration(seconds: 1);
 
@@ -164,6 +172,7 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
     _mpinLockTimer?.cancel();
     _mpinErrorTimer?.cancel();
     _resetCooldownTimer?.cancel();
+    _reviewerTapTimer?.cancel();
     _padController.dispose();
     _lifecycleListener.dispose();
     super.dispose();
@@ -728,6 +737,26 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
         ),
       ],
     );
+  }
+
+  /// 7 taps sa copyright line → reviewer sign-in screen.
+  ///
+  /// Walang reviewer credential dito: ang reviewer ang magta-type ng phone at
+  /// password na galing sa Play Console, at ang server ang magpapatunay.
+  void _onReviewerEntryTap() {
+    _reviewerTapTimer?.cancel();
+    _reviewerTapCount++;
+    if (_reviewerTapCount >= 7) {
+      _reviewerTapCount = 0;
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ReviewerLoginScreen()),
+      );
+      return;
+    }
+    // Kailangang magkasunod ang taps — mag-reset pagkalipas ng 2 segundo.
+    _reviewerTapTimer = Timer(const Duration(seconds: 2), () {
+      _reviewerTapCount = 0;
+    });
   }
 
   void _showHelpCenter() {
@@ -2052,14 +2081,18 @@ class _MobileLoginScreenState extends ConsumerState<MobileLoginScreen>
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                '© 1966  Jireta Loans & Credit Corp',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  color: AppColors.textTertiary
-                                      .withValues(alpha: 0.9),
-                                  letterSpacing: 0.4,
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: _onReviewerEntryTap,
+                                child: Text(
+                                  '© 1966  Jireta Loans & Credit Corp',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                    color: AppColors.textTertiary
+                                        .withValues(alpha: 0.9),
+                                    letterSpacing: 0.4,
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 8),

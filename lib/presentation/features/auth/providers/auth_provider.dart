@@ -497,6 +497,76 @@ class AuthNotifier extends StateNotifier<AsyncValue<void>> {
     }
   }
 
+  /// Google Play Store reviewer sign-in (`auth-reviewer?fn=login`).
+  ///
+  /// WALANG OTP dito at WALANG reviewer credential sa build: ang password ay
+  /// isinusulat ng reviewer at ang server lang (Edge Function secrets) ang
+  /// nagpapatunay kung reviewer account talaga ito. Dahil rider / lender ang
+  /// dalawang reviewer account, dumadaan pa rin sila sa normal na MPIN gate
+  /// pagkatapos nito — kapareho ng OTP login.
+  ///
+  /// Ang reviewer flag sa response ay para sa UI lang; ang financial guard ay
+  /// server-side (`REVIEWER_NOT_ALLOWED`).
+  Future<bool> reviewerLogin({
+    required String phone,
+    required String password,
+  }) async {
+    _authState.startInteractiveAuth();
+    state = const AsyncLoading();
+    _mpinResetToken = null;
+    try {
+      final sessionId = await _ensureSessionId();
+      final res = await _ds.reviewerLogin(
+        phone: phone,
+        password: password,
+        sessionId: sessionId,
+      );
+      final token = res['access_token'] as String;
+      final refresh = res['refresh_token'] as String;
+      final userData = res['user'] as Map<String, dynamic>;
+      _loginMfa = LoginMfaInfo.fromLoginResponse(res['mfa']);
+      await SecureStorage.clearAll();
+      await SecureStorage.saveTokens(accessToken: token, refreshToken: refresh);
+      // clearAll wiped the session id — restore it (see verifyOtp).
+      await SecureStorage.saveSessionId(sessionId);
+      await SecureStorage.saveUserInfo(
+        userId: userData['id'],
+        role: userData['role'],
+      );
+      await SecureStorage.saveLoginPhone(
+        (userData['phone_number'] as String?) ?? phone,
+      );
+      await SecureStorage.saveLoginIdentifier(phone);
+      await SecureStorage.saveLoginOwner(
+        userId: '${userData['id'] ?? ''}',
+        role: '${userData['role'] ?? ''}',
+      );
+      await SecureStorage.saveSessionStartedAt(
+          JwtParser.sessionStartFromToken(token));
+      await SecureStorage.saveLastActivity(DateTime.now().toUtc());
+      final user = UserModel(
+        id: userData['id'],
+        role: userData['role'],
+        phoneNumber: userData['phone_number'],
+        firstName: userData['first_name'] ?? '',
+        lastName: userData['last_name'] ?? '',
+        accountStatus: 'active',
+        forcePasswordChange: userData['force_password_change'] ?? false,
+        createdAt: DateTime.now(),
+      );
+      _authState.setAuthenticated(user);
+      if (await _resolveMfaChallenge()) {
+        await _authState.requireMfa();
+      }
+      state = const AsyncData(null);
+      RealtimeService.instance.reconnect();
+      return true;
+    } catch (e, s) {
+      state = AsyncError(e, s);
+      return false;
+    }
+  }
+
   /// Extracts the lockout wait time from a 429 lockout error (OTP_LOCKED or
   /// ACCOUNT_LOCKED) so the UI can show a live countdown. Prefers the
   /// server-provided `retry_after_seconds`; falls back to parsing the message

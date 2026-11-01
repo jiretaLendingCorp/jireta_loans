@@ -29,6 +29,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { requireAuth, isAuthUser } from '../_shared/auth.ts';
 import { requireRole, ROLES } from '../_shared/rbac.ts';
+import { requireNonReviewer } from '../_shared/reviewer.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
 import { validateUUID } from '../_shared/validators.ts';
@@ -189,6 +190,9 @@ async function linkPaymentToSchedule(
 async function handleCollectionReconcile(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
@@ -383,6 +387,9 @@ serve(async (req) => {
 async function handleCollectionRequest(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.LENDER);
   if (roleCheck) return roleCheck;
@@ -562,6 +569,9 @@ async function handleCollectionRequest(req: Request) {
 async function handleCollectionAssign(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
@@ -652,6 +662,9 @@ async function handleCollectionAssign(req: Request) {
 async function handleCollectionAccept(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;
@@ -672,6 +685,9 @@ async function handleCollectionAccept(req: Request) {
 async function handleCollectionDecline(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;
@@ -692,6 +708,9 @@ async function handleCollectionDecline(req: Request) {
 async function handleCollectionRecord(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;
@@ -994,6 +1013,9 @@ async function recordRiderCollectionPayment(opts: {
 async function handleCollectionUploadProof(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.RIDER);
   if (roleCheck) return roleCheck;
@@ -1288,6 +1310,9 @@ async function handleCollectionUploadProof(req: Request) {
 async function handleCollectionApprove(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
@@ -1396,6 +1421,9 @@ async function handleCollectionApprove(req: Request) {
 async function handleCollectionReject(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const user = authResult;
   const roleCheck = requireRole(user, ROLES.HEAD_MANAGER, ROLES.EMPLOYEE);
   if (roleCheck) return roleCheck;
@@ -1637,6 +1665,9 @@ async function requireRiderRole(
 async function handleRiderQuotaCreate(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const forbidden = requireRole(authResult, ROLES.HEAD_MANAGER);
   if (forbidden) return forbidden;
   const user = authResult;
@@ -1713,6 +1744,9 @@ async function handleRiderQuotaCreate(req: Request) {
 async function handleRiderQuotaUpdate(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const forbidden = requireRole(authResult, ROLES.HEAD_MANAGER);
   if (forbidden) return forbidden;
   const user = authResult;
@@ -1815,6 +1849,9 @@ async function handleRiderQuotaUpdate(req: Request) {
 async function handleRiderQuotaClose(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+  // Reviewer test accounts: read-only sa collections (walang cash movement).
+  const reviewerCheck = requireNonReviewer(authResult);
+  if (reviewerCheck) return reviewerCheck;
   const forbidden = requireRole(authResult, ROLES.HEAD_MANAGER);
   if (forbidden) return forbidden;
   const user = authResult;

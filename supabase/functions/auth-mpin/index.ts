@@ -41,6 +41,7 @@ import {
   type MpinResetAuthRow,
 } from "../_shared/mpin_reset.ts";
 import { sanitizeString } from "../_shared/validators.ts";
+import { requireNonReviewer } from "../_shared/reviewer.ts";
 
 // ── Mga pare-parehong bilang (tugma sa client: MpinService) ──────────────────
 const MPIN_LENGTH = 4;
@@ -247,6 +248,16 @@ async function handleStatus(req: Request) {
 async function handleSet(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+
+  // Reviewer test accounts: HINDI pwedeng palitan ang MPIN. Ang MPIN ay bahagi
+  // ng reusable na Play Store credentials — kapag nabago ito, hindi na makaka-
+  // log in ang reviewer gamit ang ibinigay na details at wala silang OTP na
+  // maaaring gamitin para i-reset.
+  const reviewerCheck = requireNonReviewer(
+    authResult,
+    'Reviewer test accounts cannot change the MPIN. The MPIN is part of the credentials provided to Google Play.',
+  );
+  if (reviewerCheck) return reviewerCheck;
 
   // Kapag naka-2FA (may verified TOTP factor) ang account, kailangan ang
   // `aal2` bago mabago ang MPIN — hindi sapat ang OTP session. Ang account na
@@ -463,6 +474,14 @@ async function handleVerify(req: Request) {
 async function handleReset(req: Request) {
   const authResult = await requireAuth(req);
   if (!isAuthUser(authResult)) return authResult;
+
+  // Reviewer test accounts: hindi rin maaaring burahin ang MPIN (parehong
+  // dahilan sa `handleSet` — reusable credentials para sa Play Store review).
+  const reviewerCheck = requireNonReviewer(
+    authResult,
+    'Reviewer test accounts cannot reset the MPIN. The MPIN is part of the credentials provided to Google Play.',
+  );
+  if (reviewerCheck) return reviewerCheck;
 
   // Kaparehong patakaran ng `set`: ang naka-2FA na account ay kailangang
   // nagpatunay na ng authenticator code (`aal2`) bago mabura ang MPIN.
