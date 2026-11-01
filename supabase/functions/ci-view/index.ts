@@ -51,6 +51,7 @@ async function handleCiGetList(req: Request) {
   const status = url.searchParams.get('status');
   const riderId = url.searchParams.get('rider_id');
   const ciId = url.searchParams.get('ci_id');
+  const loanId = url.searchParams.get('loan_id');
   const search = url.searchParams.get('search');
   const dateFrom = url.searchParams.get('date_from');
   const dateTo = url.searchParams.get('date_to');
@@ -73,6 +74,9 @@ async function handleCiGetList(req: Request) {
   if (user.role === ROLES.RIDER) query = query.eq('rider_id', user.id);
   else if (riderId) query = query.eq('rider_id', riderId);
   if (ciId) query = query.eq('id', ciId);
+  // Legacy notifications used the LOAN id as reference — allow resolving the
+  // CI assignment from it so tapping those still opens the report.
+  if (loanId) query = query.eq('loan_id', loanId);
   if (status) {
     // Comma-separated statuses (e.g. 'failed,declined' for the Failed tab)
     // are expanded into an IN filter so staff can see failed + declined rows

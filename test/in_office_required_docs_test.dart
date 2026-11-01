@@ -2,9 +2,9 @@
 //
 // REQUIRED NA DOKUMENTO SA LENDER ACCOUNT UPGRADE (walk-in)
 //
-// GINUSTO: **LAHAT ng dokumento ay required** — Valid ID (front + back,
-// iisang Upload flow sa UI), Selfie with ID, Face Recognition, at Business
-// Permit. Max 5MB bawat file.
+// GINUSTO: **LAHAT ng dokumento ay required** — Valid ID (front at back,
+// hiwalay na tile at upload sa UI), Selfie with ID, Face Recognition, at
+// Business Permit. Max 5MB bawat file.
 //
 // BUG NA NAAYOS: may **UI/backend mismatch**. Dati Valid ID lang ang hiningi
 // ng wizard pero iba ang listahan ng `in-office-view?fn=submit-account`, kaya

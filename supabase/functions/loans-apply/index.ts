@@ -8,7 +8,7 @@ import { validateFrequency } from '../_shared/validators.ts';
 import { computeSchedule, generateLoanNumber, maxPeriodsFor, termDaysFor } from '../_shared/schedule.ts';
 import { getInterestRatePct, getLoanLimits } from '../_shared/system_config.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
+import { notifyStaff } from '../_shared/notifications.ts';
 import { sanitizeString } from '../_shared/validators.ts';
 
 // ── 00128: per-loan financial + emergency snapshot ─────────────────────────
@@ -572,26 +572,28 @@ serve(async (req) => {
       ipAddress: req.headers.get('x-forwarded-for') ?? undefined,
     });
 
-    const { data: staffUsers } = await db
-      .from('users')
-      .select('id, roles!users_role_id_fkey!inner(name)')
-      .or('roles.name.eq.head_manager,roles.name.eq.employee')
-      .eq('account_status', 'active');
+    // Re-application: may naunang COMPLETED loan na ba ang lender? Kapag
+    // meron, ito ay balik-lender na nag-apply ULIT — dapat malaman ng Head
+    // Manager at Employee na re-application ito, hindi first-time application.
+    const { count: completedLoanCount } = await db
+      .from('loans')
+      .select('id', { count: 'exact', head: true })
+      .eq('lender_id', lenderId)
+      .eq('status', 'completed');
+    const isReapplication = (completedLoanCount ?? 0) > 0;
 
-    if (staffUsers) {
-      await Promise.all(
-        (staffUsers as { id: string }[]).map((u) =>
-          sendPushNotification({
-            userId: u.id,
-            sentBy: authResult.id,
-            title: 'New Loan Application',
-            body: `A new loan application of ₱${Number(principal).toLocaleString()} has been submitted.`,
-            type: 'loan_applied',
-            referenceId: loan.id,
-          })
-        )
-      );
-    }
+    const amountLabel = `₱${Number(principal).toLocaleString()}`;
+    await notifyStaff({
+      title: isReapplication
+        ? 'Lender Re-applied for a Loan'
+        : 'New Loan Application',
+      body: isReapplication
+        ? `Applied again for a new loan of ${amountLabel} — the previous loan is completed.`
+        : `A new loan application of ${amountLabel} has been submitted.`,
+      type: 'loan_applied',
+      referenceId: loan.id,
+      sentBy: authResult.id,
+    });
 
     return jsonResponse({
       loan_id: loan.id,

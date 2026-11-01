@@ -48,6 +48,20 @@ class CiRemoteDataSource {
       if (list != null && list.isNotEmpty) {
         return list.first as Map<String, dynamic>;
       }
+      // Backward compatibility: lumang CI notifications (hal. "CI Report
+      // Submitted — Awaiting Review") ay ang LOAN id ang reference, kaya
+      // walang assignment na tumatapat sa `ci_id`. Hanapin ang pinakabagong
+      // CI assignment ng loan na iyon (ordered by created_at desc sa server).
+      final byLoan = await _client.get(
+        ApiEndpoints.ciGetList,
+        queryParams: {'loan_id': ciId, 'limit': 1},
+      );
+      final loanData = byLoan.data;
+      final loanList =
+          loanData is Map<String, dynamic> ? (loanData['data'] as List?) : null;
+      if (loanList != null && loanList.isNotEmpty) {
+        return loanList.first as Map<String, dynamic>;
+      }
       return null;
     } catch (_) {
       return null;

@@ -127,25 +127,20 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: const BoxDecoration(color: Color(0xFF5C6370), border: Border(bottom: BorderSide(color: AppColors.divider))),
-                  child: const Row(children: [
-                    SizedBox(width: 8),
-                    Expanded(
+                  child: Row(children: [
+                    const SizedBox(width: 8),
+                    const Expanded(
                       child: Text('Collection Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: Colors.white)),
                     ),
+                    // Assign/Reassign Rider sa 3-dots menu ng header — hindi
+                    // na kailangang bumalik sa Collections list at wala nang
+                    // button na kumukuha ng espasyo sa ilalim ng pipeline.
+                    _buildReviewMenu(context, ref, col),
                   ]),
                 ),
                 Padding(
                   padding: const EdgeInsets.all(16),
-                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    _buildStatusCard(col),
-                    // Hindi na naka-stretch sa buong lapad ng page — dito
-                    // lang ang Reassign Rider button kapag rejected; ang
-                    // Approve/Reject ay nasa 3-dots menu ng header.
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: _buildReviewActions(context, ref, col),
-                    ),
-                  ]),
+                  child: _buildStatusCard(col),
                 ),
               ]),
             );
@@ -398,37 +393,82 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
     );
   }
 
-  /// Reassign Rider action para sa `rejected` (hindi nakuha ang pera). Ang
-  /// Approve/Reject mismo ay nasa 3-dots menu ng "Collection Status" header
-  /// (`_buildReviewMenu`) — kaya walang notice/button dito.
-  Widget _buildReviewActions(
+  /// 3-dots menu ng "Collection Status" header: **Assign Rider** habang
+  /// `requested` pa lang (hindi na kailangang bumalik sa Collections list) at
+  /// **Reassign Rider** kapag `rejected` (hindi nakuha ang pera).
+  Widget _buildReviewMenu(
       BuildContext context, WidgetRef ref, CollectionAssignmentModel col) {
     final s = col.status.toLowerCase();
-    // Rejected lang ang may natitirang action dito.
-    if (s == 'rejected') {
-      return Padding(
-        padding: const EdgeInsets.only(top: 16),
-        child: SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: () => _reassignCollection(context, ref, col),
-            icon: const Icon(Icons.person_add_alt_1_rounded, size: 16),
-            label: const Text('Reassign Rider'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.deepNavy,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    final isOffice = col.collectionType == 'office';
+    final canAssign = s == 'requested' && !isOffice;
+    final canReassign = s == 'rejected' && !isOffice;
+    if (!canAssign && !canReassign) return const SizedBox.shrink();
+    final isReassign = canReassign;
+    // `requested` = kailangan nang i-assign → orange na badge dot sa sulok ng
+    // 3-dots button, para agad makita kahit nasa dark header ito.
+    final needsAssign = canAssign;
+    return PopupMenuButton<String>(
+      tooltip: needsAssign ? 'Assign Rider needed' : 'Actions',
+      padding: EdgeInsets.zero,
+      offset: const Offset(0, 44),
+      // Rounded-square na puting button + navy na horizontal dots, tapos
+      // orange dot sa top-right kapag may kailangang i-assign.
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(9),
+              border: Border.all(color: AppColors.border),
             ),
+            child: const Icon(Icons.more_horiz_rounded,
+                size: 18, color: AppColors.deepNavy),
           ),
+          if (needsAssign)
+            Positioned(
+              top: -3,
+              right: -3,
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: const BoxDecoration(
+                  color: Color(0xFFF57C00),
+                  shape: BoxShape.circle,
+                  border: Border.fromBorderSide(
+                      BorderSide(color: Colors.white, width: 1.5)),
+                ),
+              ),
+            ),
+        ],
+      ),
+      onSelected: (_) => _reassignCollection(context, ref, col),
+      itemBuilder: (_) => [
+        PopupMenuItem(
+          value: 'assign',
+          child: Row(children: [
+            Icon(
+                isReassign
+                    ? Icons.person_add_alt_1_rounded
+                    : Icons.delivery_dining_rounded,
+                size: 16,
+                color: AppColors.info),
+            const SizedBox(width: 8),
+            Text(isReassign ? 'Reassign Rider' : 'Assign Rider'),
+          ]),
         ),
-      );
-    }
-    return const SizedBox.shrink();
+      ],
+    );
   }
 
   Future<void> _reassignCollection(
       BuildContext context, WidgetRef ref, CollectionAssignmentModel col) async {
+    // `requested` = unang assignment para sa schedule na ito (may existing
+    // assignment row, kaya ipinapasa ang id nito); `rejected` = bagong
+    // assignment para sa parehong schedule.
+    final isFirstAssign = col.status.toLowerCase() == 'requested';
     final loanId = (col.loanSchedule?['loan']?['id'] as String?) ??
         (col.loanSchedule?['loan_id'] as String?) ??
         '';
@@ -437,6 +477,7 @@ class EmpCollectionDetailsScreen extends ConsumerWidget {
       builder: (_) => AssignRiderCollectionModal(
         loanScheduleId: col.loanScheduleId,
         loanId: loanId,
+        assignmentId: isFirstAssign ? col.id : null,
       ),
     );
     if (result != true || !context.mounted) return;

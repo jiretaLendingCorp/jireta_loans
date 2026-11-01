@@ -24,7 +24,7 @@ import { requireRole, ROLES } from '../_shared/rbac.ts';
 import { getAdminClient } from '../_shared/db.ts';
 import { validateUUID } from '../_shared/validators.ts';
 import { writeAuditLog } from '../_shared/audit.ts';
-import { sendPushNotification } from '../_shared/notifications.ts';
+import { notifyStaff, sendPushNotification } from '../_shared/notifications.ts';
 import { createDisbursement } from '../_shared/xendit.ts';
 import { startLoanPaymentSchedule } from '../_shared/loan_schedules.ts';
 
@@ -166,7 +166,7 @@ serve(async (req) => {
         sentBy: authResult.id,
       });
 
-      await notifyStaffForSelection({ loanId: loan_id, method: 'gcash', db, actorId: authResult.id });
+      await notifyStaffForSelection({ loanId: loan_id, method: 'gcash', amount: Number(loan.principal_amount), actorId: authResult.id });
 
       return jsonResponse({
         success: true,
@@ -197,7 +197,7 @@ serve(async (req) => {
       sentBy: authResult.id,
     });
 
-    await notifyStaffForSelection({ loanId: loan_id, method: normalizedMethod, db, actorId: authResult.id });
+    await notifyStaffForSelection({ loanId: loan_id, method: normalizedMethod, amount: Number(loan.principal_amount), actorId: authResult.id });
 
     return jsonResponse({
       success: true,
@@ -211,37 +211,31 @@ serve(async (req) => {
 });
 
 // Notify head_manager / employee that an approved loan now has a disbursement
-// method selected and is ready to be fulfilled.
+// method selected and is ready to be fulfilled. Gamit ang shared `notifyStaff`
+// helper — parehong HM at employee (active accounts) ang natatarget, at
+// malinaw ang mensahe kapag Cash on Delivery ang pinili ng lender.
 async function notifyStaffForSelection(params: {
   loanId: string;
   actorId: string;
   method: string;
-  db: ReturnType<typeof getAdminClient>;
+  amount: number;
 }): Promise<void> {
-  try {
-    const { data: users } = await params.db
-      .from('users')
-      .select('id, roles!users_role_id_fkey!inner(name)')
-      .or('roles.name.eq.head_manager,roles.name.eq.employee')
-      .eq('account_status', 'active');
-
-    const methodLabel =
-      params.method === 'gcash' ? 'GCash' :
-      params.method === 'office_cash' ? 'Office Cash' : 'Rider Delivery';
-
-    await Promise.all(
-      (users ?? []).map((u) =>
-        sendPushNotification({
-          userId: u.id,
-          title: 'Disbursement Method Selected',
-          body: `A lender chose ${methodLabel} for loan disbursement and it is ready to be fulfilled.`,
-          type: 'disbursement',
-          referenceId: params.loanId,
-          sentBy: params.actorId,
-        })
-      )
-    );
-  } catch (err) {
-    console.error('notify staff of selection failed:', err);
-  }
+  const amountLabel = `₱${params.amount.toLocaleString()}`;
+  const isCod = params.method === 'rider_delivery';
+  const isOffice = params.method === 'office_cash';
+  await notifyStaff({
+    title: isCod
+      ? 'Cash on Delivery Request'
+      : isOffice
+        ? 'Office Cash Pickup Request'
+        : 'GCash Disbursement Request',
+    body: isCod
+      ? `A lender requested Cash on Delivery for their approved loan of ${amountLabel}. Please schedule a rider to deliver the funds.`
+      : isOffice
+        ? `A lender chose to pick up their approved loan of ${amountLabel} at the office. Please prepare the cash.`
+        : `A lender chose GCash for their approved loan of ${amountLabel}.`,
+    type: 'disbursement',
+    referenceId: params.loanId,
+    sentBy: params.actorId,
+  });
 }

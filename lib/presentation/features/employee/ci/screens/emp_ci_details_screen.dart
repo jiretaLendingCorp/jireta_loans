@@ -2,7 +2,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/extensions/context_extensions.dart';
@@ -26,11 +25,6 @@ class EmpCiDetailsScreen extends ConsumerStatefulWidget {
 class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   final _fmt = NumberFormat('#,##0.00', 'en_PH');
   final _dateFmt = DateFormat('MMM d, yyyy h:mm a');
-  final _picker = ImagePicker();
-
-  /// Id ng evidence photo na kasalukuyang pinapalitan — nagpapakita ito ng
-  /// loading overlay sa thumbnail habang umaakyat ang bagong larawan.
-  String? _replacingDocId;
 
   @override
   Widget build(BuildContext context) {
@@ -188,10 +182,6 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
   Widget _buildReportEvidenceCard(Map<String, dynamic> ci) {
     final docs = (ci['ci_documents'] as List?) ?? [];
     final report = (ci['report_summary'] as String?) ?? '';
-    // Head Manager lang ang puwedeng magpalit ng evidence photo, at pagkatapos
-    // lang naka-submit ang report (completed/approved/rejected).
-    final canEditEvidence = ['completed', 'approved', 'rejected']
-        .contains((ci['status'] as String? ?? '').trim().toLowerCase());
     return _SectionCard(
       title: docs.isEmpty
           ? 'CI Report'
@@ -215,16 +205,14 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
           ),
         if (report.isNotEmpty && docs.isNotEmpty) const SizedBox(height: 16),
         if (docs.isNotEmpty) ...[
-          Row(children: [
-            const Text('Evidence Photos',
+          const Row(children: [
+            Text('Evidence Photos',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800, color: AppColors.textSecondary)),
-            const Spacer(),
-            const Icon(Icons.zoom_in_rounded, size: 12, color: AppColors.textTertiary),
-            const SizedBox(width: 4),
-            Text(canEditEvidence
-                    ? 'Tap to view • ⟳ replaces'
-                    : 'Tap to view',
-                style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
+            Spacer(),
+            Icon(Icons.zoom_in_rounded, size: 12, color: AppColors.textTertiary),
+            SizedBox(width: 4),
+            Text('Tap to view',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: AppColors.textTertiary)),
           ]),
           const SizedBox(height: 10),
           GridView.builder(
@@ -238,14 +226,9 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
             itemCount: docs.length,
             itemBuilder: (ctx, i) {
               final doc = docs[i] as Map<String, dynamic>;
-              final docId = (doc['id'] ?? '').toString();
               return _DocumentThumbnail(
                 doc: doc,
                 onView: () => _viewEvidencePhoto(docs, doc),
-                onReplace: canEditEvidence && docId.isNotEmpty
-                    ? () => _replaceEvidencePhoto(doc)
-                    : null,
-                isReplacing: _replacingDocId != null && _replacingDocId == docId,
               );
             },
           ),
@@ -293,86 +276,6 @@ class _EmpCiDetailsScreenState extends ConsumerState<EmpCiDetailsScreen> {
     if (caption.isNotEmpty) return caption;
     final type = (doc['document_type'] as String? ?? 'photo').replaceAll('_', ' ');
     return type.isEmpty ? 'Evidence photo' : type;
-  }
-
-  /// Pinapalitan ang isang evidence photo: kumpirmasyon → pipiliin ang
-  /// camera/gallery → isang POST sa server (nasa server ang storage swap) →
-  /// refresh ng detalye. HM-only (naka-guard din sa backend).
-  Future<void> _replaceEvidencePhoto(Map<String, dynamic> doc) async {
-    final documentId = (doc['id'] ?? '').toString();
-    if (documentId.isEmpty || _replacingDocId != null) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Replace evidence photo'),
-        content: const Text(
-          'Palitan ang evidence photo na ito? Ang kasalukuyang larawan ay papalitan ng bago at hindi na maibabalik.',
-          style: TextStyle(fontSize: 13, height: 1.5),
-        ),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.lenderBlue),
-            child: const Text('Choose photo',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true || !mounted) return;
-
-    final source = await showModalBottomSheet<ImageSource>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
-      builder: (ctx) => SafeArea(
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 12),
-          const Text('Replace with',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const SizedBox(height: 8),
-          ListTile(
-            leading: const Icon(Icons.camera_alt_rounded,
-                color: AppColors.riderGreen),
-            title: const Text('Camera'),
-            onTap: () => Navigator.pop(ctx, ImageSource.camera),
-          ),
-          ListTile(
-            leading: const Icon(Icons.photo_library_outlined,
-                color: AppColors.info),
-            title: const Text('Gallery'),
-            onTap: () => Navigator.pop(ctx, ImageSource.gallery),
-          ),
-          const SizedBox(height: 8),
-        ]),
-      ),
-    );
-    if (source == null || !mounted) return;
-
-    final XFile? picked = await _picker.pickImage(
-      source: source,
-      imageQuality: 80,
-      maxWidth: 1920,
-    );
-    if (picked == null || !mounted) return;
-
-    setState(() => _replacingDocId = documentId);
-    final error = await ref
-        .read(ciDetailProvider(widget.ciId).notifier)
-        .replaceEvidencePhoto(documentId: documentId, file: picked);
-    if (!mounted) return;
-    setState(() => _replacingDocId = null);
-
-    context.showSnackBarAsToast(SnackBar(
-      content: Text(error == null
-          ? 'Evidence photo replaced'
-          : 'Replace failed: $error'),
-      backgroundColor: error == null ? AppColors.success : AppColors.error,
-    ));
   }
 
   Widget _buildReviewInfoCard(Map<String, dynamic> ci) {
@@ -798,25 +701,13 @@ class _DocumentThumbnail extends StatelessWidget {
   /// full-screen preview (may zoom / rotate / swipe sa iba pang evidence).
   final VoidCallback? onView;
 
-  /// Kapag hindi null, may maliit na ⟳ badge sa kaliwang itaas na nagpapalit ng
-  /// photo (HM only). Hiwalay ito sa tap-to-view para hindi magkasabay ang
-  /// dalawang aksyon.
-  final VoidCallback? onReplace;
-
-  /// Nagpapakita ng loading overlay habang umaakyat ang kapalit na larawan.
-  final bool isReplacing;
-  const _DocumentThumbnail(
-      {required this.doc,
-      this.onView,
-      this.onReplace,
-      this.isReplacing = false});
+  const _DocumentThumbnail({required this.doc, this.onView});
 
   @override
   Widget build(BuildContext context) {
     final url = doc['file_url'] as String? ?? '';
-    final canReplace = onReplace != null;
     return Container(
-      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: AppColors.surfaceVariant, border: Border.all(color: canReplace ? AppColors.lenderBlue.withValues(alpha: 0.5) : AppColors.border)),
+      decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), color: AppColors.surfaceVariant, border: Border.all(color: AppColors.border)),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Stack(children: [
@@ -836,14 +727,12 @@ class _DocumentThumbnail extends StatelessWidget {
                 child: Text(doc['caption'] as String, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
               ),
             ),
-          // Buong thumbnail = tap-to-view (hindi lang ang zoom badge). Nasa
-          // ilalim ito ng ⟳ badge para ang badge mismo ang nakakakuha ng tap
-          // kapag pinindot ang replace.
+          // Buong thumbnail = tap-to-view (hindi lang ang zoom badge).
           if (onView != null && url.isNotEmpty)
             Positioned.fill(
               child: Material(
                 color: Colors.transparent,
-                child: InkWell(onTap: isReplacing ? null : onView),
+                child: InkWell(onTap: onView),
               ),
             ),
           Positioned(
@@ -851,41 +740,6 @@ class _DocumentThumbnail extends StatelessWidget {
             right: 6,
             child: Container(padding: const EdgeInsets.all(4), decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.45), borderRadius: BorderRadius.circular(6)), child: const Icon(Icons.zoom_in_rounded, size: 14, color: Colors.white)),
           ),
-          if (canReplace)
-            Positioned(
-              top: 6,
-              left: 6,
-              child: Tooltip(
-                message: 'Replace photo',
-                child: Material(
-                  color: AppColors.lenderBlue.withValues(alpha: 0.9),
-                  shape: const CircleBorder(),
-                  child: InkWell(
-                    customBorder: const CircleBorder(),
-                    onTap: isReplacing ? null : onReplace,
-                    child: const SizedBox(
-                      width: 26,
-                      height: 26,
-                      child: Icon(Icons.autorenew_rounded,
-                          size: 15, color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          if (isReplacing)
-            Positioned.fill(
-              child: Container(
-                color: Colors.black.withValues(alpha: 0.45),
-                child: const Center(
-                  child: SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                          strokeWidth: 2.4, color: Colors.white)),
-                ),
-              ),
-            ),
         ]),
       ),
     );

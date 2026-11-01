@@ -273,11 +273,16 @@ class _HmLoanApplicationDetailsScreenState
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Dark header — ang default na statusOverdue (#B71C1C) ay 1.7:1 lang
-        // ang contrast kaya hindi mabasa. Light red para visible pa rin at
-        // hindi nawawala ang warning color.
+        // Dark band header (#5C6370) — hindi mabasa rito ang semantic status
+        // colors: `completed` (#1565C0) ay 1.0:1 lang at ang `overdue`
+        // (#B71C1C) ay 1.7:1. Puting bold na label sa lahat, maliban sa
+        // `overdue` na light red para hindi mawala ang warning color.
         StatusBadge(
             status: status,
+            onDark: status.toLowerCase() != 'overdue',
+            // `active` = patuloy pang binabayaran → "Ongoing" (kapareho ng
+            // Loan Records table at modals), hindi "Active".
+            labelOverride: status.toLowerCase() == 'active' ? 'Ongoing' : null,
             colorOverride: status.toLowerCase() == 'overdue'
                 ? AppColors.statusOverdueBg
                 : null),
