@@ -18,6 +18,12 @@ class RouteConstants {
   /// ng privacy policy). Hiwalay ito sa `/terms` — iyon ang one-time
   /// acceptance step pagkatapos mag-login.
   static const String termsAndConditions = '/terms-and-conditions';
+
+  /// PUBLIC na Delete Account page — ito ang Google Play "Delete Account
+  /// URL" (`https://www.jireta.com/delete-account`). Kailangang mabuksan
+  /// kahit hindi naka-log in: doon nag-request ng deletion ang taong hindi
+  /// ma-install o hindi na makapasok sa app.
+  static const String deleteAccount = '/delete-account';
   static const String webLogin = '/login';
   static const String webRegister = '/register';
   static const String mobileLogin = '/mobile-login';
@@ -60,6 +66,10 @@ class RouteConstants {
   static const String hmLenders = '/hm/lenders';
   static const String hmLenderDetails = '/hm/lenders/:id';
   static const String hmArchived = '/hm/archived';
+  // Public /delete-account requests (manual identity verification queue).
+  // Ito ang SARILING URI ng "Account Deletion" tab ng Notification Center —
+  // deep-linkable at tama pa rin ang tab pagkatapos ng refresh/bookmark.
+  static const String hmAccountDeletion = '/hm/account-deletion';
   // Ang pahina ay "Loan Records" sa UI, kaya `/hm/loan-records` ang URI nito
   // (dating `/hm/loan-applications`). May redirect ang lumang path sa router
   // para hindi mabreak ang lumang bookmark/link.

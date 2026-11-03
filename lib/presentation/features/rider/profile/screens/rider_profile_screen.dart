@@ -3,6 +3,7 @@
 // quiet icons, single accent (rider green).
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../../core/config/app_config.dart';
 import '../../../../../core/constants/route_constants.dart';
@@ -338,6 +339,12 @@ class _RiderProfileScreenState extends ConsumerState<RiderProfileScreen> {
                 ),
               ],
             ),
+          ),
+          ModernMenuItem(
+            icon: Icons.delete_outline_rounded,
+            title: 'Delete Account',
+            subtitle: 'Permanently remove your account',
+            onTap: () => context.push(RouteConstants.deleteAccount),
           ),
           ModernMenuItem(
             icon: Icons.privacy_tip_outlined,

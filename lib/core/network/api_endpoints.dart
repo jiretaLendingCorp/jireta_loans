@@ -24,6 +24,17 @@ class ApiEndpoints {
   static const String authTermsAccept = 'auth-session?fn=terms-accept';
   static const String authGoogle = 'auth-google?fn=exchange';
 
+  // Account deletion (Google Play). `request` ay PUBLIC — walang session ang
+  // pumapasok mula sa https://www.jireta.com/delete-account. `delete-self` ay
+  // naka-JWT at dito lang galing ang in-app na Delete Account button.
+  static const String accountDeleteRequest = 'account-delete?fn=request';
+  static const String accountDeleteSelf = 'account-delete?fn=delete-self';
+  // Head Manager queue para sa public /delete-account requests.
+  static const String accountDeleteListRequests =
+      'account-delete?fn=list-requests';
+  static const String accountDeleteProcessRequest =
+      'account-delete?fn=process-request';
+
   // MPIN (server-side / account-level). Ang MPIN ay hindi na device-local:
   // nasa `user_mpins` table ito at ang verification (kasama ang attempts,
   // lockout at ang 10-palit-sa-15-araw na limitasyon) ay server-side.

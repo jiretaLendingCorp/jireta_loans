@@ -285,8 +285,7 @@ class _MobileActions extends ConsumerWidget {
         // Lender at rider: nasa drawer/sidebar na ang My Profile at Log Out
         // (tingnan ang `_SidebarAccountItem`), kaya hindi na ipinapakita ang
         // avatar.
-        if (role != AppConstants.roleLender &&
-            role != AppConstants.roleRider)
+        if (role != AppConstants.roleLender && role != AppConstants.roleRider)
           _UserAvatar(authState: authState, showName: false),
       ],
     );
@@ -347,8 +346,7 @@ class _TopBar extends StatelessWidget {
           // rider: nasa SIDEBAR na ang My Profile at Log Out, kaya duplikado at
           // walang laman na dropdown lang ito. Ang HM / employee ay hindi
           // apektado.
-          if (role != AppConstants.roleLender &&
-              role != AppConstants.roleRider)
+          if (role != AppConstants.roleLender && role != AppConstants.roleRider)
             _UserAvatar(authState: authState),
         ],
       ),
@@ -358,6 +356,7 @@ class _TopBar extends StatelessWidget {
 
 class _UserAvatar extends ConsumerWidget {
   final AuthState authState;
+
   /// When true, shows the user's full name beside the avatar (desktop header).
   /// When false, shows only the circular avatar (mobile compact header).
   final bool showName;
@@ -391,9 +390,8 @@ class _UserAvatar extends ConsumerWidget {
 
     final user = profileUser ?? authState.user;
     final name = user?.fullName ?? '';
-    final displayName = name.trim().isNotEmpty
-        ? name.trim()
-        : (user?.email ?? 'User');
+    final displayName =
+        name.trim().isNotEmpty ? name.trim() : (user?.email ?? 'User');
     final initials = _getInitials(name);
     final photoUrl =
         profileUser?.profilePhotoUrl ?? authState.user?.profilePhotoUrl;
@@ -740,7 +738,6 @@ class _SidebarState extends ConsumerState<_Sidebar> {
       ),
     );
   }
-
 }
 
 /// Mga nav item ng bawat role — isang pinagmumulan lang ito para sa sidebar
@@ -770,56 +767,57 @@ List<_NavItem> _riderItems() => const [
 List<_NavItem> _hmItems() => [
       const _NavItem(
           Icons.dashboard_outlined, 'Dashboard', RouteConstants.hmDashboard),
-        // Flyout: "People" is grouping only (no route) - clicking shows box with 5,
-        // no child pre-selected. Must pick one, then box disappears.
-        const _NavItem(
-          Icons.groups_outlined,
-          'People',
-          '',
-          [
-            _NavItem(
-                Icons.group_outlined, 'All People', RouteConstants.hmAllUsers),
-            _NavItem(Icons.admin_panel_settings_outlined, 'Head Managers',
-                RouteConstants.hmHeadManagers),
-            _NavItem(
-                Icons.badge_outlined, 'Employees', RouteConstants.hmEmployees),
-            _NavItem(Icons.delivery_dining_outlined, 'Riders',
-                RouteConstants.hmRiders),
-            _NavItem(
-                Icons.person_outline, 'Lendees', RouteConstants.hmLenders),
-            _NavItem(
-                Icons.archive_outlined, 'Archived', RouteConstants.hmArchived),
-          ],
-        ),
-        const _NavItem(Icons.verified_user_outlined, 'Lendee Account Upgrade',
-            RouteConstants.hmAccountUpgrade),
-        const _NavItem(
-          Icons.description_outlined,
-          'Loan Records',
-          RouteConstants.hmLoanApplications,
-        ),
-        const _NavItem(
-          Icons.search_outlined,
-          'Credit Investigation',
-          RouteConstants.hmCi,
-        ),
-        const _NavItem(
-          Icons.delivery_dining_outlined,
-          'Collections',
-          RouteConstants.hmCollections,
-        ),
-        // Rider Quotas tab — collection quota ng bawat rider at ang
-        // progress nila laban sa target.
-        const _NavItem(
-          Icons.flag_outlined,
-          'Rider Quotas',
-          RouteConstants.hmRiderMonitoringQuotas,
-        ),
-        const _NavItem(
-            Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
-        const _NavItem(
-            Icons.history_outlined, 'Audit Logs', RouteConstants.hmAudit),
-      ];
+      // Flyout: "People" is grouping only (no route) - clicking shows box with 5,
+      // no child pre-selected. Must pick one, then box disappears.
+      const _NavItem(
+        Icons.groups_outlined,
+        'People',
+        '',
+        [
+          _NavItem(
+              Icons.group_outlined, 'All People', RouteConstants.hmAllUsers),
+          _NavItem(Icons.admin_panel_settings_outlined, 'Head Managers',
+              RouteConstants.hmHeadManagers),
+          _NavItem(
+              Icons.badge_outlined, 'Employees', RouteConstants.hmEmployees),
+          _NavItem(Icons.delivery_dining_outlined, 'Riders',
+              RouteConstants.hmRiders),
+          _NavItem(Icons.person_outline, 'Lendees', RouteConstants.hmLenders),
+          _NavItem(
+              Icons.archive_outlined, 'Archived', RouteConstants.hmArchived),
+        ],
+      ),
+      const _NavItem(Icons.verified_user_outlined, 'Lendee Account Upgrade',
+          RouteConstants.hmAccountUpgrade),
+      const _NavItem(
+        Icons.description_outlined,
+        'Loan Records',
+        RouteConstants.hmLoanApplications,
+      ),
+      const _NavItem(
+        Icons.search_outlined,
+        'Credit Investigation',
+        RouteConstants.hmCi,
+      ),
+      const _NavItem(
+        Icons.delivery_dining_outlined,
+        'Collections',
+        RouteConstants.hmCollections,
+      ),
+      // Rider Quotas tab — collection quota ng bawat rider at ang
+      // progress nila laban sa target.
+      const _NavItem(
+        Icons.flag_outlined,
+        'Rider Quotas',
+        RouteConstants.hmRiderMonitoringQuotas,
+      ),
+      const _NavItem(
+          Icons.assessment_outlined, 'Reports', RouteConstants.hmReports),
+      const _NavItem(
+          Icons.history_outlined, 'Audit Logs', RouteConstants.hmAudit),
+      // Ang Account Deletion ay hindi na side-nav item — nasa Notification
+      // Center na ito bilang tab (dating "SMS Logs").
+    ];
 
 List<_NavItem> _empItems() => [
       const _NavItem(
@@ -827,44 +825,43 @@ List<_NavItem> _empItems() => [
         'Dashboard',
         RouteConstants.empDashboard,
       ),
-        // Employee also gets the same nested People grouping for consistency
-        // (Lenders + Riders under People). Archived is Head Manager only.
-        const _NavItem(
-          Icons.groups_outlined,
-          'People',
-          '',
-          [
-            _NavItem(
-                Icons.person_outline, 'Lendees', RouteConstants.empLenders),
-            _NavItem(Icons.delivery_dining_outlined, 'Riders',
-                RouteConstants.empRiders),
-          ],
-        ),
-        const _NavItem(Icons.verified_user_outlined, 'Lendee Account Upgrade',
-            RouteConstants.empAccountUpgrade),
-        const _NavItem(
-          Icons.description_outlined,
-          'Loan Records',
-          RouteConstants.empLoans,
-        ),
-        const _NavItem(
-          Icons.search_outlined,
-          'Credit Investigation',
-          RouteConstants.empCi,
-        ),
-        const _NavItem(
-          Icons.delivery_dining_outlined,
-          'Collections',
-          RouteConstants.empCollections,
-        ),
-        // Rider Quotas tab (read-only) — kapareho ng HM entry, para makita ng
-        // employee ang quota targets at progress ng bawat rider.
-        const _NavItem(
-          Icons.flag_outlined,
-          'Rider Quotas',
-          RouteConstants.empRiderMonitoringQuotas,
-        ),
-      ];
+      // Employee also gets the same nested People grouping for consistency
+      // (Lenders + Riders under People). Archived is Head Manager only.
+      const _NavItem(
+        Icons.groups_outlined,
+        'People',
+        '',
+        [
+          _NavItem(Icons.person_outline, 'Lendees', RouteConstants.empLenders),
+          _NavItem(Icons.delivery_dining_outlined, 'Riders',
+              RouteConstants.empRiders),
+        ],
+      ),
+      const _NavItem(Icons.verified_user_outlined, 'Lendee Account Upgrade',
+          RouteConstants.empAccountUpgrade),
+      const _NavItem(
+        Icons.description_outlined,
+        'Loan Records',
+        RouteConstants.empLoans,
+      ),
+      const _NavItem(
+        Icons.search_outlined,
+        'Credit Investigation',
+        RouteConstants.empCi,
+      ),
+      const _NavItem(
+        Icons.delivery_dining_outlined,
+        'Collections',
+        RouteConstants.empCollections,
+      ),
+      // Rider Quotas tab (read-only) — kapareho ng HM entry, para makita ng
+      // employee ang quota targets at progress ng bawat rider.
+      const _NavItem(
+        Icons.flag_outlined,
+        'Rider Quotas',
+        RouteConstants.empRiderMonitoringQuotas,
+      ),
+    ];
 
 /// Mga section ng LENDER role para sa sidebar — TATLONG items lang ito
 /// (Dashboard, Payments, Transactions), kapareho ng laman ng mobile bottom nav.
@@ -888,8 +885,8 @@ bool _isLenderPaymentsItemActive(_NavItem item, String path) =>
     (path.startsWith(RouteConstants.lenderPaymentMethod) ||
         path.startsWith(RouteConstants.lenderPayViaGcash) ||
         path.startsWith(RouteConstants.lenderOfficePayment) ||
-        path.startsWith(RouteConstants.lenderPaymentReceipt
-            .replaceFirst('/:id', '')));
+        path.startsWith(
+            RouteConstants.lenderPaymentReceipt.replaceFirst('/:id', '')));
 
 class _SidebarHeader extends StatelessWidget {
   final bool collapsed;
@@ -956,8 +953,7 @@ class _NavItem {
   final String label;
   final String route;
   final List<_NavItem> children;
-  const _NavItem(this.icon, this.label, this.route,
-      [this.children = const []]);
+  const _NavItem(this.icon, this.label, this.route, [this.children = const []]);
 
   bool get isGroup => children.isNotEmpty;
 }
@@ -985,15 +981,15 @@ class _SidebarItem extends ConsumerWidget {
     // Loan Records top pills, side-nav entries removed).
     final isLoanApplicationsParent =
         (item.route == RouteConstants.hmLoanApplications &&
-            (path == RouteConstants.hmLoans ||
-                path.startsWith('${RouteConstants.hmLoans}/') ||
-                path == RouteConstants.hmInOffice ||
-                path.startsWith('${RouteConstants.hmInOffice}/'))) ||
-        (item.route == RouteConstants.empLoans &&
-            (path == RouteConstants.empActiveLoans ||
-                path.startsWith('${RouteConstants.empActiveLoans}/') ||
-                path == RouteConstants.empInOffice ||
-                path.startsWith('${RouteConstants.empInOffice}/')));
+                (path == RouteConstants.hmLoans ||
+                    path.startsWith('${RouteConstants.hmLoans}/') ||
+                    path == RouteConstants.hmInOffice ||
+                    path.startsWith('${RouteConstants.hmInOffice}/'))) ||
+            (item.route == RouteConstants.empLoans &&
+                (path == RouteConstants.empActiveLoans ||
+                    path.startsWith('${RouteConstants.empActiveLoans}/') ||
+                    path == RouteConstants.empInOffice ||
+                    path.startsWith('${RouteConstants.empInOffice}/')));
     // Collections now contains Payments as a tab (side-nav Payments removed)
     final isCollectionsParent = (item.route == RouteConstants.hmCollections &&
             (path == RouteConstants.hmPayments ||
@@ -1001,7 +997,8 @@ class _SidebarItem extends ConsumerWidget {
                 path == RouteConstants.hmPenalties ||
                 path.startsWith('${RouteConstants.hmPenalties}/') ||
                 path == RouteConstants.hmPaymentDetails ||
-                path.startsWith('${RouteConstants.hmPaymentDetails.replaceFirst('/:id', '')}/'))) ||
+                path.startsWith(
+                    '${RouteConstants.hmPaymentDetails.replaceFirst('/:id', '')}/'))) ||
         (item.route == RouteConstants.empCollections &&
             (path == RouteConstants.empPayments ||
                 path.startsWith('${RouteConstants.empPayments}/')));
@@ -1057,8 +1054,7 @@ class _SidebarItem extends ConsumerWidget {
                     item.label,
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isActive ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                       color: isActive ? activeFg : Colors.white70,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -1251,9 +1247,8 @@ class _SidebarGroup extends StatelessWidget {
                         children: [
                           Icon(item.icon,
                               size: 20,
-                              color: isActive
-                                  ? AppColors.gold
-                                  : Colors.white54),
+                              color:
+                                  isActive ? AppColors.gold : Colors.white54),
                           const SizedBox(width: 12),
                           Expanded(
                             child: Text(
@@ -1263,9 +1258,8 @@ class _SidebarGroup extends StatelessWidget {
                                 fontWeight: isActive
                                     ? FontWeight.w600
                                     : FontWeight.w400,
-                                color: isActive
-                                    ? AppColors.gold
-                                    : Colors.white70,
+                                color:
+                                    isActive ? AppColors.gold : Colors.white70,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1474,10 +1468,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
                       ),
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
-                        children: widget.item.children
-                            .asMap()
-                            .entries
-                            .map((entry) {
+                        children:
+                            widget.item.children.asMap().entries.map((entry) {
                           final i = entry.key;
                           final child = entry.value;
                           final childActive =
@@ -1493,20 +1485,18 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
                               },
                               borderRadius: BorderRadius.circular(10),
                               child: AnimatedContainer(
-                                duration:
-                                    const Duration(milliseconds: 150),
+                                duration: const Duration(milliseconds: 150),
                                 padding: const EdgeInsets.symmetric(
                                     horizontal: 12, vertical: 10),
                                 decoration: BoxDecoration(
                                   color: childActive
-                                      ? AppColors.gold
-                                          .withValues(alpha: 0.15)
+                                      ? AppColors.gold.withValues(alpha: 0.15)
                                       : Colors.transparent,
                                   borderRadius: BorderRadius.circular(10),
                                   border: childActive
                                       ? Border.all(
-                                          color: AppColors.gold.withValues(
-                                              alpha: 0.3))
+                                          color: AppColors.gold
+                                              .withValues(alpha: 0.3))
                                       : null,
                                 ),
                                 child: Row(
@@ -1662,7 +1652,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
   Widget build(BuildContext context) {
     final path = GoRouterState.of(context).uri.path;
     final isOpen = _entry != null || ref.watch(_peopleFlyoutOpenProvider);
-    final childActive = widget.item.children.any((c) => _isActivePath(path, c.route));
+    final childActive =
+        widget.item.children.any((c) => _isActivePath(path, c.route));
     final parentActive = _isActivePath(path, widget.item.route);
     final isActive = isOpen || parentActive || childActive;
     if (!widget.showText) {
@@ -1679,7 +1670,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
               borderRadius: BorderRadius.circular(8),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: isActive
                       ? AppColors.gold.withValues(alpha: 0.15)
@@ -1690,7 +1682,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
                       : null,
                 ),
                 child: Icon(widget.item.icon,
-                    size: 20, color: isActive ? AppColors.gold : Colors.white54),
+                    size: 20,
+                    color: isActive ? AppColors.gold : Colors.white54),
               ),
             ),
           ),
@@ -1703,9 +1696,13 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
         key: _tileKey,
         margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
         decoration: BoxDecoration(
-          color: isActive ? AppColors.gold.withValues(alpha: 0.15) : Colors.transparent,
+          color: isActive
+              ? AppColors.gold.withValues(alpha: 0.15)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(8),
-          border: isActive ? Border.all(color: AppColors.gold.withValues(alpha: 0.3)) : null,
+          border: isActive
+              ? Border.all(color: AppColors.gold.withValues(alpha: 0.3))
+              : null,
         ),
         child: InkWell(
           onTap: _toggleFlyout,
@@ -1715,7 +1712,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
             child: Row(
               children: [
                 Icon(widget.item.icon,
-                    size: 20, color: isActive ? AppColors.gold : Colors.white54),
+                    size: 20,
+                    color: isActive ? AppColors.gold : Colors.white54),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -1732,7 +1730,8 @@ class _FlyoutNavGroupState extends ConsumerState<_FlyoutNavGroup> {
                   turns: isOpen ? 0.25 : 0,
                   duration: const Duration(milliseconds: 180),
                   child: Icon(Icons.expand_more,
-                      size: 18, color: isActive ? AppColors.gold : Colors.white54),
+                      size: 18,
+                      color: isActive ? AppColors.gold : Colors.white54),
                 ),
               ],
             ),
@@ -1791,4 +1790,3 @@ class _AnimatedFlyoutState extends State<_AnimatedFlyout>
     );
   }
 }
-

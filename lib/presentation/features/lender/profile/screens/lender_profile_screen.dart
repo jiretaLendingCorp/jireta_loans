@@ -319,6 +319,12 @@ class _LenderProfileScreenState extends ConsumerState<LenderProfileScreen> {
             ),
           ),
           ModernMenuItem(
+            icon: Icons.delete_outline_rounded,
+            title: 'Delete Account',
+            subtitle: 'Permanently remove your account',
+            onTap: () => context.push(RouteConstants.deleteAccount),
+          ),
+          ModernMenuItem(
             icon: Icons.support_agent_outlined,
             title: 'Help Center',
             onTap: () => _showSheet(

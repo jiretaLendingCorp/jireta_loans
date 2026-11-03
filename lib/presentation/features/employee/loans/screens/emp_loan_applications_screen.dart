@@ -418,9 +418,8 @@ class _EmpLoanApplicationsScreenState
   // (`loans-view?fn=get-history`) dahil DERIVED ang outstanding balance — wala
   // itong column sa `loans` kaya hindi mai-filter sa query ng client.
   //
-  // Layout: stat cards sa itaas, tapos ang Loan History table (kaliwa) at ang
-  // Search & Filter + Loan Details panel (kanan) — gaya ng "Previous Loans"
-  // design. Sa makitid na viewport, naka-stack ang panel sa ilalim.
+  // Layout: bare na filter bar (search + date range) sa itaas, tapos ang
+  // full-width na Loan History table.
   Widget _buildLoanHistorySection(HmLoanHistoryState st) {
     // Buong-table shimmer lang sa UNANG load. Kapag nag-apply ng filter/
     // search, mananatili ang table habang nagre-refresh — hindi na
@@ -481,23 +480,6 @@ class _EmpLoanApplicationsScreenState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Previous Loans',
-            style: TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.w800,
-              color: AppColors.textPrimary,
-              letterSpacing: -0.3,
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'View your past loan transactions and their status.',
-            style: TextStyle(fontSize: 13, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 18),
-          _buildHistoryStats(st),
-          const SizedBox(height: 20),
           // Filter bar sa ITAAS ng Loan History card — full width ang table
           // kaya kita lahat ng columns (hindi na kailangang mag-scroll).
           _buildHistoryFilterCard(st),
@@ -505,143 +487,6 @@ class _EmpLoanApplicationsScreenState
           tableCard,
         ],
       ),
-    );
-  }
-
-  /// Apat na stat cards ng Previous Loans — Total, Completed, Ongoing,
-  /// Overdue — para agad makita ang breakdown ng mga dating loan.
-  Widget _buildHistoryStats(HmLoanHistoryState st) {
-    final total = st.totalCount > 0 ? st.totalCount : st.loans.length;
-    // Previous Loan = completed lang (server-side ang filter), kaya lahat ng
-    // nasa tab na ito ay completed.
-    final completed = total;
-    final ongoing =
-        st.loans.where((loan) => _historyStatusKey(loan) == 'ongoing').length;
-    final overdue =
-        st.loans.where((loan) => _historyStatusKey(loan) == 'overdue').length;
-    String pct(int count) =>
-        total == 0 ? '0%' : '${(count / total * 100).toStringAsFixed(1)}%';
-
-    Widget card({
-      required String title,
-      required int value,
-      required String subtitle,
-      required IconData icon,
-      required Color color,
-    }) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 42,
-              height: 42,
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: color, size: 22),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textSecondary),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$value',
-                    style: const TextStyle(
-                        fontSize: 22,
-                        height: 1.05,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.textPrimary),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 10.5,
-                        fontWeight: FontWeight.w600,
-                        color: AppColors.textTertiary),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final columns = constraints.maxWidth >= 720 ? 4 : 2;
-        const spacing = 12.0;
-        final width =
-            (constraints.maxWidth - spacing * (columns - 1)) / columns;
-        return Wrap(
-          spacing: spacing,
-          runSpacing: spacing,
-          children: [
-            SizedBox(
-              width: width,
-              child: card(
-                title: 'Total Loans',
-                value: total,
-                subtitle: 'All time',
-                icon: Icons.receipt_long_rounded,
-                color: AppColors.info,
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: card(
-                title: 'Completed',
-                value: completed,
-                subtitle: pct(completed),
-                icon: Icons.check_circle_rounded,
-                color: AppColors.success,
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: card(
-                title: 'Ongoing',
-                value: ongoing,
-                subtitle: pct(ongoing),
-                icon: Icons.access_time_filled_rounded,
-                color: AppColors.warning,
-              ),
-            ),
-            SizedBox(
-              width: width,
-              child: card(
-                title: 'Overdue',
-                value: overdue,
-                subtitle: pct(overdue),
-                icon: Icons.cancel_rounded,
-                color: AppColors.error,
-              ),
-            ),
-          ],
-        );
-      },
     );
   }
 

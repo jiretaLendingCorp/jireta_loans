@@ -19,6 +19,7 @@ import '../../presentation/features/auth/screens/otp_verify_screen.dart';
 import '../../presentation/features/auth/screens/reset_password_screen.dart';
 import '../../presentation/features/auth/screens/splash_screen.dart';
 import '../../presentation/features/auth/screens/terms_conditions_screen.dart';
+import '../../presentation/features/account/screens/delete_account_screen.dart';
 import '../../presentation/features/auth/screens/privacy_policy_screen.dart';
 import '../../presentation/features/auth/screens/terms_of_service_screen.dart';
 import '../../presentation/features/auth/screens/verify_email_screen.dart';
@@ -311,6 +312,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         RouteConstants.landing,
         // Static na legal page — may sariling nilalaman, walang backend call.
         RouteConstants.privacyPolicy,
+        // Public deletion page — dapat pa ring mabuksan kapag mahina ang
+        // signal; ang submit lang ang mangangailangan ng internet.
+        RouteConstants.deleteAccount,
         RouteConstants.forgotPassword,
         RouteConstants.resetPassword,
         // Ang MFA screen ay may sariling offline/error handling — huwag itong
@@ -327,6 +331,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         // (Google OAuth verification at external links).
         RouteConstants.privacyPolicy,
         RouteConstants.termsAndConditions,
+        // Google Play Delete Account URL — walang login.
+        RouteConstants.deleteAccount,
         RouteConstants.webLogin,
         RouteConstants.webRegister,
         RouteConstants.mobileLogin,
@@ -457,6 +463,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
             // Terms acceptance sa `/terms` — nasa setupRoutes iyon.)
             path != RouteConstants.privacyPolicy &&
             path != RouteConstants.termsAndConditions &&
+            // Naka-log in man, dapat manatili sa Delete Account page — dito
+            // nagko-confirm ang lender/rider bago tuluyang i-delete.
+            path != RouteConstants.deleteAccount &&
             path != RouteConstants.verifyEmail &&
             // Ang "/reset-mpin/verify-otp" ay sariling handoff: hindi dapat
             // itulak sa dashboard habang nakabitin pa ang "Successfully Reset
@@ -497,6 +506,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.termsAndConditions,
           builder: (ctx, s) => const TermsOfServiceScreen()),
+      GoRoute(
+          path: RouteConstants.deleteAccount,
+          builder: (ctx, s) => const DeleteAccountScreen()),
       GoRoute(
           path: RouteConstants.verifyEmail,
           builder: (ctx, s) {
@@ -757,6 +769,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(
           path: RouteConstants.hmArchived,
           builder: (ctx, s) => const HmArchivedScreen()),
+      // Account Deletion tab ng Notification Center — SARILING URI para
+      // deep-linkable at tamang tab pa rin pagkatapos ng refresh/bookmark.
+      GoRoute(
+          path: RouteConstants.hmAccountDeletion,
+          builder: (ctx, s) => const HmNotificationCenterScreen()),
       GoRoute(
           path: RouteConstants.hmProfile,
           builder: (ctx, s) => const HmProfileScreen()),

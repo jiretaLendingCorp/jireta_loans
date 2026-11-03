@@ -5,12 +5,14 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../../../../core/services/fcm_service.dart';
 import '../../../../../core/constants/app_constants.dart';
+import '../../../../../core/constants/route_constants.dart';
 import '../../../../../core/theme/app_colors.dart';
-import '../../../../../core/utils/timezone.dart';
 import '../../../../../data/models/notification_model.dart';
 import '../../../../shared/widgets/layout/web_scaffold.dart';
 import '../../../../shared/widgets/loaders/shimmer_loader.dart';
 import '../../../../shared/widgets/empty_state_widget.dart';
+import '../../account_deletion/providers/hm_account_deletion_provider.dart';
+import '../../account_deletion/screens/hm_account_deletion_screen.dart';
 import '../providers/hm_notification_provider.dart';
 
 class HmNotificationCenterScreen extends ConsumerStatefulWidget {
@@ -24,12 +26,32 @@ class HmNotificationCenterScreen extends ConsumerStatefulWidget {
 class _HmNotificationCenterScreenState
     extends ConsumerState<HmNotificationCenterScreen>
     with SingleTickerProviderStateMixin {
+  /// Index ng Account Deletion tab. Ang Notifications ang index 0.
+  static const int _deletionTab = 1;
+
   late TabController _tabCtrl;
+
+  /// Ang bawat tab ay may SARILING URI (`/hm/notifications` at
+  /// `/hm/account-deletion`), kaya ang URL ang source of truth ng aktibong
+  /// tab — tama pa rin ito pagkatapos ng refresh / bookmark / browser back.
+  static int _tabIndexFor(String path) =>
+      path == RouteConstants.hmAccountDeletion ? _deletionTab : 0;
+
+  int get _activeTab => _tabIndexFor(GoRouterState.of(context).uri.path);
 
   @override
   void initState() {
     super.initState();
     _tabCtrl = TabController(length: 2, vsync: this);
+  }
+
+  /// Kapag nagbago ang URL (deep link, back/forward, tab tap) i-sync ang
+  /// controller bago mag-build para walang frame na maling tab ang laman.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final tab = _tabIndexFor(GoRouterState.of(context).uri.path);
+    if (_tabCtrl.index != tab) _tabCtrl.index = tab;
   }
 
   @override
@@ -38,18 +60,35 @@ class _HmNotificationCenterScreenState
     super.dispose();
   }
 
+  /// Header refresh — ang aktibong tab lang ang ni-reload, hindi laging ang
+  /// notifications kahit nasa Account Deletion.
+  void _refresh() {
+    if (_activeTab == _deletionTab) {
+      ref.read(hmAccountDeletionProvider.notifier).load(silent: true);
+    } else {
+      ref.read(hmNotificationProvider.notifier).loadNotifications();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final activeTab = _tabIndexFor(GoRouterState.of(context).uri.path);
+    final isDeletionTab = activeTab == _deletionTab;
     final state = ref.watch(hmNotificationProvider);
-    if (state.unreadCount > 0) {
+    // Huwag i-mark na read ang notifications kapag nasa Account Deletion tab —
+    // hindi pa ito nakikita ng user.
+    if (!isDeletionTab && state.unreadCount > 0) {
       Future.microtask(
           () => ref.read(hmNotificationProvider.notifier).markAllRead());
     }
 
     return WebScaffold(
-      title: 'Notification Center',
+      // Dati laging "Notification Center" kahit nasa Account Deletion — ngayon
+      // sasabay ang header sa aktibong tab.
+      title:
+          isDeletionTab ? 'Account Deletion Requests' : 'Notification Center',
       actions: [
-        if (state.unreadCount > 0)
+        if (!isDeletionTab && state.unreadCount > 0)
           TextButton(
             onPressed: () =>
                 ref.read(hmNotificationProvider.notifier).markAllRead(),
@@ -58,8 +97,7 @@ class _HmNotificationCenterScreenState
           ),
         const SizedBox(width: 8),
         IconButton(
-          onPressed: () =>
-              ref.read(hmNotificationProvider.notifier).loadNotifications(),
+          onPressed: _refresh,
           icon: const Icon(Icons.refresh, color: AppColors.textSecondary),
           tooltip: 'Refresh',
         ),
@@ -74,18 +112,31 @@ class _HmNotificationCenterScreenState
               labelColor: AppColors.deepNavy,
               unselectedLabelColor: AppColors.textSecondary,
               indicatorColor: AppColors.gold,
+              // Ang URL ang nagpapalit ng tab — kaya naka-go_router ito at
+              // hindi lang local controller state.
+              onTap: (index) {
+                if (index == activeTab) return;
+                context.go(index == _deletionTab
+                    ? RouteConstants.hmAccountDeletion
+                    : RouteConstants.hmNotifications);
+              },
               tabs: const [
                 Tab(text: 'Notifications'),
-                Tab(text: 'SMS Logs'),
+                // Dating "SMS Logs" — ang account deletion queue na ngayon ang
+                // nasa tab na ito (tinanggal din sa side nav).
+                Tab(text: 'Account Deletion'),
               ],
             ),
           ),
           Expanded(
             child: TabBarView(
               controller: _tabCtrl,
+              // Walang swipe: kung papayagan ito, mababago ang laman pero
+              // mananatili ang lumang URI.
+              physics: const NeverScrollableScrollPhysics(),
               children: [
                 _buildNotifications(state),
-                _buildSmsLogs(state),
+                const HmAccountDeletionBody(),
               ],
             ),
           ),
@@ -140,45 +191,6 @@ class _HmNotificationCenterScreenState
           },
         ),
       ),
-    );
-  }
-
-  Widget _buildSmsLogs(HmNotificationState state) {
-    if (state.smsLogs.isEmpty) {
-      return const EmptyStateWidget(
-        title: 'No SMS Logs',
-        message: 'SMS reminders sent to lenders appear here',
-        icon: Icons.sms_outlined,
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.all(16),
-      itemCount: state.smsLogs.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (_, i) {
-        final log = state.smsLogs[i];
-        return ListTile(
-          key: ValueKey(log['id']),
-          leading: const CircleAvatar(
-            backgroundColor: AppColors.infoLight,
-            child: Icon(Icons.sms, color: AppColors.info, size: 18),
-          ),
-          title: Text(log['recipient'] ?? 'Unknown',
-              style:
-                  const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-          subtitle: Text(log['message'] ?? '',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 12)),
-          trailing: Text(
-            log['sent_at'] != null
-                ? DateFormat('MMM d, h:mm a')
-                    .format(parseManila(log['sent_at'])!)
-                : '',
-            style: const TextStyle(fontSize: 11, color: AppColors.textTertiary),
-          ),
-        );
-      },
     );
   }
 }

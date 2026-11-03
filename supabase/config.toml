@@ -406,6 +406,12 @@ allow_dynamic_registration = false
 verify_jwt = true
 [functions.audit-get-logs]
 verify_jwt = true
+[functions.account-delete]
+# verify_jwt = false: ang ?fn=request ay PUBLIC (Google Play Delete Account
+# page, walang naka-log-in na user), samantalang ang ?fn=delete-self /
+# ?fn=list-requests / ?fn=process-request ay nagpapatunay ng user sa loob ng
+# function gamit ang requireAuth(). Kapareho ng auth-email-verify.
+verify_jwt = false
 [functions.auth-google]
 verify_jwt = false
 [functions.auth-login]

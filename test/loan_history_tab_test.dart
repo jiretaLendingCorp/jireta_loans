@@ -228,14 +228,16 @@ void main() {
           () {
         final block = _historyBlock(_readNormalized(screen));
 
-        // Stat cards sa itaas ng table.
+        // Nakatago na ang stat cards (Total Loans / Completed / Ongoing /
+        // Overdue) sa itaas ng table — dumiretso na sa filter bar.
+        expect(block, isNot(contains('_buildHistoryStats')));
         for (final label in const [
           "title: 'Total Loans'",
           "title: 'Completed'",
           "title: 'Ongoing'",
           "title: 'Overdue'",
         ]) {
-          expect(block, contains(label));
+          expect(block, isNot(contains(label)));
         }
 
         // Bare na filter bar sa itaas ng table: live search + date range.
