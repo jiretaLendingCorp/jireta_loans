@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- ── Network permissions ─────────────────────────────────────────────
          INTERNET:              Required for all Dio/Supabase HTTP(S) calls.
@@ -9,6 +10,18 @@
     <!-- Required for displaying FCM push notifications on Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- ── Media library permissions: deliberately NOT requested ────────────
+         open_filex declares READ_MEDIA_IMAGES / READ_MEDIA_VIDEO / READ_MEDIA_AUDIO
+         in its own manifest, which surfaces in Play Console as an undeclared
+         "Photo and video permissions" request. This app only opens files it
+         downloaded itself into the app's own directory (via FileProvider), and
+         all gallery picking goes through the Android system photo picker
+         (image_picker), so broad library access is not needed. Removing them
+         here means no Photo and video permissions declaration is required.
+    ────────────────────────────────────────────────────────────────────── -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" tools:node="remove"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" tools:node="remove"/>
     <!-- ── Location permissions ─────────────────────────────────────────────
          Required by geolocator so riders can share their live GPS position
          with lenders during a collection / CI / delivery trip.

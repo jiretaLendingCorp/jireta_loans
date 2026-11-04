@@ -1,3 +1,4 @@
+
 import java.util.Properties
 
 plugins {
@@ -9,14 +10,18 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-// Read GOOGLE_MAPS_API_KEY for the Android Maps manifest placeholder. Checks
-// the environment first, then falls back to assets/env/.env (the same file the
-// Dart runtime loads via flutter_dotenv).
+// Read GOOGLE_MAPS_API_KEY for the Android Maps manifest placeholder.
+// Checks the environment first, then falls back to assets/env/.env.
 fun googleMapsApiKey(): String {
-    System.getenv("GOOGLE_MAPS_API_KEY")?.takeIf { it.isNotBlank() }?.let { return it }
-    // rootProject is the `android/` dir, so the Flutter project root is one level up.
+    System.getenv("GOOGLE_MAPS_API_KEY")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { return it }
+
+    // rootProject is the android/ directory.
     val envFile = rootProject.file("../assets/env/.env")
+
     if (!envFile.exists()) return ""
+
     return envFile.readLines()
         .firstOrNull { it.startsWith("GOOGLE_MAPS_API_KEY=") }
         ?.substringAfter("=")
@@ -24,41 +29,41 @@ fun googleMapsApiKey(): String {
         ?: ""
 }
 
-// ── Release signing (upload keystore) ────────────────────────────────────────
-// `android/key.properties` (git-ignored) points at the upload keystore. Ginagawa
-// ito ng `.github/workflows/android-apk-release.yml` mula sa GitHub secrets, at
-// manu-manong ginagawa sa local kapag gusto ng sariling keystore.
-// Kapag wala ang file (hal. fresh clone), babalik sa debug signing — tulad ng
-// dati — para hindi masira ang `flutter run --release`.
-// Tingnan ang web/downloads/README.md para sa setup.
-val keystoreProps: Properties? = rootProject.file("key.properties")
-    .takeIf { it.exists() }
-    ?.let { propsFile ->
-        Properties().apply { propsFile.inputStream().use { load(it) } }
-    }
+// ── Release signing (mandatory upload keystore) ──────────────────────────────
+// Requires android/key.properties.
+// Never fall back to debug signing for release builds.
 
-/** Resolve `storeFile` mula sa key.properties: absolute, `android/`, o `android/app/`. */
+val keystorePropsFile = rootProject.file("key.properties")
+
+check(keystorePropsFile.exists()) {
+    "Release signing required: android/key.properties is missing."
+}
+
+val keystoreProps = Properties().apply {
+    keystorePropsFile.inputStream().use { load(it) }
+}
+
+/** Resolve storeFile from key.properties. */
 fun resolveKeystore(path: String): File {
     val raw = File(path)
+
     if (raw.isAbsolute) return raw
-    return listOf(rootProject.file(path), file(path)).firstOrNull { it.exists() }
-        ?: rootProject.file(path)
+
+    return listOf(
+        rootProject.file(path),
+        file(path)
+    ).firstOrNull { it.exists() } ?: rootProject.file(path)
 }
 
 android {
     namespace = "com.jiretalendingcorp.app"
-    // ✅ FIX: flutter_plugin_android_lifecycle (via file_picker) requires
-    //    compileSdk 36+. Pin it explicitly — flutter.compileSdkVersion resolved
-    //    to 34 on this Flutter version, breaking assembleDebug with
-    //    "Dependency ... requires ... compile against version 36 or later".
+
+    // Required by flutter_plugin_android_lifecycle.
     compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        // ✅ FIX: flutter_local_notifications v17+ uses java.time APIs that
-        // require desugaring on Android API < 26. Enable this even if you
-        // target Java 17 — the flag controls *library* desugaring, not the
-        // compiler source level.
+        // Required for java.time APIs on older Android versions.
         isCoreLibraryDesugaringEnabled = true
 
         sourceCompatibility = JavaVersion.VERSION_17
@@ -67,13 +72,10 @@ android {
 
     defaultConfig {
         applicationId = "com.jiretalendingcorp.app"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        //
-        // ✅ FIX: flutter_local_notifications v17+ requires minSdk >= 21.
-        //    Override flutter.minSdkVersion here to guarantee it.
+
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
+
         versionCode = flutter.versionCode
         versionName = flutter.versionName
 
@@ -81,32 +83,33 @@ android {
     }
 
     signingConfigs {
-        keystoreProps?.let { props ->
-            create("release") {
-                val storePath = props.getProperty("storeFile")
-                val store = resolveKeystore(storePath)
-                check(store.exists()) {
-                    "android/key.properties -> storeFile '$storePath' not found " +
-                        "(looked in android/ and android/app/)."
-                }
-                storeFile = store
-                storePassword = props.getProperty("storePassword")
-                keyAlias = props.getProperty("keyAlias")
-                keyPassword = props.getProperty("keyPassword")
+        create("release") {
+            val storePath = keystoreProps.getProperty("storeFile")
+                ?: error("Missing storeFile in android/key.properties")
+
+            val store = resolveKeystore(storePath)
+
+            check(store.exists()) {
+                "Release keystore not found: $storePath"
             }
+
+            storeFile = store
+
+            storePassword = keystoreProps.getProperty("storePassword")
+                ?: error("Missing storePassword in android/key.properties")
+
+            keyAlias = keystoreProps.getProperty("keyAlias")
+                ?: error("Missing keyAlias in android/key.properties")
+
+            keyPassword = keystoreProps.getProperty("keyPassword")
+                ?: error("Missing keyPassword in android/key.properties")
         }
     }
 
     buildTypes {
         release {
-            // Upload keystore kapag may `android/key.properties` (CI at local
-            // release builds); kung wala, debug keys para gumana pa rin ang
-            // `flutter run --release`.
-            signingConfig = if (keystoreProps != null) {
-                signingConfigs.getByName("release")
-            } else {
-                signingConfigs.getByName("debug")
-            }
+            // Always use the permanent upload keystore.
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
@@ -122,7 +125,8 @@ flutter {
 }
 
 dependencies {
-    // ✅ FIX: Required companion library for isCoreLibraryDesugaringEnabled.
-    //    Use the latest stable version of desugar_jdk_libs.
-    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Required companion library for core library desugaring.
+    coreLibraryDesugaring(
+        "com.android.tools:desugar_jdk_libs:2.1.4"
+    )
 }
